@@ -1,0 +1,48 @@
+- Normal operating mode
+$300 - Start Sensor COG
+$301 - Stop Sensor COG
+$302 - Show Sensor Results
+
+- Debug mode
+$310 				- Show available Sensors
+$311				- Show gain values
+$312				- Show range values
+$313				- Store Settings to EEPROM
+$314				- Load Settings from EEPROM
+
+
+$315,(HEX)OldAddress,(HEX)NewAddress,#	- Change Sensor address (Only 1 Sensor Connected)
+$316,Address,Value,#		- Change specific sensor gain
+$317,Address,Value,#		- Change specific sensor range
+$318				- Load Settings from eeprom
+$319				- Store settings in eeprom
+$320                - Start initialization 
+
+
+- Respons
+$350,STRING,#						 - Diverse respons
+$351,STRING,#						 - ERROR Respons
+$351,DECS1,DECS2,DECS3,DECS4,DECS5,DECS6,DECS7,DECS8,#   - Respons op $301
+$352,DEBUGMODE,#					 - Respons op $302	
+$353,1,1,1,1,1,1,1,1,#					 - Respons op $312
+
+
+    $400 - Start Actuator COG
+    $401 - Stop Actuator COG
+    $402 - Get ADC value
+    $403 - Get mid position
+    $404 - Read adc
+    $405 - Read ADC config register
+    $410 - Go to low position
+    $420 - Go to middle position
+    $430 - Go to heigh position
+    $440 - Stop movement
+    $451 - Save mid position
+    $452 - Save low position 
+    $453 - Save high position
+    
+    $470 - Turn motor CW !WARNING! NO LIMIT, WILL KEEP GOING!
+    $480 - Turn motor CCW !WARNING! NO LIMIT, WILL KEEP GOING!
+    
+    $490 - Version
+    $499 - Reboot

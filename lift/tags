@@ -1,0 +1,360 @@
+!_TAG_FILE_FORMAT	1	/original ctags format/
+!_TAG_FILE_SORTED	1	/0=unsorted, 1=sorted, 2=foldcase/
+!_TAG_PROGRAM_AUTHOR	Darren Hiebert	/dhiebert@users.sourceforge.net/
+!_TAG_PROGRAM_NAME	Exuberant Ctags	//
+!_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
+!_TAG_PROGRAM_VERSION	5.8	//
+ACK	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^ACK      = 0$/
+BootPin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^BootPin  = 28$/
+EEPROM	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^EEPROM   = $A0$/
+Initialize	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Initialize(SCL) | SDA$/
+NAK	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^NAK      = 1$/
+Read	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Read(SCL, ackbit): data | SDA$/
+ReadByte	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadByte(SCL, devSel, addrReg) : data$/
+ReadLong	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadLong(SCL, devSel, addrReg) : data$/
+ReadPage	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadPage(SCL, devSel, addrReg, dataPtr, count) : ackbit$/
+ReadWord	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadWord(SCL, devSel, addrReg) : data$/
+Recv	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^Recv     = 1$/
+Start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Start(SCL) | SDA$/
+Stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Stop(SCL) | SDA$/
+Write	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Write(SCL, data) : ackbit | SDA$/
+WriteByte	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteByte(SCL, devSel, addrReg, data)$/
+WriteLong	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteLong(SCL, devSel, addrReg, data)$/
+WritePage	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WritePage(SCL, devSel, addrReg, dataPtr, count) : ackbit$/
+WriteWait	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteWait(SCL, devSel, addrReg) : ackbit$/
+WriteWord	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteWord(SCL, devSel, addrReg, data)$/
+Xmit	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^Xmit     = 0$/
+devicePresent	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB devicePresent(SCL,deviceAddress) : ackbit$/
+ect	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^i2cObject      : "basic_i2c_driver"$/
+readADCReg	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readADCReg(SCL,device_address) : value | aTmp$/
+readADCValue	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readADCValue(SCL,device_address) : value | aTmp[3] , SDA$/
+readEeprom	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readEeprom(SCL,device_address, register_msb, register_lsb) : value$/
+readLocation	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readLocation(SCL,device_address, register) : value$/
+writeADCConfig	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB writeADCConfig(SCL,device_address, conf)$/
+writeEeprom	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB writeEeprom(SCL,device_address, register_msb, register_lsb, value)$/
+writeLocation	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB writeLocation(SCL,device_address, register, value)$/
+ADC	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^ADC      : "adc"$/
+ADCResults	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^long ADCResults[64]$/
+ADC_ADDR	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^ADC_ADDR      = $90$/
+ADC_Status	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^BYTE ADC_Status$/
+C_ADC_OVERSAMPLING_LOG	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^C_ADC_OVERSAMPLING_LOG = 4$/
+FilterMean	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB FilterMean | nIndex, nTemp$/
+adc_Handler	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_Handler$/
+adc_Start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_Start : ok$/
+adc_Stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_Stop$/
+adc_check	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_check$/
+adc_config	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PRI adc_config$/
+adc_get_control_register	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_get_control_register$/
+adc_get_result	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_get_result$/
+adc_init	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_init$/
+adc_read	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^PUB adc_read$/
+cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^long cog$/
+counter	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^BYTE counter$/
+i2cSCL	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^i2cSCL        = 16$/
+i2cSDA	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^i2cSDA        = 17$/
+medium_height	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^long medium_height$/
+stackspace	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^long stackspace[100]$/
+tValue	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/ADC.spin	/^long tValue$/
+BS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^BS =  8$/
+CB	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CB = 12$/
+CE	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CE = 11$/
+CR	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CR = 13$/
+CS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CS = 16$/
+Char	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB Char(ch)$/
+CharIn	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB CharIn : bytechr$/
+CharInTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB CharInTime(ms) : rxbyte | t$/
+HM	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^HM =  1$/
+LF	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^LF = 10$/
+MD	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^MD =  6$/
+ML	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^ML =  3$/
+MR	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^MR =  4$/
+MU	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^MU =  5$/
+NL	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^NL = 13$/
+PC	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PC =  2$/
+PC2	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PC2      : "FullDuplexSerial_rr005"$/
+PX	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PX = 14$/
+PY	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PY = 15$/
+StrIn	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrIn(stringptr)$/
+StrInMax	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrInMax(stringptr, maxcount)$/
+StrInMaxTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrInMaxTime(stringptr, maxcount,ms)$/
+StrInTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrInTime(stringptr,ms)$/
+StrToDec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrToDec(stringptr) : value | lChar, index, multiply$/
+TB	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^TB =  9$/
+bin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB bin(value, digits)$/
+bit_ticks	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  bit_ticks$/
+buffer_ptr	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  buffer_ptr$/
+bufmsk	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^bufmsk = bufsiz - 1$/
+bufsiz	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^bufsiz = 256$/
+cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  cog$/
+dec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB dec(value) | i, x$/
+hex	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB hex(value, digits)$/
+rx	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rx : rxbyte$/
+rx_buffer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^byte  rx_buffer[bufsiz]$/
+rx_head	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rx_head$/
+rx_pin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rx_pin$/
+rx_tail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rx_tail$/
+rxavail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxavail : truefalse$/
+rxcheck	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxcheck : rxbyte$/
+rxflush	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxflush$/
+rxtime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxtime(ms) : rxbyte | t$/
+rxtx_mode	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rxtx_mode$/
+start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB start(rxpin, txpin, mode, baudrate) : okay$/
+stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB stop$/
+str	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB str(stringptr)$/
+tx	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB tx(txbyte)$/
+tx_buffer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^byte  tx_buffer[bufsiz]$/
+tx_head	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  tx_head$/
+tx_pin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  tx_pin$/
+tx_tail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  tx_tail$/
+DEACTIVATED	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^DEACTIVATED   = 0$/
+HEIGHT_HYSTERESIS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^HEIGHT_HYSTERESIS = 36$/
+Height	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^Height  : "height_controller"$/
+PIN_INA	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PIN_INA       = 0$/
+PIN_INB	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PIN_INB       = 1$/
+POS_HIGH	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^POS_HIGH      = 4$/
+POS_IDLE	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^POS_IDLE      = -1$/
+POS_LOW	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^POS_LOW       = 2$/
+POS_MID	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^POS_MID       = 3$/
+POS_STOP	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^POS_STOP      = 1$/
+WAIT_TIME	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^WAIT_TIME     = 10000000$/
+current_pos	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG current_pos$/
+current_pos_MLHS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG current_pos_MLHS$/
+direction	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^BYTE direction$/
+get_current_pos	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB get_current_pos$/
+get_requested_pos	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB get_requested_pos$/
+height_cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^BYTE height_cog$/
+height_get_cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_get_cog$/
+height_get_config_register	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_get_config_register$/
+height_get_high	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_get_high$/
+height_get_low	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_get_low$/
+height_get_mid_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_get_mid_position$/
+height_get_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_get_position$/
+height_handler	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PRI height_handler$/
+height_init	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_init (val)$/
+height_set_high	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_set_high(valhigh)$/
+height_set_low	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_set_low (vallow)$/
+height_set_mid_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_set_mid_position (val2)$/
+height_set_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_set_position (pos)$/
+height_start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_start : ok1$/
+height_stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB height_stop$/
+height_timer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG height_timer$/
+heightstackspace	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG heightstackspace[100]$/
+high_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG high_position$/
+low_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG low_position$/
+mid_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG mid_position$/
+motor_stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PRI motor_stop$/
+prev_pos	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^LONG prev_pos$/
+requested_position	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^BYTE requested_position$/
+turn_ccw	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB turn_ccw$/
+turn_cw	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/height_controller.spin	/^PUB turn_cw$/
+BS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^BS =  8$/
+CB	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CB = 12$/
+CE	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CE = 11$/
+CR	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CR = 13$/
+CS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^CS = 16$/
+Char	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB Char(ch)$/
+CharIn	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB CharIn : bytechr$/
+CharInTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB CharInTime(ms) : rxbyte | t$/
+HM	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^HM =  1$/
+LF	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^LF = 10$/
+MD	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^MD =  6$/
+ML	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^ML =  3$/
+MR	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^MR =  4$/
+MU	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^MU =  5$/
+NL	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^NL = 13$/
+PC	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PC =  2$/
+PX	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PX = 14$/
+PY	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PY = 15$/
+StrIn	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrIn(stringptr)$/
+StrInMax	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrInMax(stringptr, maxcount)$/
+StrInMaxTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrInMaxTime(stringptr, maxcount,ms)$/
+StrInTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrInTime(stringptr,ms)$/
+StrToDec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB StrToDec(stringptr) : value | lChar, index, multiply$/
+TB	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^TB =  9$/
+bin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB bin(value, digits)$/
+bit_ticks	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  bit_ticks$/
+buffer_ptr	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  buffer_ptr$/
+bufmsk	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^bufmsk = bufsiz - 1$/
+bufsiz	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^bufsiz = 256$/
+cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  cog$/
+dec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB dec(value) | i, x$/
+hex	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB hex(value, digits)$/
+rx	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rx : rxbyte$/
+rx_buffer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^byte  rx_buffer[bufsiz]$/
+rx_head	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rx_head$/
+rx_pin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rx_pin$/
+rx_tail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rx_tail$/
+rxavail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxavail : truefalse$/
+rxcheck	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxcheck : rxbyte$/
+rxflush	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxflush$/
+rxtime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB rxtime(ms) : rxbyte | t$/
+rxtx_mode	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  rxtx_mode$/
+start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB start(rxpin, txpin, mode, baudrate) : okay$/
+stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB stop$/
+str	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB str(stringptr)$/
+tx	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^PUB tx(txbyte)$/
+tx_buffer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^byte  tx_buffer[bufsiz]$/
+tx_head	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  tx_head$/
+tx_pin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  tx_pin$/
+tx_tail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/FullDuplexSerial_rr005.spin	/^long  tx_tail$/
+BAUDRATE	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^BAUDRATE    =  115200$/
+MSY_INVERS	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^MSY_INVERS  =  0$/
+SERINVERSE	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^SERINVERSE  =  0$/
+STARTDELAY	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^STARTDELAY  =  2$/
+Terminal	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^Terminal       : "PC_Interface"$/
+abs_x	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB abs_x : x$/
+abs_y	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB abs_y : y$/
+abs_z	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB abs_z : z$/
+bin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB bin(value, digits)$/
+bit_ticks	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  bit_ticks$/
+box	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB box(gx, gy, gw, gh)$/
+buffer_ptr	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  buffer_ptr$/
+button	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB button(b) : state$/
+buttons	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB buttons : states$/
+circle	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB circle(gx, gy, gr)$/
+clearkeys	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB clearkeys$/
+clrbox	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB clrbox(gx, gy, gw, gh)$/
+cls	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB cls$/
+cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  cog, skey, kstat$/
+col	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  col, row, color, flag$/
+color	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  col, row, color, flag$/
+dec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB dec(value) | i$/
+delta_reset	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB delta_reset$/
+delta_x	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB delta_x : x | newx$/
+delta_y	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB delta_y : y | newy$/
+delta_z	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB delta_z : z | newz$/
+drawto	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB drawto(gx, gy)$/
+flag	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  col, row, color, flag$/
+getkey	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB getkey : keycode$/
+gotkey	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB gotkey : truefalse$/
+graf	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PRI  graf(gcmd,xp,yp)$/
+hex	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB hex(value, digits)$/
+hidepointer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB hidepointer$/
+invbox	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB invbox(gx, gy, gw, gh)$/
+key	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB key : keycode$/
+kstat	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  cog, skey, kstat$/
+locate	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB locate(gx, gy)$/
+mousex	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  mousex, mousey$/
+mousey	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  mousex, mousey$/
+newkey	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB newkey : keycode$/
+oldx	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  oldx, oldy, oldz$/
+oldy	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  oldx, oldy, oldz$/
+oldz	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  oldx, oldy, oldz$/
+out	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB out(c) | i, k$/
+par_buttons	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  par_buttons$/
+par_present	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  par_present$/
+par_x	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  par_x$/
+par_y	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  par_y$/
+par_z	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  par_z$/
+plot	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB plot(gx, gy)$/
+present	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB present : type$/
+print	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PRI print(c)$/
+rbox	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB rbox(gx, gy, gw, gh)$/
+row	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  col, row, color, flag$/
+rx_buffer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^byte  rx_buffer[16]$/
+rx_head	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  rx_head$/
+rx_mode	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  rx_mode$/
+rx_pin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  rx_pin$/
+rx_tail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  rx_tail$/
+rxcheck	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB rxcheck : rxbyte$/
+setcol	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB setcol(c)$/
+showpointer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB showpointer(gx, gy)$/
+skey	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  cog, skey, kstat$/
+start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB start(rxpin, txpin) : okay$/
+stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB stop$/
+str	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^PUB str(stringptr)$/
+tx_buffer	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^byte  tx_buffer[256]$/
+tx_head	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  tx_head$/
+tx_pin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  tx_pin$/
+tx_tail	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/PC_Interface.spin	/^long  tx_tail$/
+ACK	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^ACK      = 0$/
+BootPin	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^BootPin  = 28$/
+EEPROM	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^EEPROM   = $A0$/
+Initialize	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Initialize(SCL) | SDA$/
+NAK	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^NAK      = 1$/
+Read	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Read(SCL, ackbit): data | SDA$/
+ReadByte	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadByte(SCL, devSel, addrReg) : data$/
+ReadLong	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadLong(SCL, devSel, addrReg) : data$/
+ReadPage	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadPage(SCL, devSel, addrReg, dataPtr, count) : ackbit$/
+ReadWord	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB ReadWord(SCL, devSel, addrReg) : data$/
+Recv	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^Recv     = 1$/
+Start	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Start(SCL) | SDA$/
+Stop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Stop(SCL) | SDA$/
+Write	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB Write(SCL, data) : ackbit | SDA$/
+WriteByte	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteByte(SCL, devSel, addrReg, data)$/
+WriteLong	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteLong(SCL, devSel, addrReg, data)$/
+WritePage	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WritePage(SCL, devSel, addrReg, dataPtr, count) : ackbit$/
+WriteWait	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteWait(SCL, devSel, addrReg) : ackbit$/
+WriteWord	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB WriteWord(SCL, devSel, addrReg, data)$/
+Xmit	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^Xmit     = 0$/
+devicePresent	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB devicePresent(SCL,deviceAddress) : ackbit$/
+ect	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^i2cObject      : "basic_i2c_driver"$/
+readADCReg	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readADCReg(SCL,device_address) : value | aTmp$/
+readADCValue	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readADCValue(SCL,device_address) : value | aTmp[3] , SDA$/
+readEeprom	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readEeprom(SCL,device_address, register_msb, register_lsb) : value$/
+readLocation	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB readLocation(SCL,device_address, register) : value$/
+writeADCConfig	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB writeADCConfig(SCL,device_address, conf)$/
+writeEeprom	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB writeEeprom(SCL,device_address, register_msb, register_lsb, value)$/
+writeLocation	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Basic_I2C_Driver.spin	/^PUB writeLocation(SCL,device_address, register, value)$/
+AddressChange	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB AddressChange (OldAddress,NewAddress)$/
+ChangeGain	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ChangeGain (Address, GainLevel)$/
+ChangeRange	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ChangeRange (Address, Range)$/
+CheckSensors	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB CheckSensors : SensorStatus$/
+EEPROMAddr	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^EEPROMAddr    = $A0$/
+LoadHighPos	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB LoadHighPos$/
+LoadLowPos	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB LoadLowPos$/
+LoadSettings	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB LoadSettings$/
+OneTime	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB OneTime$/
+RL	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^byte X,RL$/
+ReadAddressSetting	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ReadAddressSetting (Sensor) : value$/
+ReadGainSetting	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ReadGainSetting (Sensor) : value$/
+ReadRangeSetting	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ReadRangeSetting (Sensor) : value$/
+ReadSensor	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ReadSensor (Address) : result$/
+SRF10Addr	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^byte SRF10Addr[8]$/
+SRF10Gain	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^byte SRF10Gain[8]$/
+SRF10ModeCM	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^SRF10ModeCM   = $51$/
+SRF10ModeInch	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^SRF10ModeInch = $50$/
+SRF10ModeUSec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^SRF10ModeUSec = $52$/
+SRF10Range	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^byte SRF10Range[8]$/
+Sensor	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^Sensor  : "Ultrasoon"$/
+SensorInit	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB SensorInit$/
+SensorResult	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^long SensorResult[8]$/
+SensorSequence	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB SensorSequence$/
+SensorStart	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB SensorStart : ok$/
+SensorStop	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB SensorStop$/
+SetGain	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB SetGain$/
+SetRange	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB SetRange$/
+ShowResult	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB ShowResult (Num) : Output$/
+StartSensor	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB StartSensor (Address,Mode)$/
+StoreHeightSettings	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB StoreHeightSettings (ADC_store_value)$/
+StoreHeightSettingsHigh	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB StoreHeightSettingsHigh (ADC_store_value2)$/
+StoreHeightSettingsLow	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB StoreHeightSettingsLow (ADC_store_value1)$/
+StoreSettings	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^PUB StoreSettings$/
+X	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^byte X,RL$/
+cog	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^long cog$/
+i2cSCL	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^i2cSCL        = 28$/
+stackspace	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/Ultrasoon.spin	/^long stackspace[100]$/
+ActivateCommand	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^PUB ActivateCommand$/
+ActivateSpecialCommand	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^PUB ActivateSpecialCommand$/
+BaudRate	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^BaudRate = 115200$/
+CStep	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^long CStep$/
+ChartoDec	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^PUB ChartoDec (input,sbit) : output$/
+Command	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^long Command$/
+DoCommand	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^PUB DoCommand (lCmd)$/
+Main	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^PUB Main | lch$/
+POS_HIGH	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^POS_HIGH      = 4$/
+POS_LOW	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^POS_LOW       = 2$/
+POS_MID	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^POS_MID       = 3$/
+POS_STOP	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^POS_STOP      = 1$/
+SensorData	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^long SensorData[8]$/
+SpecialCommand	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^long SpecialCommand$/
+Value	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^byte Value[2]$/
+X	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^long X$/
+_clkmode	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^_clkmode = xtal1 + pll16x$/
+_stack	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^_stack   = 500$/
+_xinfreq	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^_xinfreq = 5_000_000$/
+b_pos_reached	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^BYTE b_pos_reached$/
+key	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^long key$/
+main_init	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^PRI main_init | ii, T1, temp, lch2$/
+version	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^version BYTE "1.30",0$/
+waitInit	/media/DATA/Dropbox/Rose/Rose 2.1/Software/Propeller/Liftpropellorcode_v20120319/V01.30/main.spin	/^byte waitInit$/
