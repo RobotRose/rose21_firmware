@@ -1,0 +1,14 @@
+8DOF control QicPID Protobrd XB V35b StrCom - Kiela_org.spin
+Timing.spin
+MAE3.spin
+Quadrature Encoder.spin
+FullDuplexSerial_rr005.spin
+QiKCommands.spin
+Timing.spin
+PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel.spin
+Eeprom.spin
+simple_numbers.spin
+Parallax Serial Terminal.spin
+Timing.spin
+FullDuplexSerial_rr005.spin
+>compiler=SPIN
