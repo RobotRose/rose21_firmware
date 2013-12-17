@@ -7,7 +7,7 @@
  V1.2 Dec 2010:
    LCD screen 2x16
    Xbee command interface
-   Checks if Remote connection Joystick is alive.
+   Checks if Remote connection Joystick is alive.230400
    If no contact after 0.1 sec, platform shuts down
    Jan 2011 Board 900085a
  V2a Febr 2011:
@@ -226,14 +226,14 @@ PUB main | Up, T1, lch 'lSpeed , Offset, , ii
 '  lcd.cls
   repeat
     T1:=cnt
-    lch:= ser.RxCheck                     ' Check serial port
+    lch:= ser.RxCheck                     ' Check serial port debug port
     if lch>0                                            
 '      ser.position(40,0)
 '      ser.dec(ii)
       DoCommand(lch)
       lch:=0
 
-    DoXbeeCmd
+    DoXbeeCmd  'Linux pc roboto controller runtime com
                                            
     if DoShowParameters and (MainCntr//8)==0   'Dump debug info only once per 8 cycles
       ShowScreen
@@ -443,7 +443,7 @@ PRI Move3
  else
    if Enabled
      EnableWheels
-' ---------------- 'Rotate platform around center -------------------------------
+' ---------------- 'Rotate platform around center -----not for rose --------------------------
 PRI Move2(Speed, Dir) | sA1, sA2 ', lSpeed
       sA1:=sA2:=0
       Setp[1]:=-sA2-500 'RF
@@ -468,7 +468,7 @@ PRI Move2(Speed, Dir) | sA1, sA2 ', lSpeed
  if Speed<lMoveSpeed
    lMoveSpeed:=Speed #> lMoveSpeed - SpeedRamp
    
-' ---------------- 'Move platform with speed and direction Cross direction -------------------------------
+' ---------------- 'Move platform with speed and direction Cross direction --not for rose-----------------------------
 PRI Move1(Speed, Dir) | sA1, sA2   
 '     lA1:=lA2:=Dir
 '     Setp[1]:=-lA2-1000 'RF
@@ -519,7 +519,7 @@ PRI Move1(Speed, Dir) | sA1, sA2
  if Speed<lMoveSpeed
    lMoveSpeed:=Speed #> lMoveSpeed - SpeedRamp
    
-' ---------------- 'Move platform with speed and direction -------------------------------
+' ---------------- 'Move platform with speed and direction -----not for rose --------------------------
 PRI Move0(Speed, Dir) | i, sA1, sA2, pSpeed, pDir 
  'Dir >0 = turn right Dir<0 = turn left while moving forward
  'Steering pairs:  1)RF RR
@@ -608,7 +608,7 @@ PRI DoReportPFPars | i
   xBee.tx(CR)
 
   
-' -------------- DoXCommand: Get command parameters from Xbee input string --------------
+' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
 PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1     
 '  ser.position(0,24)
 '  ser.position(0,10)
