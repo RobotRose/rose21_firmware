@@ -64,7 +64,7 @@ CON
 '   DebugUSB = true    'DebugUSB true: Debug via pin 30 and 31 and Commands via Xbee on 22 and 23. False: reversed  
    cTXD = 30 '20 '30
    cRXD = 31 '21 '31
-   cBaud = 230400 ' 115200
+   cBaud = 115200 '230400 
    CR = 13
    LF = 10
    CS = 0
@@ -98,10 +98,6 @@ CON
    cxBaud = 115200 '230400 '115200 '57600  115200 seems reliable max
    XBID  = 400            '' Xbee Id of this Robot platform                                                       yyyyy
 
-'SerProp
-   csTXD = 26              'Serial command port as alternative for Xbee
-   csRXD = 25
-   csBaud = 230400
 
 'Command interface and control 
    LineLen = 100          ' Buffer size for incoming line
@@ -138,8 +134,6 @@ CON
    USAlarm       = 1              'US alarm bit: 1= object detected in range
    PingBit       = 2              '0= Ping off 1= Ping on
    EnableBit     = 3              '0= Motion DisablePfd 1= Motion enabled
-   PCEnableBit   = 4              'PC Enable -> Pf Enable
-   PCControlBit  = 5              'PC In control
    CommCntrBit   = 6              'Xbee Timout error
    MotionBit     = 7              'Platform moving
    FeBit         = 8              'FE error on any axis
@@ -149,7 +143,7 @@ CON
  
 OBJ
   ser           : "Parallax Serial Terminal"            ' Serial communication object
-  xBee          : "FullDuplexSerial_rr005" ' "FullDuplexSerialPlus"       ' Xbee serial
+  xBee          : "FullDuplexSerial_rr005" '            "FullDuplexSerialPlus"       ' Xbee serial
   t             : "Timing"
   MAE           : "MAE3"                                ' MAE absolute encoder object
   PID           : "PID Connect V4a"                      ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
@@ -197,8 +191,9 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError
 
     'Command program variables
-    Byte pcEnable, pcCommand, LastAlarm, PfStatus, PcControl  
-    Long pcSpeed, pcDirection, pcCntr, pcMoveMode                    
+    Byte pcCommand, LastAlarm, PfStatus
+    Long pcSpeed, pcDirection, pcCntr, pcMoveMode 
+    Long do_enable                  
     
     'Platform vars
     Long MoveSpeed, MoveDir, lMoveSpeed, lMoveDir, MoveMode, A1, A2, Rv 'A1, A2 wheel angle, Rv is speed ratio
@@ -222,14 +217,11 @@ PUB main | Up, T1, lch 'lSpeed , Offset, , ii
   Up:=1
   PIDMode:=0
   Disable
-  'Enable                                 ' Enable axis
-'  lcd.cls
+
   repeat
     T1:=cnt
     lch:= ser.RxCheck                     ' Check serial port debug port
     if lch>0                                            
-'      ser.position(40,0)
-'      ser.dec(ii)
       DoCommand(lch)
       lch:=0
 
@@ -269,13 +261,14 @@ PRI DoXbeeCmd
  '   StrSp:=1
  '   StrInMaxTime(stringptr, maxcount,ms)
     Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
-      Xbee.rxflush
+    Xbee.rxflush
     if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
-       ByteMove(@cStrBuf,@StrBuf,MaxStr)            'Copy received string in display buffer for debug
+        ByteMove(@cStrBuf,@StrBuf,MaxStr)            'Copy received string in display buffer for debug
+       
  '   StrSp:=0
-      XBeeStat:=DoXCommand                          'Check input string for new commands
+        XBeeStat:=DoXCommand                          'Check input string for new commands
 
-      ProcessCommand                                  'Execute new commands
+        ProcessCommand                                  'Execute new commands
 
 
 '==================================== EnableSerial ==========================
@@ -362,58 +355,16 @@ PRI WatchProcesses
   pMAECntr := MAECntr
 
 ' ---------------- Process Xbee commands into motion commands---------------------------------------
-PRI ProcessCommand
-'   PotmValue0:=Pot.Pos(Pot0)
-'   If PotmValue0> 1995
-'     PotmValue0:=0                       'Block faulty values
-      
-'   SpeedCom:=PotmValue0 - Pcenter  
-        
-  if pcEnable ==0      'Xbee Joy stick mode
-    if JoyY > JoyYHyst    'Make correction for hysteresis
-      MoveSpeed:=(JoyY-JoyYHyst) /12
-    else
-      if JoyY < -JoyYHyst
-        MoveSpeed:=(JoyY+JoyYHyst) /12
-      else
-        MoveSpeed:=0
-      
-    if JoyX > JoyXHyst     'Dir
-      MoveDir:=(JoyX-JoyXHyst) /4
-    else
-      if  JoyX < -JoyXHyst
-        MoveDir:=(JoyX+JoyXHyst) /4
-      else
-        MoveDir:=0
+PRI ProcessCommand   
+    if Enabled      'Xbee Joy stick     mode
+        'PC control enabled   
+        MoveSpeed:=pcSpeed  / 2
+        MoveDir:=pcDirection ' * 4000/1800
+        MoveMode:=pcMoveMode
+        Move(MoveSpeed, MoveDir, MoveMode)
 
-    Move(MoveSpeed, MoveDir, MoveMode)
       
-    if Button[0]==1 and Enabled
-       Disable
-    else  
-      if Button[0]==1 and not Enabled 
-         PID.ResetAllFETrip       'Reset all following errors
-         FeError:=0
-         pid.ResetCurrError       'Reset all current errors
-         SetBit(@PfStatus,NoAlarmBit)
-         EnableSteer              'Enable platform
-
-    if Button[1]==1
-      MoveMode:=0
-    if Button[2]==1
-      MoveMode:=1
-    if Button[3]==1
-      MoveMode:=2
-      
-  else 'PC control enabled   
-      MoveSpeed:=pcSpeed  / 2
-      MoveDir:=pcDirection ' * 4000/1800
-      MoveMode:=pcMoveMode
-      Move(MoveSpeed, MoveDir, MoveMode)
-
-      if pcEnable==1 and  !Enabled            ' Update platform status
-        EnableSteer
-      if pcEnable==0 and Enabled  
+    if !Enabled  
         Disable
 
     
@@ -610,22 +561,14 @@ PRI DoReportPFPars | i
   
 ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
 PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1     
-'  ser.position(0,24)
-'  ser.position(0,10)
-'  ser.str(string("Debug XB "))
   t1:=cnt
   OK:=1
 
   StrP:=0  'Reset line pointer
   Sender:=0
   StrLen:=strsize(@StrBuf)  
-'  ser.dec(StrLen)
-'  ser.tx(" ")
-'  ser.str(@StrBuf)
-
-  if StrLen > (MaxStr-1)       'Check max len
-'    ser.dec(MaxStr-1)
-'    ser.tx(" ")
+  
+  if StrLen > (MaxStr-1)        'Check max len
     OK:=-1                      'Error: String too long
     
   if StrLen == 0                'Check zero length
@@ -633,42 +576,15 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
     
   if OK==1                      'Parse string
     lCh:=sGetch
-'    ser.Tx("1")
     repeat while (lch<>"$") and (OK == 1)       'Find start char
-'      ser.Tx(">")
-'        Return -5  'timeout
       lCh:=sGetch
       if StrP == StrLen
         OK:=-3                  'Error: No Command Start char found
         Quit                    'Exit loop
 
-'    ser.str(string(" Sender : " ))
     if OK == 1
       Sender:=sGetPar
-'    ser.dec(Sender)
-'    ser.Tx(" ")
-'    ser.Tx("3")
-'    lch:=sGetch   'Get comma
-'     ser.tx(CR)
       Case Sender
-        '== Move command from Joy stick
-        500: JoyComActive:=1     'Get Joystick values
-             PcComActive:=0
-'          ser.Tx("4")
-'          ser.Tx(" ")
-             JoyCntr := sGetPar
-             JoyX := sGetPar
-             JoyY := sGetPar
-             Button[0]:=sGetpar
-             Button[1]:=sGetpar
-             Button[2]:=sGetpar
-             Button[3]:=sGetpar
-{          ser.str(string(" JCntr : " ))
-          ser.dec(Jcntr)
-          ser.str(string(" Button[0] : " ))
-          ser.dec(Button[0])
-          ser.Tx(" ")  }
-
         '=== Move commands from PC
         900: JoyComActive:=0
              PcComActive:=1       'Get PC command for speed and direction from PC move commands
@@ -677,9 +593,20 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              PcDirection := sGetPar
              pcMoveMode := sGetPar
 
-        901: PcEnable:=sGetpar    'Enable DisablePf platform in PC control mode 1= enabled 0= disable
-
-        902: PcControl:=sGetpar   'Enable DisablePf PC control 1 = pc 0 is joystick
+        '=== Enable command from PC
+        901: do_enable:=sGetpar
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(901)
+             Xbee.tx(",")
+             Xbee.dec(do_enable)        'Last Sender
+             Xbee.tx(",")
+             Xbee.tx(CR)         
+             
+             if do_enable==1    'Enable Disable platform 1 = enabled 0 = disabled
+                Enabled:=true
+             else
+                Disable
 
         905: PcComActive:= 1
              JoyComActive:=0
@@ -700,11 +627,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
 '             ResetMaxCurrent
              pid.ResetCurrError
              ResetPfStatus   
-{       909: PingEnable := sGetPar
-             DoUSsensors(PingEnable)
-}            
+           
         '=== Status commands
-'        911: DoSensors2PC   'US sensors
         912: DoStatus2PC     'Status and errors
         913: DoPos2Pc        'Position to PC
         914: DoCurrents2PC   'Report currents
@@ -789,8 +713,6 @@ PRI DoStatus2PC
   Xbee.dec(pid.getCntr)   'HB52 counter to check life
   Xbee.tx(",")
   Xbee.dec(Enabled)       'Platform Enabled
-  Xbee.tx(",")
-  Xbee.dec(PcEnable)     'Pc has control Enabled
   Xbee.tx(",")
   Xbee.dec(PfStatus)     'Platform status
   Xbee.tx(",")
@@ -1667,8 +1589,6 @@ PRI ShowScreen | i
     ser.str(n.decf(JoyComActive,3))
     ser.str(string(" Enabled: "))
     ser.str(n.decf(Enabled,3))
-    ser.str(string(" PC Enable: "))
-    ser.str(n.decf(pcEnable,3))
     ser.str(string(" PC MoveMode: "))
     ser.str(n.decf(pcMoveMode,3))
     ser.str(string(" PfStatus: "))
