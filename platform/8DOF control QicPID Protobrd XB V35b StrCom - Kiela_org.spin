@@ -34,10 +34,8 @@
    XB$500,33251,-369,-88,0,0,0,0,#   Id ($500),Cntr,JoyX,JoyY,Btn1,btn2,btn3,btn4
 
   PC Interface:
-  Move command     :  $900,cntr,speed,dir  : where speed and dir = [-128..128]
-  Enable motion    :  $901,Enable   Enable : 0=no motion 1= motion allowed
-  Enable PC control:  $902,PcEnable PcEnable=0 or 1
-  Wheel mode       :  $905,cnt,speed1, speed2, speed3, speed4, angle1, angle2. All angles and speeds independent
+  Enable motion             :  $901,Enable   Enable : 0=no motion 1= motion allowed
+  individual Wheel mode     :  $905,cnt,speed1, speed2, speed3, speed4, angle1, angle2. All angles and speeds independent
    
   Clear Errors     :  $908  (No parameters) ResetPfStatus: Reset platform status, ResetMaxCurrent, ResetCurError   
   Query wheel pos  :  $911  Returns 4 wheel positions, 4 steer positions, 4 wheel speeds,  Right Front, Left Front, RightR ear, Left Rear 
@@ -184,23 +182,30 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Byte StrBuf[MaxStr], cStrBuf[MaxStr]      'String buffer for receiving chars from serial port
     Long StrSP, StrCnt, StrP, StrLen  'Instring semaphore, counter, Stringpointer
     Long pcButton[ButtonCnt], SerEnabled, oSel0, CmdDone
-    Long JoyComActive, PcComActive            'State var for comm monotoring
     Long MaxWaitTime  'Wait time for new Xbee string
 
     'Safety
     Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError
 
-    'Command program variables
+    'Received command variables
     Byte pcCommand, LastAlarm, PfStatus
     Long pcSpeed, pcDirection, pcCntr, pcMoveMode 
     Long do_enable                  
-    
+    Long Ki           
+    Long K
+    Long Kp
+    Long Ilimit
+    Long PosScale
+    Long VelScale
+    Long VelMax
+    Long FeMax
+    Long MaxCurr 
+
     'Platform vars
     Long MoveSpeed, MoveDir, lMoveSpeed, lMoveDir, MoveMode, A1, A2, Rv 'A1, A2 wheel angle, Rv is speed ratio
     Long wSpeed[nWheels], wAngle[nWheels]
-    Long DirRamp, SpeedRamp
     Word MainCntr
-        
+    Long drive_pid_vals_set, steer_pid_vals_set        
     'Parameters for saving and loading a config
     Long StartVar, sMAEOffs[MAECnt], sK[MotorCnt], sKp[MotorCnt], sKI[MotorCnt], sILim[MotorCnt]
     Long sPosScale[MotorCnt], PlatFormID, Check, EndVar
@@ -209,10 +214,8 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long StartlVar, MaxCurrent[MotorCnt], ErrorLog[ErrorCnt], ActErrNr, EndLVar
        
 ' ---------------- Main program ---------------------------------------
-PUB main | Up, T1, lch 'lSpeed , Offset, , ii
+PUB main | Up, T1, lch 
   InitMain
-  !outa[Led]                             ' Toggle I/O Pin for debug
-  LoadSettings(True)
   !outa[Led]                             ' Toggle I/O Pin for debug
   Up:=1
   PIDMode:=0
@@ -225,8 +228,11 @@ PUB main | Up, T1, lch 'lSpeed , Offset, , ii
       DoCommand(lch)
       lch:=0
 
-    DoXbeeCmd  'Linux pc roboto controller runtime com
-                                           
+    DoXbeeCmd                              'Linux pc roboto controller runtime com
+
+    if Enabled                             'Move! if enabled
+        Move           
+                                   
     if DoShowParameters and (MainCntr//8)==0   'Dump debug info only once per 8 cycles
       ShowScreen
 
@@ -241,31 +247,20 @@ PRI InitXbeeCmd
   MaxWaitTime := 50                    'ms wait time for incoming string  
   StrSp:=0
   
-  JoyComActive:=0                      'Reset communication state var's
-  PcComActive:=0
-  
   ByteFill(@StrBuf,0,MaxStr)
   ByteFill(@cStrBuf,0,MaxStr)
-'  if DebugUSB 
-    XbeeCog:=xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
-'  else
-'    XbeeCog:=xBee.start(cRXD, cTXD, 0, cBaud)     'Start xbee:  start(pin, baud, lines)
+  XbeeCog:=xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
+
 
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
 
-'  repeat
-'    repeat until StrSP == 0  'Wait for release of string buf
-
     StrCnt++
- '   StrSp:=1
- '   StrInMaxTime(stringptr, maxcount,ms)
     Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
     Xbee.rxflush
     if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
         ByteMove(@cStrBuf,@StrBuf,MaxStr)            'Copy received string in display buffer for debug
-       
- '   StrSp:=0
+
         XBeeStat:=DoXCommand                          'Check input string for new commands
 
         ProcessCommand                                  'Execute new commands
@@ -273,19 +268,9 @@ PRI DoXbeeCmd
 
 '==================================== EnableSerial ==========================
 PRI EnablePfSerial     'Enable serial port
-'  if DebugUSB
-    SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port
-'  else    
-'    SerCog:=ser.StartRxTx(cxRXD, cxTXD, 0, cxBaud)                    'Start debug port
-
+  SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port
   t.Pause1ms(500)
   ser.tx(CS)
-
-'  ser.str(string("OmniBot control HJK V1.1", CR))
-'  ser.str(string("Max Cog : "))
-'  ser.dec(Sercog)
-'  ser.tx(CR)
-'  ser.tx(CR)
   
   SerEnabled:=true
   ShowCommands
@@ -313,6 +298,9 @@ PRI DoSafety | t1, ClkCycles, Period, OldCnt
     t1:=cnt
     SafetyCntr++
     if PID.GetFEAnyTrip
+             Xbee.tx("S")
+             Xbee.dec(1)
+             Xbee.tx(CR) 
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,FeBit)
@@ -321,6 +309,9 @@ PRI DoSafety | t1, ClkCycles, Period, OldCnt
       FEError:=1
       
     if PID.GetAnyCurrError
+                     Xbee.tx("S")
+             Xbee.dec(2)
+             Xbee.tx(CR) 
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
@@ -329,15 +320,6 @@ PRI DoSafety | t1, ClkCycles, Period, OldCnt
 '      AddError2Log(222)
       CurrError:=1
 
-{    If JoyCntr==OldCnt              'Shutdown platform when alive counter not updated
-      Disable
-      ResetBit(@PfStatus,NoAlarm)
-      SetBit(@PfStatus,CommCntrBit)
-      LastAlarm:=3
-
-    OldCnt:=JoyCntr
-
-    WatchProcesses   }
       
     waitcnt(ClkCycles + T1)       'Wait for designated time
     
@@ -356,29 +338,13 @@ PRI WatchProcesses
 
 ' ---------------- Process Xbee commands into motion commands---------------------------------------
 PRI ProcessCommand   
-    if Enabled      'Xbee Joy stick     mode
-        'PC control enabled   
-        MoveSpeed:=pcSpeed  / 2
-        MoveDir:=pcDirection ' * 4000/1800
-        MoveMode:=pcMoveMode
-        Move(MoveSpeed, MoveDir, MoveMode)
-
-      
-    if !Enabled  
-        Disable
-
+    if do_enable==1     'Enable Disable platform 1 = enabled 0 = disabled
+       EnableWheelUnits
+    else
+       Disable
     
-' ---------------- 'Move mode control platform -------------------------------
-PRI Move(Speed, Dir, Mode)
-  Case Mode
-    -1: 'Nothing
-    0: Move0(Speed/2, Dir)   'Normal forward backward
-    1: Move1(Speed/3, Dir)   'Cross movement
-    2: Move2(Speed/8, Dir)   'Rotate
-    3: Move3                 'individual wheels
-
 '------------------ Move all wheels individually --------------------------------
-PRI Move3
+PRI Move
   Setp[0]:=wSpeed[0] / 4
   Setp[2]:=-wSpeed[1] / 4
   Setp[4]:=wSpeed[2] / 4
@@ -394,129 +360,6 @@ PRI Move3
  else
    if Enabled
      EnableWheels
-' ---------------- 'Rotate platform around center -----not for rose --------------------------
-PRI Move2(Speed, Dir) | sA1, sA2 ', lSpeed
-      sA1:=sA2:=0
-      Setp[1]:=-sA2-500 'RF
-      Setp[3]:=-sA1+500 'LF
-      Setp[5]:= sA2+500 'RR
-      Setp[7]:= sA1-500 'RL
-      Setp[6]:=Setp[4]:=lMoveSpeed  'RF RR
-      Setp[2]:=Setp[0]:=lMoveSpeed  'LF LR
-
- 'Ramp control speed
- if Speed==0    'Disable wheels to save battery
-     DisableWheels
- else
-   if Enabled
-     EnableWheels
-
- Speed:=Speed*Rv/100  ' Reduce speed when turning
-
- if Speed>lMoveSpeed
-   lMoveSpeed:=lMoveSpeed + SpeedRamp <# Speed
-
- if Speed<lMoveSpeed
-   lMoveSpeed:=Speed #> lMoveSpeed - SpeedRamp
-   
-' ---------------- 'Move platform with speed and direction Cross direction --not for rose-----------------------------
-PRI Move1(Speed, Dir) | sA1, sA2   
-'     lA1:=lA2:=Dir
-'     Setp[1]:=-lA2-1000 'RF
-'     Setp[3]:=-lA1+1000 'LF
-'     Setp[5]:= lA2+1000 'RR
-'     Setp[7]:= lA1-1000 'RL
- 'Steering pairs:  1)RF RR
- '                 2)LF LR
- if lMoveDir<0       'Turn left
-   GetSteerAng(-lMoveDir/2,@A1, @A2, @Rv)
-     sA1:=A1/20
-     sA2:=A2/20
-     Setp[1]:= -sA1-1000 'RF
-     Setp[3]:= sA1+1000 'LF
-     Setp[5]:=- sA2+1000 'RR
-     Setp[7]:= sA2-1000 'RL
-     Setp[6]:=Setp[4]:=lMoveSpeed        'RF RR
-     Setp[2]:=Setp[0]:=-lMoveSpeed*Rv/100 'LF LR
- else  'Dir>0        turn right
-   GetSteerAng(lMoveDir/2,@A1, @A2, @Rv)
-     sA1:=A1/20
-     sA2:=A2/20
-     Setp[1]:=sA2-1000 'RF
-     Setp[3]:=-sA2+1000 'LF
-     Setp[5]:=sA1+1000 'RR
-     Setp[7]:=-sA1-1000 'RL
-     Setp[6]:=Setp[4]:=lMoveSpeed*Rv/100 'RF RR
-     Setp[2]:=Setp[0]:=-lMoveSpeed      'LF LR
-
- if Dir>lMoveDir   'Direction rampgenerator
-   lMoveDir:=lMoveDir + DirRamp <# Dir
-
- if Dir<lMoveDir
-   lMoveDir:=Dir #> lMoveDir - DirRamp
-   
- 'Ramp control speed
- if Speed==0    'Disable wheels to save battery
-     DisableWheels
- else
-   if Enabled
-     EnableWheels
-     
-' Speed:=Speed*Rv/100
- Speed:=Speed
- if Speed>lMoveSpeed
-   lMoveSpeed:=lMoveSpeed + SpeedRamp <# Speed
-
- if Speed<lMoveSpeed
-   lMoveSpeed:=Speed #> lMoveSpeed - SpeedRamp
-   
-' ---------------- 'Move platform with speed and direction -----not for rose --------------------------
-PRI Move0(Speed, Dir) | i, sA1, sA2, pSpeed, pDir 
- 'Dir >0 = turn right Dir<0 = turn left while moving forward
- 'Steering pairs:  1)RF RR
- '                 2)LF LR
- if lMoveDir<0       'Turn left
-   GetSteerAng(-lMoveDir/2,@A1, @A2, @Rv)
-     sA1:=A1/8
-     sA2:=A2/8
-     Setp[1]:=-sA2 'RF
-     Setp[3]:=-sA1 'LF
-     Setp[5]:= sA2 'RR
-     Setp[7]:= sA1 'RL
-     Setp[0]:=Setp[4]:=lMoveSpeed        'RF RR
-'     Setp[2]:=Setp[6]:=-lMoveSpeed/100 'LF LR
-     Setp[2]:=Setp[6]:=-lMoveSpeed*Rv/100 'LF LR
- else  'Dir>0        turn right
-   GetSteerAng(lMoveDir/2,@A1, @A2, @Rv)
-     sA1:=A1/8
-     sA2:=A2/8
-     Setp[1]:=sA1 'RF
-     Setp[3]:=sA2 'LF
-     Setp[5]:=- sA1 'RR
-     Setp[7]:=-sA2 'RL
-     Setp[0]:=Setp[4]:=lMoveSpeed*Rv/100 'RF RR
-'     Setp[0]:=Setp[4]:=lMoveSpeed/100 'RF RR
-     Setp[2]:=Setp[6]:=-lMoveSpeed      'LF LR
-   
- 'Ramp control speed
- if Speed==0    'Disable wheels to save battery
-     DisableWheels
- else
-   if Enabled
-     EnableWheels
-     
- Speed:=Speed  ' *Rv/100
- if Speed>lMoveSpeed
-   lMoveSpeed:=lMoveSpeed + SpeedRamp <# Speed
-
- if Speed<lMoveSpeed
-   lMoveSpeed:=Speed #> lMoveSpeed - SpeedRamp
-
- if Dir>lMoveDir
-   lMoveDir:=lMoveDir + DirRamp <# Dir
-
- if Dir<lMoveDir
-   lMoveDir:=Dir #> lMoveDir - DirRamp
 
 ' ---------------- Show steering angles from table ---------------------------------------
 PUB ShowSteerAng(Index,lA1, lA2, lR)
@@ -540,8 +383,7 @@ Return Index
 
 ' ---------------- Report platform parameters to PC ---------------------------------------
 PRI DoReportPFPars | i
-  xBee.str(string("$902,"))
-  xBee.dec(PlatformID)
+  xBee.str(string("$902"))
   repeat i from 0 to MotorCnt-1   'Actual positions
     xBee.tx(",")
     xBee.dec(pid.GetActPos(i))
@@ -554,8 +396,7 @@ PRI DoReportPFPars | i
     xBee.tx(",")
     xBee.dec(MaxCurrent[i])     } 
 
-  xBee.tx(",")
-  xBee.tx("#")  
+  xBee.tx(",") 
   xBee.tx(CR)
 
   
@@ -585,32 +426,91 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
     if OK == 1
       Sender:=sGetPar
       Case Sender
-        '=== Move commands from PC
-        900: JoyComActive:=0
-             PcComActive:=1       'Get PC command for speed and direction from PC move commands
-             PcCntr := sGetPar
-             PcSpeed := sGetPar
-             PcDirection := sGetPar
-             pcMoveMode := sGetPar
-
-        '=== Enable command from PC
-        901: do_enable:=sGetpar
+        '=== Set drive PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr
+        900: Ki:= sGetPar
+             K:= sGetPar
+             Kp:= sGetPar
+             Ilimit:= sGetPar
+             PosScale:= sGetPar
+             VelScale:= sGetPar
+             FeMax:= sGetPar
+             MaxCurr:= sGetPar
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(900)
+             Xbee.tx(",")
+             Xbee.dec(Ki)
+             Xbee.tx(",")
+             Xbee.dec(K)
+             Xbee.tx(",")
+             Xbee.dec(Kp)
+             Xbee.tx(",")
+             Xbee.dec(Ilimit)
+             Xbee.tx(",")
+             Xbee.dec(PosScale)
+             Xbee.tx(",")
+             Xbee.dec(VelScale)
+             Xbee.tx(",")
+             Xbee.dec(FeMax)
+             Xbee.tx(",")
+             Xbee.dec(MaxCurr)
+             Xbee.tx(",")
+             Xbee.tx(CR)         
+             SetDrivePIDPars(Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr)
+             '=== Set steering PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr
+        901: Ki:= sGetPar             
+             K:= sGetPar
+             Kp:= sGetPar
+             Ilimit:= sGetPar
+             PosScale:= sGetPar
+             VelScale:= sGetPar
+             VelMax:= sGetPar
+             FeMax:= sGetPar
+             MaxCurr:= sGetPar
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
              Xbee.dec(901)
              Xbee.tx(",")
-             Xbee.dec(do_enable)        'Last Sender
+             Xbee.dec(Ki)
+             Xbee.tx(",")
+             Xbee.dec(K)
+             Xbee.tx(",")
+             Xbee.dec(Kp)
+             Xbee.tx(",")
+             Xbee.dec(Ilimit)
+             Xbee.tx(",")
+             Xbee.dec(PosScale)
+             Xbee.tx(",")
+             Xbee.dec(VelScale)
+             Xbee.tx(",")
+             Xbee.dec(VelMax)
+             Xbee.tx(",")
+             Xbee.dec(FeMax)
+             Xbee.tx(",")
+             Xbee.dec(MaxCurr)
              Xbee.tx(",")
              Xbee.tx(CR)         
-             
-             if do_enable==1    'Enable Disable platform 1 = enabled 0 = disabled
-                Enabled:=true
+             SetSteerPIDPars(Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
+    
+       '=== Enable command from PC 
+        902: do_enable:=sGetpar
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(902)
+             Xbee.tx(",")
+             ' if enabling but the drive or steer PID values are not yet set, send error response
+             if do_enable==1 and drive_pid_vals_set and steer_pid_vals_set
+                Xbee.dec(do_enable)        
              else
-                Disable
+                Xbee.dec(3)     'Error response meaning not all pid vals were set before enablingZ
+                do_enable:=0    'Force do_enable to zero
+             'If disabling return a zero
+             if do_enable==0
+                Xbee.dec(0) 
+             Xbee.tx(",")
+             Xbee.tx(CR)         
 
-        905: PcComActive:= 1
-             JoyComActive:=0
-             PcCntr := sGetPar
+        905: PcCntr := sGetPar
              wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
              wSpeed[1]:=sGetPar               
              wSpeed[2]:=sGetPar               
@@ -620,13 +520,35 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              wAngle[2]:=sgetPar              
              wAngle[3]:=sgetPar
              pcMoveMode:=3  'individual wheel control              
-          
- '       906: 'PcComActive:=1      'Autonomous mode
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(905)
+             Xbee.tx(",")
+             Xbee.dec(wSpeed[0])
+             Xbee.tx(",")
+             Xbee.dec(wSpeed[1])
+             Xbee.tx(",")
+             Xbee.dec(wSpeed[2])
+             Xbee.tx(",")
+             Xbee.dec(wSpeed[3])
+             Xbee.tx(",")
+             Xbee.dec(wAngle[0])
+             Xbee.tx(",")
+             Xbee.dec(wAngle[1])
+             Xbee.tx(",")
+             Xbee.dec(wAngle[2])
+             Xbee.tx(",")
+             Xbee.dec(wAngle[3])
+             Xbee.tx(",")
+             Xbee.tx(CR)  
 
         908: ResetPfStatus        'Reset platform status
-'             ResetMaxCurrent
              pid.ResetCurrError
              ResetPfStatus   
+            'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(908)
+             Xbee.tx(CR)
            
         '=== Status commands
         912: DoStatus2PC     'Status and errors
@@ -808,10 +730,7 @@ PRI DoCommand(lCmd) | lPIDMode, lSetp
          
     "e","E": EnableSteer
     "d","D": Disable
-    "s","S": SaveSettings
     "p","P": DoPIDSettings
-    "r","R": LoadSettings(False)
-    "i","I": InitEpromSettings
     "c","C": pid.ClearErrors
              ResetPfStatus
     " "    : ShowParameters
@@ -874,22 +793,26 @@ PRI MoveToggle | i
 PRI ToggleReport  
   !DoShowParameters
 
+
+' ----------------  Enable wheeluntis  ---------------------------------------
+PRI EnableWheelUnits
+    Enabled:=true
+    EnableSteer    
+    EnableWheels      
+    SetBit(@PfStatus,EnableBit)
+
 ' ----------------  Enable steer  ---------------------------------------
 PRI EnableSteer
   PID.SetPIDMode(1,3)                     'Pos loop steering
   PID.SetPIDMode(3,3)                     'Pos loop steering
   PID.SetPIDMode(5,3)                     'Pos loop steering
   PID.SetPIDMode(7,3)                     'Pos loop steering
-  Enabled:=true
-  SetBit(@PfStatus,EnableBit)
-'  ShowParameters  
 ' ----------------  Enable wheels  ---------------------------------------
 PRI EnableWheels
   PID.SetPIDMode(0,1)                     'Enable vel wheel and
   PID.SetPIDMode(2,1)                     'Enable vel wheel and
   PID.SetPIDMode(4,1)                     'Enable vel wheel and
   PID.SetPIDMode(6,1)                     'Enable vel wheel and
-'  ShowParameters  
 
 ' ----------------  Disable wheels  ---------------------------------------
 PRI DisableWheels
@@ -897,7 +820,6 @@ PRI DisableWheels
   PID.SetPIDMode(2,0)                     'Enable vel wheel and
   PID.SetPIDMode(4,0)                     'Enable vel wheel and
   PID.SetPIDMode(6,0)                     'Enable vel wheel and 
-'  ShowParameters
   
 ' ----------------  Disable all wheels and steerin ---------------------------------------
 PRI Disable 
@@ -966,9 +888,6 @@ PRI SetParameter | lPar, lValue, Choice
     "5": ser.str(string("Vel Scale : "))
        ser.dec(PID.GetVelScale(ActPID))
        Choice:=5
-    "9": ser.str(string("Platform ID : "))
-       ser.dec(PlatformID)
-       Choice:=5
     "x": ClearInputArea 
       Return   
     
@@ -986,187 +905,50 @@ PRI SetParameter | lPar, lValue, Choice
   ClearInputArea
   ShowParameters
   
-' ----------------  Set PID pars not default for 8-DOV Rose platform ---------------------------------------
-PRI SetPIDPars | i
-  'Set control parameters wheels
-  PID.SetKi(0,25)
-  PID.SetK(0,250)
-  PID.SetKp(0,10)
-  PID.SetIlimit(0,1500)
-  PID.SetPosScale(0,10)
-  PID.SetVelScale(0,10)
-  PID.SetFeMax(0,200)
-  PID.SetMaxCurr(0,4500)
-  
-  PID.SetKi(2,25)
-  PID.SetK(2,250)
-  PID.SetKp(2,10)
-  PID.SetIlimit(2,1500)
-  PID.SetVelScale(2,10)
-  PID.SetPosScale(2,10)
-  PID.SetFeMax(2,200)
-  PID.SetMaxCurr(2,4500)
+' Set drive motor control parameters
+PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lFeMax, lMaxCurr) | i
+    repeat i from 0 to MotorCnt-1 step 2         
+      PID.SetKi(i,lKi)
+      PID.SetK(i,lK)
+      PID.SetKp(i,lKp)
+      PID.SetIlimit(i,lIlimit)
+      PID.SetPosScale(i,lPosScale)
+      PID.SetVelScale(i,lVelScale)
+      PID.SetFeMax(i,lFeMax)
+      PID.SetMaxCurr(i,lMaxCurr)      
+      drive_pid_vals_set:=true
 
-  PID.SetKi(4,25)
-  PID.SetK(4,250)
-  PID.SetKp(4,10)
-  PID.SetIlimit(4,1500)
-  PID.SetVelScale(4,10)
-  PID.SetPosScale(4,10)
-  PID.SetFeMax(4,200)
-  PID.SetMaxCurr(4,4500)
+' Set steer motor control parameters
+PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
+    repeat i from 1 to MotorCnt-1 step 2         
+      PID.SetKi(i,lKi)
+      PID.SetK(i,lK)
+      PID.SetKp(i,lKp)
+      PID.SetIlimit(i,lIlimit)
+      PID.SetPosScale(i,lPosScale)
+      PID.SetVelScale(i,lVelScale)
+      PID.SetMaxVel(i,lVelMax)
+      PID.SetFeMax(i,lFeMax)
+      PID.SetMaxCurr(i,lMaxCurr)  
 
-  PID.SetKi(6,25)
-  PID.SetK(6,250)
-  PID.SetKp(6,10)
-  PID.SetIlimit(6,1500)
-  PID.SetVelScale(6,10)
-  PID.SetPosScale(6,10)
-  PID.SetFeMax(6,200)
-  PID.SetMaxCurr(6,4500)
-  
-  'Set control parameters steer motors
-  PID.SetKi(1,200)
-  PID.SetK(1,900)
-  PID.SetKp(1,5000)
-  PID.SetIlimit(1,800)
-  PID.SetVelScale(1,1)
-  PID.SetPosScale(1,1)
-  PID.SetMaxVel(1,800)
-  PID.SetFeMax(1,700)
-  PID.SetMaxCurr(1,5500)
-  
-  PID.SetKi(3,200)
-  PID.SetK(3,900)
-  PID.SetKp(3,5000)
-  PID.SetIlimit(3,800)
-  PID.SetVelScale(3,1)
-  PID.SetPosScale(3,1)
-  PID.SetMaxVel(3,800)
-  PID.SetFeMax(3,700)
-  PID.SetMaxCurr(3,5500)
-  
-  PID.SetKi(5,200)
-  PID.SetK(5,900)
-  PID.SetKp(5,5000)
-  PID.SetIlimit(5,800)
-  PID.SetVelScale(5,1)
-  PID.SetPosScale(5,1)
-  PID.SetMaxVel(5,800)
-  PID.SetFeMax(5,700)
-  PID.SetMaxCurr(5,5500)
-  
-  PID.SetKi(7,200)
-  PID.SetK(7,900)
-  PID.SetKp(7,5000)
-  PID.SetIlimit(7,800)
-  PID.SetVelScale(7,1)
-  PID.SetPosScale(7,1)
-  PID.SetMaxVel(7,800)
-  PID.SetFeMax(7,700)
-  PID.SetMaxCurr(7,5500)
-  
-  MAEOffs[0]:=2000
-  MAEOffs[1]:=2000
-  MAEOffs[2]:=2000
-  MAEOffs[3]:=2000
+      MAEOffs[0]:=2000
+      MAEOffs[1]:=2000
+      MAEOffs[2]:=2000
+      MAEOffs[3]:=2000  
 
-  PlatformID:=1001
-  DirRamp:=35
-  SpeedRamp:=14
-
-' ----------------  Set PID pars not default for 8DOV testplatform ---------------------------------------
-PRI SetPIDParsTP | i
-  'Set control parameters wheels
-  PID.SetKi(0,200)
-  PID.SetK(0,900)
-  PID.SetKp(0,1000)
-  PID.SetIlimit(0,1000)
-  PID.SetPosScale(0,1)
-  PID.SetFeMax(0,200)
-  PID.SetMaxCurr(0,6500)
-  
-  PID.SetKi(2,200)
-  PID.SetK(2,900)
-  PID.SetKp(2,1000)
-  PID.SetIlimit(2,1000)
-  PID.SetPosScale(2,1)
-  PID.SetFeMax(2,200)
-  PID.SetMaxCurr(2,6500)
-
-  PID.SetKi(4,200)
-  PID.SetK(4,900)
-  PID.SetKp(4,1000)
-  PID.SetIlimit(4,1000)
-  PID.SetPosScale(4,1)
-  PID.SetFeMax(4,200)
-  PID.SetMaxCurr(4,6500)
-
-  PID.SetKi(6,200)
-  PID.SetK(6,900)
-  PID.SetKp(6,1000)
-  PID.SetIlimit(6,1000)
-  PID.SetPosScale(6,1)
-  PID.SetFeMax(6,200)
-  PID.SetMaxCurr(6,6500)
-  
-  'Set control parameters steer motors
-  PID.SetKi(1,200)
-  PID.SetK(1,900)
-  PID.SetKp(1,5000)
-  PID.SetIlimit(1,800)
-  PID.SetPosScale(1,1)
-  PID.SetMaxVel(1,800)
-  PID.SetFeMax(1,700)
-  PID.SetMaxCurr(1,5500)
-  
-  PID.SetKi(3,200)
-  PID.SetK(3,900)
-  PID.SetKp(3,5000)
-  PID.SetIlimit(3,800)
-  PID.SetPosScale(3,1)
-  PID.SetMaxVel(3,800)
-  PID.SetFeMax(3,700)
-  PID.SetMaxCurr(3,5500)
-  
-  PID.SetKi(5,200)
-  PID.SetK(5,900)
-  PID.SetKp(5,5000)
-  PID.SetIlimit(5,800)
-  PID.SetPosScale(5,1)
-  PID.SetMaxVel(5,800)
-  PID.SetFeMax(5,700)
-  PID.SetMaxCurr(5,5500)
-  
-  PID.SetKi(7,200)
-  PID.SetK(7,900)
-  PID.SetKp(7,5000)
-  PID.SetIlimit(7,800)
-  PID.SetPosScale(7,1)
-  PID.SetMaxVel(7,800)
-  PID.SetFeMax(7,700)
-  PID.SetMaxCurr(7,5500)
-  
-  MAEOffs[0]:=2000
-  MAEOffs[1]:=2000
-  MAEOffs[2]:=2000
-  MAEOffs[3]:=2000
-
-  PlatformID:=1001
-  DirRamp:=35
-  SpeedRamp:=14
+      steer_pid_vals_set:=true
 
 '=============================================================================
 ' ----------------  Init main program ---------------------------------------
 PRI InitMain
   dira[Led]~~                             'Set I/O pin for LED to output…
   !outa[Led]                              'Toggle I/O Pin for debug
- ' SerCog:=ser.start(Baud)                               'Start serial port start(rxpin, txpin, mode, baudrate)
-'  if DebugUSB
-    SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
-'  else    
-'    SerCog:=ser.StartRxTx(cxRXD, cxTXD, 0, cxBaud)                    'Start debug port via Xbee
-    
+
+  drive_pid_vals_set:=false
+  steer_pid_vals_set:=false
+
+  SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
+
   t.Pause1ms(200)
   ser.Clear
   
@@ -1180,7 +962,6 @@ PRI InitMain
   PIDCog:=PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops)  
   PIDMode:=PID.GetPIDMode(0)                            'Set open loop mode
   repeat while PID.GetPIDStatus<>2                      'Wait while PID initializes
-  SetPIDPars
 
   ShowParameters                                        'Show control parameters
   !outa[Led]                                            'Toggle I/O Pin for debug
@@ -1221,8 +1002,6 @@ PRI ShowParameters | i
 
   ser.tx(CR)
   ser.Position(0,pControlPars)
-  ser.str(string("Platform ID: "))
-  ser.dec(PlatformID)
   ser.str(string(" PID pars: PID Cycle Time (ms): "))
   ser.dec(PIDCTime)
   
@@ -1351,9 +1130,6 @@ PRI DoPIDSettings | i
   Xbee.tx("$")
   Xbee.dec(Sender)        'Last Sender
   Xbee.tx(",")
-  xBee.str(string("Platform ID:"))
-  xBee.dec(PlatformID)
-  Xbee.tx(",")
   xBee.str(string(CR,"MAEOffs: $0"))
   repeat i from 0 to MAECnt-1   'Copy working values to buffer
     xBee.tx(",")
@@ -1383,91 +1159,6 @@ PRI DoPIDSettings | i
     xBee.tx(",")
     xBee.dec(PID.GetPosScale(i))
     xBee.tx("#")
-     
-' ---------------- Load data from Eprom ---------------------------------------
-PRI LoadSettings(Silent) | i
-  'PUB VarRestore(startAddr, endAddr) | addr
-  'PUB ToRam(startAddr, endAddr, eeStart) | addr
-  Disable                             'Disable all loops while restoring
-' eprom.VarRestore(@startVar, @endVar)
-  eprom.ToRam(@startVar, @endVar, EptromStart)
-  if Check == cCheck                  'Check correctness of data
-    repeat i from 0 to MAECnt-1       'Copy stored values to working buffer
-      MAEOffs[i]:=sMAEOffs[i]
-      
-    repeat i from 0 to MotorCnt-1       'Copy stored control parameters
-      PID.SetK(i,sK[i])
-      PID.SetKp(i,sKp[i])
-      PID.SetKi(i,sKI[i])
-      PID.SetIlimit(i,sIlim[i])
-      PID.SetPosScale(i,sPosScale[i])
-      
-    if not silent
-      ser.clear
-      ser.str(string("Settings restored from, to"))
-      ser.hex(EptromStart,4)
-      ser.tx(">")
-      ser.hex(@startVar,4)
-      ser.tx(",")
-      ser.hex(@endVar,4)
-    
-  else
-    ser.clear
-    ser.str(string(" Error restoring settings"))
-    ser.str(string(CR," Read check value: "))
-    ser.dec(Check)
-    ser.str(string(" Read Eeprom value: "))
-    ser.dec(cCheck)
-    ser.str(string(CR,CR," Continue storing defaults? (y/n)"))
-    if ser.rx=="y"
-      InitEpromSettings
-
-  if not silent
-    ser.str(string(CR," Press key to continue: "))
-    ser.rx
-    ser.clear
-    
-    ShowParameters 
-    ShowCommands
-    
-' ---------------- Save data to Eprom ---------------------------------------
-PRI SaveSettings | i
- ' PUB VarBackup(startAddr, endAddr) | addr, page, eeAddr   'Save a block of varibles from ram -> Rom
-  'PUB FromRam(startAddr, endAddr, eeStart) | addr, page, eeAddr
-  repeat i from 0 to MAECnt-1   'Copy working values to buffer
-    sMAEOffs[i]:=MAEOffs[i]
-
-  repeat i from 0 to MotorCnt-1       'Copy control parameters to storage
-    sK[i]:=PID.GetK(i)
-    sKp[i]:=PID.GetKp(i)
-    sKi[i]:=PID.GetKi(i)
-    sIlim[i]:=PID.GetIlimit(i)
-    sPosScale[i]:=PID.GetPosScale(i)
-    
-  Check:=cCheck                 'Save safety value
-  eprom.FromRam(@startVar, @endVar, EptromStart)
-  'eprom.VarBackup(@startVar, @endVar)
-  ser.clear
-  ser.str(string("Settings saved from, to"))
-  ser.hex(@startVar,4)
-  ser.tx(",")
-  ser.hex(@endVar,4)
-  ser.tx(">")
-  ser.hex(EptromStart,4)
-  
-  ser.str(string(CR," Press key to continue: "))
-  ser.rx
-
-  ser.clear
-  ShowParameters
-  ShowCommands
-  
-' ---------------- Init data to Eprom ---------------------------------------
-PRI InitEpromSettings | i
-  repeat i from 0 to MAECnt-1   'Reset
-    MAEOffs[i]:=2000
-    SetPIDPars
-    ShowParameters
         
 ' ----------------  Show actual value screen ---------------------------------------
 PRI ShowScreen | i
@@ -1583,11 +1274,7 @@ PRI ShowScreen | i
     ser.tx(" ")
     ser.str(@cStrBuf)
     
-    ser.str(string(CE,CR," PcComActive: "))
-    ser.str(n.decf(PcComActive,3))
-    ser.str(string(" JoyComActive : "))
-    ser.str(n.decf(JoyComActive,3))
-    ser.str(string(" Enabled: "))
+    ser.str(string(CE,CR, " Enabled: "))
     ser.str(n.decf(Enabled,3))
     ser.str(string(" PC MoveMode: "))
     ser.str(n.decf(pcMoveMode,3))
