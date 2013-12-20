@@ -22,6 +22,7 @@
  V33: Release version okt 2011
  V33a/b: Nov 2011 Minor mod's: debug screen, Setpoints and braking
  V35: Serial communication with PC via Serial port and Debug Via standard USB port
+ V36: Okke: Major overhaul, removed unneccesary code, changed communication protocol
       
  To do: MAE time out error, xbee comm time out error
  
@@ -145,9 +146,6 @@ OBJ
   t             : "Timing"
   MAE           : "MAE3"                                ' MAE absolute encoder object
   PID           : "PID Connect V4a"                      ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
-'  Pot           : "Potmeter"                            ' Potmeter
-'  QiK           : "QiKCommands"                         ' Standard serial for drives
-'  LCD           : "Debug_LCD"                           ' Serial for LCD
   n             : "simple_numbers"                      ' Number to string conversion
   eprom         : "Eeprom"                              ' Routines for saving and reloading settings
   
@@ -172,8 +170,8 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Word MAECntr, pMAECntr
     Long MAEStack[100]
 
-    'Xbee and joystick input
-    Long JoyCntr, JoyX, JoyY, Button[ButtonCnt], XbeeCmdCntr  
+    'Xbee input
+    Long XbeeCmdCntr  
     Long Sender, CMDi, myID, Debug, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
     Byte Cmd[LineLen] ,LastPar1[CmdLen]
     Byte XbeeTimeout
@@ -202,7 +200,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long MaxCurr 
 
     'Platform vars
-    Long MoveSpeed, MoveDir, lMoveSpeed, lMoveDir, MoveMode, A1, A2, Rv 'A1, A2 wheel angle, Rv is speed ratio
+    Long MoveSpeed, MoveDir, lMoveSpeed, lMoveDir, MoveMode, A1, A2, Rv
     Long wSpeed[nWheels], wAngle[nWheels]
     Word MainCntr
     Long drive_pid_vals_set, steer_pid_vals_set        
@@ -1343,264 +1341,3 @@ PRI ResetBit(VarAddr,Bit) | lBit, lMask
 │ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 }}
-
-
-DAT '15x15 cm platform
-SB ' hoek1*100, hoek2*100, V1/V2*100 Steering table. Hoek1 is inside corner, V1 is speed inside wheel
-'Steer Input is index ==> Inside angle, Outside angle, Inside wheel velocity 
-Word  00000,   00002,  0100
-Word  00035,   00035,  0099
-Word  00070,   00069,  0098
-Word  00105,   00102,  0096
-Word  00141,   00134,  0095
-Word  00176,   00166,  0094
-Word  00211,   00196,  0093
-Word  00246,   00227,  0092
-Word  00281,   00256,  0091
-Word  00316,   00285,  0090
-Word  00352,   00313,  0089
-Word  00387,   00341,  0088
-Word  00422,   00368,  0087
-Word  00457,   00394,  0086
-Word  00492,   00420,  0085
-Word  00527,   00446,  0085
-Word  00563,   00470,  0084
-Word  00598,   00495,  0083
-Word  00633,   00519,  0082
-Word  00668,   00542,  0081
-Word  00703,   00565,  0080
-Word  00738,   00588,  0080
-Word  00773,   00610,  0079
-Word  00809,   00631,  0078
-Word  00844,   00653,  0077
-Word  00879,   00674,  0077
-Word  00914,   00694,  0076
-Word  00949,   00714,  0075
-Word  00984,   00734,  0075
-Word  01020,   00753,  0074
-Word  01055,   00773,  0073
-Word  01090,   00791,  0073
-Word  01125,   00810,  0072
-Word  01160,   00828,  0072
-Word  01195,   00846,  0071
-Word  01230,   00864,  0070
-Word  01266,   00881,  0070
-Word  01301,   00898,  0069
-Word  01336,   00915,  0069
-Word  01371,   00931,  0068
-Word  01406,   00947,  0068
-Word  01441,   00963,  0067
-Word  01477,   00979,  0067
-Word  01512,   00995,  0066
-Word  01547,   01010,  0066
-Word  01582,   01025,  0065
-Word  01617,   01040,  0065
-Word  01652,   01055,  0064
-Word  01688,   01069,  0064
-Word  01723,   01083,  0063
-Word  01758,   01097,  0063
-Word  01793,   01111,  0063
-Word  01828,   01125,  0062
-Word  01863,   01139,  0062
-Word  01898,   01152,  0061
-Word  01934,   01165,  0061
-Word  01969,   01178,  0061
-Word  02004,   01191,  0060
-Word  02039,   01204,  0060
-Word  02074,   01216,  0059
-Word  02109,   01228,  0059
-Word  02145,   01241,  0059
-Word  02180,   01253,  0058
-Word  02215,   01265,  0058
-Word  02250,   01276,  0058
-Word  02285,   01288,  0057
-Word  02320,   01300,  0057
-Word  02355,   01311,  0057
-Word  02391,   01322,  0056
-Word  02426,   01333,  0056
-Word  02461,   01344,  0056
-Word  02496,   01355,  0056
-Word  02531,   01366,  0055
-Word  02566,   01377,  0055
-Word  02602,   01387,  0055
-Word  02637,   01398,  0054
-Word  02672,   01408,  0054
-Word  02707,   01418,  0054
-Word  02742,   01429,  0054
-Word  02777,   01439,  0053
-Word  02813,   01449,  0053
-Word  02848,   01458,  0053
-Word  02883,   01468,  0053
-Word  02918,   01478,  0052
-Word  02953,   01487,  0052
-Word  02988,   01497,  0052
-Word  03023,   01506,  0052
-Word  03059,   01516,  0051
-Word  03094,   01525,  0051
-Word  03129,   01534,  0051
-Word  03164,   01543,  0051
-Word  03199,   01552,  0051
-Word  03234,   01561,  0050
-Word  03270,   01570,  0050
-Word  03305,   01579,  0050
-Word  03340,   01587,  0050
-Word  03375,   01596,  0049
-Word  03410,   01605,  0049
-Word  03445,   01613,  0049
-Word  03480,   01622,  0049
-Word  03516,   01630,  0049
-Word  03551,   01638,  0049
-Word  03586,   01647,  0048
-Word  03621,   01655,  0048
-Word  03656,   01663,  0048
-Word  03691,   01671,  0048
-Word  03727,   01679,  0048
-Word  03762,   01687,  0048
-Word  03797,   01695,  0047
-Word  03832,   01703,  0047
-Word  03867,   01711,  0047
-Word  03902,   01718,  0047
-Word  03938,   01726,  0047
-Word  03973,   01734,  0047
-Word  04008,   01741,  0046
-Word  04043,   01749,  0046
-Word  04078,   01756,  0046
-Word  04113,   01764,  0046
-Word  04148,   01771,  0046
-Word  04184,   01779,  0046
-Word  04219,   01786,  0046
-Word  04254,   01793,  0046
-Word  04289,   01801,  0045
-Word  04324,   01808,  0045
-Word  04359,   01815,  0045
-Word  04395,   01822,  0045
-Word  04430,   01829,  0045
-Word  04465,   01836,  0045
-Word  04500,   01843,  0045
-Word  04535,   01851,  0045
-Word  04570,   01857,  0045
-Word  04605,   01864,  0044
-Word  04641,   01871,  0044
-Word  04676,   01878,  0044
-Word  04711,   01885,  0044
-Word  04746,   01892,  0044
-Word  04781,   01899,  0044
-Word  04816,   01905,  0044
-Word  04852,   01912,  0044
-Word  04887,   01919,  0044
-Word  04922,   01926,  0044
-Word  04957,   01932,  0043
-Word  04992,   01939,  0043
-Word  05027,   01945,  0043
-Word  05063,   01952,  0043
-Word  05098,   01959,  0043
-Word  05133,   01965,  0043
-Word  05168,   01972,  0043
-Word  05203,   01978,  0043
-Word  05238,   01985,  0043
-Word  05273,   01991,  0043
-Word  05309,   01998,  0043
-Word  05344,   02004,  0043
-Word  05379,   02010,  0043
-Word  05414,   02017,  0043
-Word  05449,   02023,  0042
-Word  05484,   02029,  0042
-Word  05520,   02036,  0042
-Word  05555,   02042,  0042
-Word  05590,   02048,  0042
-Word  05625,   02055,  0042
-Word  05660,   02061,  0042
-Word  05695,   02067,  0042
-Word  05730,   02073,  0042
-Word  05766,   02079,  0042
-Word  05801,   02086,  0042
-Word  05836,   02092,  0042
-Word  05871,   02098,  0042
-Word  05906,   02104,  0042
-Word  05941,   02110,  0042
-Word  05977,   02117,  0042
-Word  06012,   02123,  0042
-Word  06047,   02129,  0042
-Word  06082,   02135,  0042
-Word  06117,   02141,  0042
-Word  06152,   02147,  0042
-Word  06188,   02153,  0042
-Word  06223,   02159,  0042
-Word  06258,   02165,  0042
-Word  06293,   02171,  0042
-Word  06328,   02177,  0042
-Word  06363,   02184,  0042
-Word  06398,   02190,  0041
-Word  06434,   02196,  0041
-Word  06469,   02202,  0041
-Word  06504,   02208,  0041
-Word  06539,   02214,  0041
-Word  06574,   02220,  0041
-Word  06609,   02226,  0041
-Word  06645,   02232,  0041
-Word  06680,   02238,  0041
-Word  06715,   02244,  0041
-Word  06750,   02250,  0041
-Word  06785,   02256,  0041
-Word  06820,   02262,  0041
-Word  06855,   02268,  0041
-Word  06891,   02274,  0041
-Word  06926,   02280,  0041
-Word  06961,   02286,  0041
-Word  06996,   02292,  0041
-Word  07031,   02298,  0041
-Word  07066,   02304,  0041
-Word  07102,   02310,  0041
-Word  07137,   02316,  0042
-Word  07172,   02323,  0042
-Word  07207,   02329,  0042
-Word  07242,   02335,  0042
-Word  07277,   02341,  0042
-Word  07313,   02347,  0042
-Word  07348,   02353,  0042
-Word  07383,   02359,  0042
-Word  07418,   02365,  0042
-Word  07453,   02371,  0042
-Word  07488,   02377,  0042
-Word  07523,   02383,  0042
-Word  07559,   02390,  0042
-Word  07594,   02396,  0042
-Word  07629,   02402,  0042
-Word  07664,   02408,  0042
-Word  07699,   02414,  0042
-Word  07734,   02421,  0042
-Word  07770,   02427,  0042
-Word  07805,   02433,  0042
-Word  07840,   02439,  0042
-Word  07875,   02445,  0042
-Word  07910,   02452,  0042
-Word  07945,   02458,  0042
-Word  07980,   02464,  0042
-Word  08016,   02471,  0042
-Word  08051,   02477,  0042
-Word  08086,   02483,  0043
-Word  08121,   02490,  0043
-Word  08156,   02496,  0043
-Word  08191,   02502,  0043
-Word  08227,   02509,  0043
-Word  08262,   02515,  0043
-Word  08297,   02522,  0043
-Word  08332,   02528,  0043
-Word  08367,   02535,  0043
-Word  08402,   02541,  0043
-Word  08438,   02548,  0043
-Word  08473,   02555,  0043
-Word  08508,   02561,  0043
-Word  08543,   02568,  0043
-Word  08578,   02574,  0044
-Word  08613,   02581,  0044
-Word  08648,   02588,  0044
-Word  08684,   02595,  0044
-Word  08719,   02601,  0044
-Word  08754,   02608,  0044
-Word  08789,   02615,  0044
-Word  08824,   02622,  0044
-Word  08859,   02629,  0044
-Word  08895,   02636,  0044
-Word  08930,   02643,  0045
-Word  08965,   02649,  0045
