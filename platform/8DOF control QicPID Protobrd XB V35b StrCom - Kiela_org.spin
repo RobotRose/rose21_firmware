@@ -225,7 +225,7 @@ PUB main | Up, T1, lch
     if Enabled                             'Move! if enabled
         Move           
                                    
-    if DoShowParameters and (MainCntr//8)==0   'Dump debug info only once per 8 cycles
+    if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
       ShowScreen
 
     !outa[Led]                           'Toggle I/O Pin for debug
@@ -265,7 +265,6 @@ PRI EnablePfSerial     'Enable serial port
   ser.tx(CS)
   
   SerEnabled:=true
-  ShowCommands
   ShowParameters
 
   SetBit(@PfStatus,Serialbit)
@@ -337,14 +336,14 @@ PRI ProcessCommand
     
 '------------------ Move all wheels individually --------------------------------
 PRI Move
-  Setp[0]:=wSpeed[0] / 4
-  Setp[2]:=-wSpeed[1] / 4
-  Setp[4]:=wSpeed[2] / 4
-  Setp[6]:=-wSpeed[3] / 4
-  Setp[1]:=wAngle[0] * 2
-  Setp[3]:=wAngle[1] * 2
-  Setp[5]:=wAngle[2] * 2
-  Setp[7]:=wAngle[3] * 2
+  Setp[0]:=wSpeed[0]
+  Setp[2]:=-wSpeed[1]
+  Setp[4]:=wSpeed[2]
+  Setp[6]:=-wSpeed[3]
+  Setp[1]:=wAngle[0]
+  Setp[3]:=wAngle[1]
+  Setp[5]:=wAngle[2]
+  Setp[7]:=wAngle[3]
   
  'Disable wheels if no speed command given to avoid lock up of wheels and battery drainage
  if wSpeed[0]==0 and wSpeed[1] ==0 and wSpeed[2] == 0 and wSpeed[3] == 0   'Disable wheels to save battery
@@ -473,7 +472,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              ' if enabling but the drive or steer PID values are not yet set, send error response
              if do_enable==1 and drive_pid_vals_set and steer_pid_vals_set
                 Xbee.dec(do_enable)        
-             else
+             elseif do_enable==1
                 Xbee.dec(3)     'Error response meaning not all pid vals were set before enablingZ
                 do_enable:=0    'Force do_enable to zero
              'If disabling return a zero
@@ -482,7 +481,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              Xbee.tx(",")
              Xbee.tx(CR)         
 
-        905: wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
+        903: wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
              wSpeed[1]:=sGetPar               
              wSpeed[2]:=sGetPar               
              wSpeed[3]:=sGetPar
@@ -492,7 +491,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              wAngle[3]:=sgetPar            
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
-             Xbee.dec(905)
+             Xbee.dec(903)
              Xbee.tx(",")
              Xbee.dec(wSpeed[0])
              Xbee.tx(",")
@@ -512,12 +511,12 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              Xbee.tx(",")
              Xbee.tx(CR)  
 
-        908: ResetPfStatus        'Reset platform status
+        999: ResetPfStatus        'Reset platform status
              pid.ResetCurrError
              ResetPfStatus   
             'Send a reply (mirroring the received command)
              Xbee.tx("$")
-             Xbee.dec(908)
+             Xbee.dec(999)
              Xbee.tx(CR)
            
         '=== Status commands
@@ -664,90 +663,14 @@ PRI DoPos2PC | i
 
 ' ---------------- Command loop main program ---------------------------------------
 PRI DoCommand(lCmd) | lPIDMode, lSetp
-  case lCmd
-    "0": PIDMode:=0   'Open loop
-         PID.SetAllPIDMode(PIDMode)
-         MoveMode:=-1
-         ShowParameters
-    "1": PIDMode:=1   'Vel loop
-         Setp[ActPID]:=0
-'         PID.SetAllPIDMode(PIDMode)
-         MoveMode:=-1
-         PID.SetPIDMode(ActPID,PIDMode)
-         ShowParameters
-    "2": PIDMode:=3   'Pos loop
-         PID.SetPIDMode(ActPID,PIDMode)
-'         PID.SetAllPIDMode(PIDMode)
-         ShowParameters
-         MoveMode:=-1
-    "3": SetPID       'select PID loop
-         MoveMode:=-1
-    "4": SetParameter
-         MoveMode:=-1
-    "O": SetSteerOffset
-         MoveMode:=-1
-    "o": lPIDMode:=PID.GetPIDMode(ActPID)
-         if lPIDMode == 0 or lPIDMode == -2  'Check if loop is open loop
-           lSetp:=NewSetpoint(-30,30)
-           ser.str(string(" Open loop New setp: "))
-           ser.dec(lSetp)
-           PID.SetPIDMode(ActPID,-2)         'Set Open loop mode with command to output
-           Setp[ActPID]:=lSetp
-         else
-               ser.Position(0,pInput)
-           ser.str(string(" Not allowed! Current PID mode: "))
-           ser.dec(lPIDMode)  
-         
-    "e","E": EnableSteer
+  case lCmd    
     "d","D": Disable
     "p","P": DoPIDSettings
     "c","C": pid.ClearErrors
              ResetPfStatus
-    " "    : ShowParameters
-             ShowCommands
-    "9"    : ToggleReport                                                     
-    "t","T": pid.ResetCurrError                                                     
-    "f","F": ResetFE                                                     
-    "b","B": lPIDMode:=PID.GetPIDMode(ActPID)    'Setpoint mode
-             if lPIDMode == 0 or lPIDMode == -1 'Check if loop is open loop or brake mode
-               lSetp:=NewSetpoint(-30,30)
-               ser.str(string(" Brake New setp: "))
-               ser.dec(lSetp)
-               PID.SetPIDMode(ActPID,-1)         'Set Open loop mode with brake
-               pid.BrakeWheels(lSetp)                                                     
-             else
-               ser.Position(0,pInput)
-               ser.str(string(" Not allowed! Current PID mode: "))
-               ser.dec(lPIDMode)
-    "m","M": MoveToggle                                                     
-    "x","X": lPIDMode:=PID.GetPIDMode(ActPID)    'Setpoint mode
-             if lPIDMode == 0 or lPIDMode == 1 or lPIDMode == 2 or lPIDMode == 3 'Check if loop is active in 1,2,3
-               lSetp:=NewSetpoint(-300,300)
-               ser.str(string(" Setpoint New value: "))
-               ser.dec(lSetp)
-               Setp[ActPID]:=lSetp
-             else
-               ser.Position(0,pInput)
-               ser.str(string(" Not allowed! Current PID mode: "))
-               ser.dec(lPIDMode)  
-                                                                 
-
-' ----------------  New Setpoint between value Min and Max---------------------------------------
-PRI NewSetpoint(SpMin, SpMax) | InDec
-  ClearInputArea
-  ser.Position(0,pInput)
-  ser.str(string(CR,"New Setpoint: ("))
-  ser.dec(SpMin)
-  ser.tx("-")
-  ser.dec(SpMax)
-  ser.str(string("  -999 = abort) "))
-  InDec:= ser.DecIn
-  if InDec == -999
-    Return 0
-  else
-    Return SpMin #> InDec <# SpMax
-  ClearInputArea
- 
+    "s"    : ShowParameters                                                   
+    "f","F": ResetFE                                                                                                         
+                                                                
 ' ----------------  Clear FE trip ---------------------------------------
 PRI ResetFE | i 
   PID.ResetAllFETrip
@@ -797,83 +720,6 @@ PRI Disable
   Enabled:=false
   ResetBit(@PfStatus,EnableBit)
   ShowParameters  
-
-' ----------------  Set actual PID loop for parameter change ---------------------------------------
-PRI SetPID 
-  ser.Position(0,pInput) 
-  ser.str(string("Select actual PID Loop : "))
-  ActPID:= 0 #> ser.DecIn <# PID#PIDCnt-1
-  ser.dec(ActPID)
-  ShowParameters  
-
-' ----------------  Set Steer offsets ---------------------------------------
-PRI SetSteerOffset | i, lPar, lValue
-  ClearInputArea
-  ser.Position(0,pInput) 
-  ser.str(string(CR,"Select Steer Unit (-1=abort): "))
-  lPar:=-1 #> ser.DecIn <# MAECnt-1
-  if lPar == -1
-    Return
-    
-  i:=lPar  'Save Steer unit index
-  ser.str(string(CR,"Selected Steer Unit : "))
-  ser.dec(lPar)
-  ser.str(string(CR,"Actual Value : "))
-  ser.dec(MAEOffs[i])
-  ser.str(string(CR,"New Value : 0..4100 (-1= abort): "))
-  lPar:=-1 #> ser.DecIn <# 4100
-  if lPar == -1
-    Return
-    
-  MAEOffs[i]:=LPar
-  ShowParameters
-
-  ' ----------------  Set PID parameters  ---------------------------------------
-PRI SetParameter | lPar, lValue, Choice
-  ClearInputArea
-  ser.Position(0,pInput) 
-  ser.str(string(CR,"Selected PID Loop : $"))
-  ser.dec(ActPID)
-  ser.str(string(CR,"Select Parameter 0=Kp 1=K 2=Ki 3=Ilimit 4=PosScale 5=VelScale x=exit: "))
-  lPar:=ser.rx
-  ser.dec(lPar)
-  ser.str(string(CR,"Actual Value : "))
-  ser.str(string(CR,"New Value : 1..30000 : "))
-  case lPar
-    "0": ser.str(string("Kp : "))
-       ser.dec(PID.GetKp(ActPID))
-       Choice:=0
-    "1": ser.str(string("K : "))
-       ser.dec(PID.GetK(ActPID))
-       Choice:=1
-    "2": ser.str(string("KI : "))
-       ser.dec(PID.GetKI(ActPID))
-       Choice:=2
-    "3": ser.str(string("Ilimit : "))
-       ser.dec(PID.GetILimit(ActPID))
-       Choice:=3
-    "4": ser.str(string("Pos Scale : "))
-       ser.dec(PID.GetPosScale(ActPID))
-       Choice:=4
-    "5": ser.str(string("Vel Scale : "))
-       ser.dec(PID.GetVelScale(ActPID))
-       Choice:=5
-    "x": ClearInputArea 
-      Return   
-    
-  ser.tx(" ")
-  lValue:=1 #> ser.DecIn <# 30000
-  ser.dec(lValue)
-  Case Choice
-    0: PID.SetKp(ActPID,lValue) 
-    1: PID.SetK(ActPID,lValue) 
-    2: PID.SetKI(ActPID,lValue) 
-    3: PID.SetIlimit(ActPID,lValue) 
-    4: PID.SetPosScale(ActPID,lValue) 
-    5: PID.SetVelScale(ActPID,lValue) 
-    9: PlatformID:=lValue  
-  ClearInputArea
-  ShowParameters
   
 ' Set drive motor control parameters
 PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lFeMax, lMaxCurr) | i
@@ -884,6 +730,7 @@ PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lFeMax, lMaxCur
       PID.SetIlimit(i,lIlimit)
       PID.SetPosScale(i,lPosScale)
       PID.SetVelScale(i,lVelScale)
+      PID.SetMaxVel(i,140)
       PID.SetFeMax(i,lFeMax)
       PID.SetMaxCurr(i,lMaxCurr)      
       drive_pid_vals_set:=true
@@ -936,7 +783,6 @@ PRI InitMain
   ShowParameters                                        'Show control parameters
   !outa[Led]                                            'Toggle I/O Pin for debug
 
-  ShowCommands
   t.Pause1ms(2000)
   !outa[Led]                        'Toggle I/O Pin for debug
 
@@ -1045,55 +891,6 @@ PRI ShowParameters | i
     ser.str(n.decf(pid.GetMaxCurrent(i),6))
     ser.tx("|")
   ser.str(string(CR,"======================================================================="))  
-
-' ----------------  Show command menu ---------------------------------------
-PRI ShowCommands1
-    ser.Position(0,pMenu) 
-    ser.str(string("0: Open loop",CR))
-    ser.str(string("1: Velocity loop",CR))
-    ser.str(string("2: Position loop",CR))
-    ser.str(string("3: Select PID loop",CR))
-    ser.str(string("4: Set PID parameter",CR))
-    ser.str(string("5: Show PID parameter",CR))
-    ser.str(string("O: Modify steer Offset parameter",CR))
-    ser.str(string("E: Enable Steer",CR))
-    ser.str(string("D: Disable All",CR))
-    ser.str(string("s: Save settings",CR))
-    ser.str(string("r: Restore settings",CR))
-    ser.str(string("p: Dumpsettings",CR))
-    ser.str(string("i: Init Settings",CR))
-    ser.str(string("c: Clear Errors",CR))
-    ser.str(string(" : Refresh screen",CR))
-    ser.str(string("o: Open loop command",CR))
-    ser.str(string("t: Reset max current",CR))
-    ser.str(string("f: Reset FE",CR))
-    ser.str(string("9: Report toggle",CR))
-    ser.str(string("b: Brake wheels",CR))
-
-' ----------------  Show command menu ---------------------------------------
-PRI ShowCommands
-    ser.Position(0,pMenu) 
-    ser.str(string("======================Menu ======================================",CR))
-    ser.str(string("0: Open loop 1: Velocity loop 2: Position loop 3: Select PID loop c: Clear Errors b: Brake wheels",CR))
-    ser.str(string("4: Set PID parameter o: Open loop command f: Reset FE t: Reset max current",CR,CR))
-    ser.str(string("X: SetPoint",CR,CR))
-
-    ser.str(string("O: Mod Steer Offset E: Enable Steer D: Disable All",CR,CR))
-
-    ser.str(string("s: Save settings r: Restore settings i: Init Settings",CR,CR))
-
-    ser.str(string("_: Refresh screen 9: Report toggle "))
-
-
-' ----------------  Clear input area ---------------------------------------
-PRI ClearInputArea  | i
-  ser.Position(0,pInput)
-  repeat i from 0 to 5
-    ser.str(string("                                                                 "))
-    ser.tx(CE)
-    ser.tx(CR)
-  ser.Position(0,pInput)
-  ser.tx(">")                              
 
 ' ---------------- Dump PID settigns to Xbee ---------------------------------------
 PRI DoPIDSettings | i
