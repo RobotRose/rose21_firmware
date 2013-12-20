@@ -35,7 +35,7 @@
    XB$500,33251,-369,-88,0,0,0,0,#   Id ($500),Cntr,JoyX,JoyY,Btn1,btn2,btn3,btn4
 
   PC Interface:
-  Enable motion             :  $901,Enable   Enable : 0=no motion 1= motion allowed
+  Enable motion             :  $902,Enable   Enable : 0=no motion 1= motion allowed
   individual Wheel mode     :  $905,cnt,speed1, speed2, speed3, speed4, angle1, angle2. All angles and speeds independent
    
   Clear Errors     :  $908  (No parameters) ResetPfStatus: Reset platform status, ResetMaxCurrent, ResetCurError   
@@ -47,20 +47,18 @@
 }
 CON
 ' Version
-  Version = 35
-  SubVersion = "b" 
+   Version = 36
+   SubVersion = "a" 
 
 'Set 80Mhz
    _clkmode=xtal1+pll16x
-' _clkmode = xtal1 + pll8x  'Spinstamp  
-  _xinfreq = 5000000      'MRS1
-'  _xinfreq = 10_000_000  'spin stamp
+   _xinfreq = 5000000      'MRS1
 
-'' Led
-  Led = 27
+'  Led
+   Led = 27
   
-'' Serial port 
-'   DebugUSB = true    'DebugUSB true: Debug via pin 30 and 31 and Commands via Xbee on 22 and 23. False: reversed  
+'  Serial port 
+'  DebugUSB = true    'DebugUSB true: Debug via pin 30 and 31 and Commands via Xbee on 22 and 23. False: reversed  
    cTXD = 30 '20 '30
    cRXD = 31 '21 '31
    cBaud = 115200 '230400 
@@ -80,13 +78,11 @@ CON
   MotorCnt = nPIDLoops
   nWheels = 4
   MotorIndex = MotorCnt - 1
-
-  PIDCTime = 20           ' PID Cycle time ms
+  PIDCTime = 20            ' PID Cycle time ms
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
 
-  
 'MAE3 PWM absolute encoder
   MAE0Pin  = 16            'First pin of MAE encoder
   MAECnt   = 4             'Number of encoders 
@@ -94,21 +90,19 @@ CON
 'Xbee
    cxTXD = 20 '30 '26 '23
    cxRXD = 21 '31 '25 '22
-   cxBaud = 115200 '230400 '115200 '57600  115200 seems reliable max
-   XBID  = 400            '' Xbee Id of this Robot platform                                                       yyyyy
+   cxBaud = 115200         ' 115200 seems reliable max
+   XBID  = 400             ' Xbee Id of this Robot platform         
 
 
 'Command interface and control 
-   LineLen = 100          ' Buffer size for incoming line
+   LineLen = 100           ' Buffer size for incoming line
    SenderLen= 10
    Cmdlen = 10
-   ButtonCnt = 4
-   JoyXHyst = 250           'Joystick hysteresis
-   JoyYHyst = 150           
+   ButtonCnt = 4       
    AliveTime = 100         ' Time in ms before shutdown 
    
 'String buffer
-  MaxStr = 257        'Stringlength is 256 + 1 for 0 termination
+  MaxStr = 257             ' Stringlength is 256 + 1 for 0 termination
 
 'Potmeter
   Pot0  = 9
@@ -121,8 +115,8 @@ CON
   pInput      = pMenu + 12
 
 'Eeprom
- cCheck = 12345       'Check value for correct restore of values.
- EptromStart = $7000  'Free range for saving
+ cCheck = 12345             'Check value for correct restore of values.
+ EptromStart = $7000        'Free range for saving
 
 'Error logging
   ErrorCnt = 100
@@ -187,7 +181,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
 
     'Received command variables
     Byte pcCommand, LastAlarm, PfStatus
-    Long pcSpeed, pcDirection, pcCntr, pcMoveMode 
+    Long pcSpeed, pcDirection, pcCntr
     Long do_enable                  
     Long Ki           
     Long K
@@ -359,26 +353,6 @@ PRI Move
    if Enabled
      EnableWheels
 
-' ---------------- Show steering angles from table ---------------------------------------
-PUB ShowSteerAng(Index,lA1, lA2, lR)
-    ser.dec(Index)
-    ser.tx(" ")
-    ser.dec(lA1)
-    ser.tx(" ")
-    ser.dec(lA2)
-    ser.tx(" ")
-    ser.dec(lR)
-    ser.tx(CR)
-
-' ---------------- Get steering angles from table ---------------------------------------
-PUB GetSteerAng(Index, aA1, aA2, aR) | i
-    Index:= 0 #> Index <# 255
-    i:=Index*6
-    long[aA1]:=word[@SB+i]
-    long[aA2]:=word[@SB+i +2]
-    long[aR]:= word[@SB+i +4]
-Return Index
-
 ' ---------------- Report platform parameters to PC ---------------------------------------
 PRI DoReportPFPars | i
   xBee.str(string("$902"))
@@ -508,16 +482,14 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              Xbee.tx(",")
              Xbee.tx(CR)         
 
-        905: PcCntr := sGetPar
-             wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
+        905: wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
              wSpeed[1]:=sGetPar               
              wSpeed[2]:=sGetPar               
              wSpeed[3]:=sGetPar
              wAngle[0]:=sgetPar              
              wAngle[1]:=sgetPar              
              wAngle[2]:=sgetPar              
-             wAngle[3]:=sgetPar
-             pcMoveMode:=3  'individual wheel control              
+             wAngle[3]:=sgetPar            
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
              Xbee.dec(905)
@@ -1274,23 +1246,11 @@ PRI ShowScreen | i
     
     ser.str(string(CE,CR, " Enabled: "))
     ser.str(n.decf(Enabled,3))
-    ser.str(string(" PC MoveMode: "))
-    ser.str(n.decf(pcMoveMode,3))
     ser.str(string(" PfStatus: "))
     ser.str(n.ibin(PfStatus,16))
        
     ser.str(string(CE,CR," Sender: "))
     ser.str(n.decf(Sender,4))
-    ser.str(string(" JoyCntr: "))
-    ser.str(n.decf(JoyCntr,4))
-    ser.str(string(" JoyX: "))
-    ser.str(n.decf(JoyX,4))
-    ser.str(string(" JoyY: "))
-    ser.str(n.decf(JoyY,4))
-    ser.str(string(" Btn: "))
-    repeat i from 0 to ButtonCnt-1
-      ser.dec(Button[i])
-      ser.tx(" ")
     ser.tx(CE)
     ser.tx(" ")
     ser.str(string(CR," Platf Speed: "))
