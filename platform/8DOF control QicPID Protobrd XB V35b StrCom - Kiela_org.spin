@@ -372,7 +372,7 @@ PRI DoReportPFPars | i
 
   
 ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
-PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1     
+PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id    
   t1:=cnt
   OK:=1
 
@@ -481,6 +481,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
              Xbee.tx(",")
              Xbee.tx(CR)         
 
+        '=== Set the movement speeds and directions
         903: wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
              wSpeed[1]:=sGetPar               
              wSpeed[2]:=sGetPar               
@@ -524,7 +525,118 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1
         913: DoPos2Pc        'Position to PC
         914: DoCurrents2PC   'Report currents
         916: DoPIDSettings   'Send PID parameters to PC
-        
+ 
+        '=== Get velocity of motor with ID
+        1000: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1000)
+                xBee.tx(",")
+                xBee.dec(pid.GetActVel(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get position of motor with ID
+        1001: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1001)
+                xBee.tx(",")
+                xBee.dec(pid.GetActPos(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get current of motor with ID
+        1002: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1002)
+                xBee.tx(",")
+                xBee.dec(pid.GetActCurrent(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get maximally reached current of motor with ID
+        1003: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1003)
+                xBee.tx(",")
+                xBee.dec(pid.GetMaxCurrent(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get position error of motor with ID
+        1004: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1004)
+                xBee.tx(",")
+                xBee.dec(Setp[req_id] - pid.GetActPos(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get velocity error of motor with ID
+        1005: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1005)
+                xBee.tx(",")
+                xBee.dec(pid.GetDeltaVel(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get PI out of motor with ID
+        1006: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1006)
+                xBee.tx(",")
+                xBee.dec(pid.GetPIDOut(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get P out of motor with ID
+        1007: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1007)
+                xBee.tx(",")
+                xBee.dec(pid.GetPIDOut(req_id) - pid.GetIbuf(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get I out of motor with ID
+        1008: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1008)
+                xBee.tx(",")
+                xBee.dec(pid.GetIbuf(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get MAE of motor with ID
+        1009: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1009)
+                xBee.tx(",")
+                xBee.dec(pid.GetMAEpos(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get FE of motor with ID
+        1010: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1010)
+                xBee.tx(",")
+                xBee.dec(pid.GetFE(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+
   XbeeTime:=cnt-t1
   XbeeCmdCntr++    
 Return OK
