@@ -1,0 +1,7 @@
+QiK SetParameter1.spin
+FullDuplexSerial_rr005.spin
+QiKCommands.spin
+simple_numbers.spin
+Parallax Serial Terminal.spin
+Timing.spin
+>compiler=SPIN
