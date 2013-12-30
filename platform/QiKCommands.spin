@@ -117,7 +117,7 @@ PUB SetSpeedM0(Address,Speed) | lS, NewCommand
     qic.tx($AA)    
     qic.tx(Address)
     NewCommand:=NewCommand - $80
-  else
+
   qic.tx(NewCommand) 'Motor speed command
   qic.tx(lS)                        
 
@@ -158,6 +158,7 @@ PUB SetBrakeM1(Address,Brake) | lS, NewCommand
     qic.tx($AA)    
     qic.tx(Address)
     NewCommand:=NewCommand - $80
+
   qic.tx(NewCommand) 
   qic.tx(lS)                        
   MotorBrake[Address-$10+1]:=Brake  'Store actual brake value             
@@ -170,6 +171,7 @@ PUB SetParameter(Address,Parameter, Value) | lS, NewCommand, R
     qic.tx($AA)    
     qic.tx(Address)
     NewCommand:=NewCommand - $80
+
   qic.tx(NewCommand) 
   qic.tx(Parameter) 'Get requested parameter
   qic.tx(Value)
@@ -194,7 +196,7 @@ Return  R
 ' --------------------- 'Get motor 0 current -----------------------
 PUB GetCurrentM0(Address) | R, NewCommand
   NewCommand:=cGetM0Current 'Get current M0
-  if ActQiK==1
+  if ActQiK==17
     qic.tx($AA)    
     qic.tx(Address)
     NewCommand:=NewCommand - $80

@@ -32,7 +32,7 @@
  Uses string handling for xbee command line handling
 
  Xbee remote control
-   XB$500,33251,-369,-88,0,0,0,0,#   Id ($500),Cntr,JoyX,JoyY,Btn1,btn2,btn3,btn4
+   XB$500,33251,-369,-88,0,0,0,0,   Id ($500),Cntr,JoyX,JoyY,Btn1,btn2,btn3,btn4
 
   PC Interface:
   Enable motion             :  $902,Enable   Enable : 0=no motion 1= motion allowed
@@ -404,6 +404,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id
              Ilimit:= sGetPar
              PosScale:= sGetPar
              VelScale:= sGetPar
+             VelMax:= sGetPar
              FeMax:= sGetPar
              MaxCurr:= sGetPar
              'Send a reply (mirroring the received command)
@@ -422,12 +423,14 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id
              Xbee.tx(",")
              Xbee.dec(VelScale)
              Xbee.tx(",")
+             Xbee.dec(VelMax)
+             Xbee.tx(",")
              Xbee.dec(FeMax)
              Xbee.tx(",")
              Xbee.dec(MaxCurr)
              Xbee.tx(",")
              Xbee.tx(CR)         
-             SetDrivePIDPars(Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr)
+             SetDrivePIDPars(Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
              '=== Set steering PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr
         901: Ki:= sGetPar             
              K:= sGetPar
@@ -482,14 +485,14 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id
              Xbee.tx(CR)         
 
         '=== Set the movement speeds and directions
-        903: wSpeed[0]:=sGetPar   ' wSpeed[nWheels], wAngle[nWheels]               
-             wSpeed[1]:=sGetPar               
-             wSpeed[2]:=sGetPar               
-             wSpeed[3]:=sGetPar
-             wAngle[0]:=sgetPar              
-             wAngle[1]:=sgetPar              
-             wAngle[2]:=sgetPar              
-             wAngle[3]:=sgetPar            
+        903: wSpeed[0]:=-PID.GetMaxVel(0) #> sGetPar  <# PID.GetMaxVel(0)      
+             wSpeed[1]:=-PID.GetMaxVel(2) #> sGetPar  <# PID.GetMaxVel(2)               
+             wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)               
+             wSpeed[3]:=-PID.GetMaxVel(6) #> sGetPar  <# PID.GetMaxVel(6)
+             wAngle[0]:=PID.GetSetpMaxMin(1) #> sGetPar <# PID.GetSetpMaxPlus(1)              
+             wAngle[1]:=PID.GetSetpMaxMin(3) #> sGetPar <# PID.GetSetpMaxPlus(3)               
+             wAngle[2]:=PID.GetSetpMaxMin(5) #> sGetPar <# PID.GetSetpMaxPlus(5)               
+             wAngle[3]:=PID.GetSetpMaxMin(7) #> sGetPar <# PID.GetSetpMaxPlus(7)             
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
              Xbee.dec(903)
@@ -656,8 +659,6 @@ PRI DoCurrents2PC | i
   
   Xbee.tx(",")
   Xbee.tx(CR)
-  Xbee.tx("#")
-  Xbee.tx(EOT)   'End of transmission
 
 ' ---------------- Reset platform -------------------------------
 PRI ResetPfStatus 
@@ -725,8 +726,6 @@ PRI DoStatus2PC
   Xbee.tx(",")
   Xbee.dec(Version)      'Software version
   Xbee.tx(CR)
-  Xbee.tx("#")
-  Xbee.tx(EOT)   'End of transmission
 
   
 ' ---------------- Send Wheel Positions and speeds to PC ---------------------------------------
@@ -770,8 +769,7 @@ PRI DoPos2PC | i
   Xbee.tx(",")
     
   Xbee.tx(CR)
-  Xbee.tx("#")
-  Xbee.tx(EOT)   'End of transmission
+
 
 ' ---------------- Command loop main program ---------------------------------------
 PRI DoCommand(lCmd) | lPIDMode, lSetp
@@ -834,7 +832,7 @@ PRI Disable
   ShowParameters  
   
 ' Set drive motor control parameters
-PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lFeMax, lMaxCurr) | i
+PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
     repeat i from 0 to MotorCnt-1 step 2         
       PID.SetKi(i,lKi)
       PID.SetK(i,lK)
@@ -842,7 +840,7 @@ PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lFeMax, lMaxCur
       PID.SetIlimit(i,lIlimit)
       PID.SetPosScale(i,lPosScale)
       PID.SetVelScale(i,lVelScale)
-      PID.SetMaxVel(i,140)
+      PID.SetMaxVel(i,lVelMax)
       PID.SetFeMax(i,lFeMax)
       PID.SetMaxCurr(i,lMaxCurr)      
       drive_pid_vals_set:=true
@@ -859,6 +857,8 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax
       PID.SetMaxVel(i,lVelMax)
       PID.SetFeMax(i,lFeMax)
       PID.SetMaxCurr(i,lMaxCurr)  
+
+      setRotationLimits
 
       MAEOffs[0]:=2000
       MAEOffs[1]:=2000
@@ -890,6 +890,7 @@ PRI InitMain
   
   PIDCog:=PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops)  
   PIDMode:=PID.GetPIDMode(0)                            'Set open loop mode
+
   repeat while PID.GetPIDStatus<>2                      'Wait while PID initializes
 
   ShowParameters                                        'Show control parameters
@@ -897,6 +898,15 @@ PRI InitMain
 
   t.Pause1ms(2000)
   !outa[Led]                        'Toggle I/O Pin for debug
+
+
+
+'---------------- 'Set rotation limits to steer motors to about +-(3/4)*pi --------
+PRI setRotationLimits | i
+  repeat i from 1 to MotorCnt-1 step 2                  
+    PID.SetSetpMaxMin(i,-1800)
+    PID.SetSetpMaxPlus(i,1800)                         
+         
 
 ' ----------------  MAE absolute encoder sense ---------------------------------------
 PRI MAESense | t1 , lMAE0Pin, lMAE1Pin, lMAE2Pin, lMAE3Pin
@@ -1085,6 +1095,14 @@ PRI ShowScreen | i
     repeat i from 0 to MotorIndex
       ser.str(n.decf(PID.GetPIDOut(i),6))
       ser.tx("|")
+    ser.str(string(CR," Setp Max plus: |"))
+    repeat i from 0 to MotorIndex
+      ser.str(n.decf(PID.GetSetpMaxPlus(i),6))
+      ser.tx("|")
+    ser.str(string(CR," Setp Max min: |"))
+    repeat i from 0 to MotorIndex
+      ser.str(n.decf(PID.GetSetpMaxMin(i),6))
+      ser.tx("|")    
     ser.str(string(CR," Current: |"))
     repeat i from 0 to MotorIndex
       ser.str(n.decf(pid.GetActCurrent(i),6))
