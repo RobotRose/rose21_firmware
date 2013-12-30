@@ -177,7 +177,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long MaxWaitTime  'Wait time for new Xbee string
 
     'Safety
-    Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError
+    Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
 
     'Received command variables
     Byte pcCommand, LastAlarm, PfStatus
@@ -289,29 +289,29 @@ PRI DoSafety | t1, ClkCycles, Period, OldCnt
     t1:=cnt
     SafetyCntr++
     if PID.GetFEAnyTrip
-             Xbee.tx("S")
-             Xbee.dec(1)
-             Xbee.tx(CR) 
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,FeBit)
       LastAlarm:=1
-'      AddError2Log(111)
       FEError:=1
       
     if PID.GetAnyCurrError
-                     Xbee.tx("S")
-             Xbee.dec(2)
-             Xbee.tx(CR) 
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
       LastAlarm:=2
-      
-'      AddError2Log(222)
+
       CurrError:=1
 
-      
+    '-- watchdog --
+    if Enabled 
+        wd_cnt++
+    if wd_cnt > 5               ' 5 will result in shutdown if no WD communication has taken place for approximatly 1 sec
+      Disable
+      ResetBit(@PfStatus,NoAlarm)
+      SetBit(@PfStatus,CurrBit)
+      LastAlarm:=3
+
     waitcnt(ClkCycles + T1)       'Wait for designated time
     
 ' ---------------- Add error to log ---------------------------------------
@@ -372,7 +372,7 @@ PRI DoReportPFPars | i
 
   
 ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
-PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id    
+PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
   t1:=cnt
   OK:=1
 
@@ -397,6 +397,38 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id
     if OK == 1
       Sender:=sGetPar
       Case Sender
+        '--- WATCHDOG ---
+        111:      
+             received_wd := sGetPar
+             ' Check value
+             if received_wd <> expected_wd
+                Disable
+                Xbee.tx("$")
+                Xbee.dec(111)
+                Xbee.tx(",")
+                Xbee.dec(-1)
+                Xbee.tx(",")            
+                Xbee.tx(CR)  
+             else    
+                 if expected_wd == 1
+                    expected_wd := 0             
+                 else
+                    expected_wd := 1
+
+                 if wd == 1
+                    wd := 0             
+                 else
+                    wd := 1
+
+                 wd_cnt := 0
+
+                 Xbee.tx("$")
+                 Xbee.dec(111)
+                 Xbee.tx(",")
+                 Xbee.dec(wd)
+                 Xbee.tx(",")  
+                 Xbee.tx(CR)  
+            
         '=== Set drive PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr
         900: Ki:= sGetPar
              K:= sGetPar
@@ -826,6 +858,9 @@ PRI DisableWheels
   
 ' ----------------  Disable all wheels and steerin ---------------------------------------
 PRI Disable 
+  expected_wd:=0
+  wd:=0
+  do_enable:= 0
   PID.KillAll
   Enabled:=false
   ResetBit(@PfStatus,EnableBit)
@@ -870,12 +905,14 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax
 '=============================================================================
 ' ----------------  Init main program ---------------------------------------
 PRI InitMain
-  dira[Led]~~                             'Set I/O pin for LED to output…
-  !outa[Led]                              'Toggle I/O Pin for debug
+  dira[Led]~~                            'Set I/O pin for LED to output…
+  !outa[Led]                             'Toggle I/O Pin for debug
 
   drive_pid_vals_set:=false
   steer_pid_vals_set:=false
-
+  expected_wd:=1                     'Watchdog Stuff
+  wd:=0
+  wd_cnt:=0
   SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
 
   t.Pause1ms(200)
@@ -1167,7 +1204,8 @@ PRI ShowScreen | i
     ser.dec(XbeeCmdCntr)
     ser.str(string(" Last Alarm: "))
     ser.dec(LastAlarm)
-
+    ser.str(string("Watchdog cnt: "))
+    ser.dec(wd_cnt)
     ser.tx(" ")
     ser.str(@cStrBuf)
     
