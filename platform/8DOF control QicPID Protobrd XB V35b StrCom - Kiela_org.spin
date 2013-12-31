@@ -97,8 +97,7 @@ CON
 'Command interface and control 
    LineLen = 100           ' Buffer size for incoming line
    SenderLen= 10
-   Cmdlen = 10
-   ButtonCnt = 4       
+   Cmdlen = 10     
    AliveTime = 100         ' Time in ms before shutdown 
    
 'String buffer
@@ -173,7 +172,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     'Input string handling
     Byte StrBuf[MaxStr], cStrBuf[MaxStr]      'String buffer for receiving chars from serial port
     Long StrSP, StrCnt, StrP, StrLen  'Instring semaphore, counter, Stringpointer
-    Long pcButton[ButtonCnt], SerEnabled, oSel0, CmdDone
+    Long SerEnabled, oSel0, CmdDone
     Long MaxWaitTime  'Wait time for new Xbee string
 
     'Safety
@@ -709,21 +708,17 @@ PRI ResetPfStatus
   
 
 ' ---------------- Get next parameter from string ---------------------------------------
-PRI sGetPar | j, jj, ii, lPar, lch
+PRI sGetPar | j, jj, lPar, lch
   j:=0
   Bytefill(@LastPar1,0,CmdLen)   'Clear buffer
   lch:=sGetch                    'Get comma and point to first numeric char
   jj:=0
   repeat until lch=="," 'Get parameter until comma
-'    if jj++ >100
-'      return -1
     if lch<>"," and j<CmdLen
       LastPar1[j++]:=lch
     lch:=sGetch           'skip next
  
   LPar:=ser.strtodec(@LastPar1)
-'  ser.str(string(" GetPar : " ))
-'  ser.dec(lPar)
 Return Lpar
 
 ' ---------------- Get next character from string ---------------------------------------
