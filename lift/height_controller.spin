@@ -74,6 +74,7 @@ VAR
 PUB height_start : ok1
 
   ok1 := FALSE
+  requested_position := POS_STOP
 
   if (ADC.adc_init)
     if (ADC.adc_Start)
@@ -90,12 +91,11 @@ PUB height_start : ok1
   else
     current_pos_MLHS := POS_STOP
 
-
+  
   RETURN ok1      
   
-PUB height_init (val) 
+PUB height_init 
 ' FUNCTION : Initializes the height controller
-' INPUT    : ADC value of the mid position
 ' OUTPUT   : TRUE on success
 '            FALSE on failure
 ' REMARKS  : None
@@ -108,25 +108,27 @@ PUB height_init (val)
   'Turn all pins off
   OUTA[PIN_INA]~
   OUTA[PIN_INB]~
-
-  mid_position := val
-
+  requested_position := POS_STOP
   RETURN
    
 PUB height_stop
+  'Turn all pins off
+  OUTA[PIN_INA]~
+  OUTA[PIN_INB]~
 
   ADC.adc_stop
-
+ 
   if height_cog
     cogstop(height_cog~ - 1)
-
+    height_cog := 0
   requested_position := DEACTIVATED
 
 PUB height_set_position (pos)
-  if( pos =>1 and pos =<4)
-    requested_position := pos
-    height_timer := CNT
-    prev_pos := current_pos + 100  
+  if(requested_position <> DEACTIVATED)
+      if( pos =>1 and pos =<4)
+        requested_position := pos
+        height_timer := CNT
+        prev_pos := current_pos + 100  
 
 PRI height_handler
 
@@ -199,9 +201,7 @@ PUB get_requested_pos
 
   RETURN requested_position
  
-PUB height_get_mid_position
 
-  RETURN mid_position
   
 PUB height_get_position
 
@@ -228,27 +228,26 @@ PRI motor_stop
 PUB height_get_config_register
   return adc.adc_get_control_register
 
-PUB height_set_mid_position (val2)
-
-  mid_position := val2
-
-  RETURN
-
 PUB height_get_cog
   RETURN height_cog
 
-PUB height_set_high(valhigh)
+PUB height_set_low(val)
+  low_position := val
 
-  high_position := valhigh
+PUB height_set_mid(val)
+  mid_position := val
 
-PUB height_set_low (vallow)
-
-  low_position := vallow
-
-PUB height_get_high
-  return high_position
+PUB height_set_high(val)
+  high_position := val
 
 PUB height_get_low
 
   return low_position
+
+PUB height_get_mid
+
+  RETURN mid_position
+  
+PUB height_get_high
+  return high_position  
   

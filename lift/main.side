@@ -4,7 +4,5 @@ adc.spin
 FullDuplexSerial_rr005.spin
 height_controller.spin
 PC =  2.spin
-PC_Interface.spin
 basic_i2c_driver.spin
-Ultrasoon.spin
 >compiler=SPIN

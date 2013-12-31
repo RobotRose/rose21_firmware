@@ -1,6 +1,7 @@
 {------------------------------------------------------------------------------
   Main program for controlling the Platform controller level 2.
 
+ 
   Ultrasone detection and height control for TSR robot using Parallax
   Propeller Demo Board with USB prop stick interface.
 
@@ -124,386 +125,216 @@ CON
   POS_MID       = 3
   POS_HIGH      = 4
 
+'PC - Serial communication
+  cxTXD = 31 
+  cxRXD = 30 
+  cxBaud = 115200                    
+  MaxStr = 257             ' Stringlength is 256 + 1 for 0 termination
+  LineLen = 100           ' Buffer size for incoming line
+  SenderLen= 10
+  Cmdlen = 10
+
+'EEPROM
+  i2cSCL        = 28
+  'i2cSDA        = 29
+  EEPROMAddr    = $A0
 DAT
   version BYTE "1.30",0 ' Software version
 
 OBJ
 
-  PC      : "FullDuplexSerial_rr005"
-  Sensor  : "Ultrasoon"
-  Height  : "height_controller"
-
-CON
-
-  BaudRate = 115200
-
+  PC        : "FullDuplexSerial_rr005"
+  Height    : "height_controller"
+  i2cObject : "basic_i2c_driver"
 
 VAR
   long key
   long X
   long SensorData[8]
-  long CStep
   long Command
   byte Value[2]
   long SpecialCommand
   byte waitInit
-  BYTE b_pos_reached
+  long ser_req_pos
+  BYTE pos_reached_send
+  long enabled
+  'Serial communication
+  Long PC_COG
+  Byte StrBuf[MaxStr]                               'String buffer for receiving chars from serial port
+  Long StrSP, StrCnt, StrP, StrLen, MaxWaitTime     'Instring semaphore, counter, Stringpointer
+  Byte Cmd[LineLen] ,LastPar1[CmdLen] 
 
 
+'======================MAIN============================
 PUB Main | lch
+    enabled:=FALSE
+    InitSerialComm
+    EEPROMInit
+    waitcnt((clkfreq/8)+cnt)
+
+    repeat      
+      'Wait until enabled
+      repeat while enabled == FALSE
+        CheckForSerialCommands
+
       main_init
-      b_pos_reached := FALSE
-     
-      repeat
-        lch := PC.rxcheck
-        
-        if lch > 0
-          'PC.dec(ii)
-           'PC.out(lch)
-           DoCommand(lch)
-           
-           lch := 0
+      pos_reached_send := TRUE
+      ser_req_pos := -1
+      repeat while enabled == TRUE
+        CheckForSerialCommands
     
         'Check height status
-        if ((Height.get_requested_pos == Height.get_current_pos) AND b_pos_reached)
-          PC.str(string("$350,Height reached,#",13))
-          b_pos_reached := FALSE   
-    
-            
-    { 'Disable continuous reading of ADC 
-        PC.str(string("$441,"))
-        'PC.hex(Height.height_get_position,4)
-        PC.dec(Height.height_get_position)
-        PC.str(string(", status: "))
-        PC.hex(Height.height_get_config_register, 2)
-        PC.str(string(",#",13))
-        
-        waitcnt((clkfreq/2)+cnt)       
-     }
+        if ((Height.get_requested_pos == Height.get_current_pos) AND pos_reached_send == FALSE)
+          PC.str(string("$400,"))
+          PC.dec(ser_req_pos)
+          PC.str(string(",", 13))
+          pos_reached_send := TRUE   
+
+      'Not enabled any longer, disable
+      Height.height_stop
+
 
 PRI main_init | ii, T1, temp, lch2
+
+      'Initialise the height controller
+      PC.str(string("Initializing Height,",13))
+      Height.height_init   
+      if not Height.height_get_cog
+        Height.height_start
+
+      if (Height.height_get_cog)
+        PC.str(string("Height COG started,",13))
+      else
+        repeat
+            PC.str(string("Height COG Error,",13))    
+            waitcnt((clkfreq/8)+cnt)
+      PC.str(string("Loading settings from EEPROM,",13))
+      Height.height_set_low(LoadLowPos)
+      waitcnt((clkfreq/8)+cnt)
+      Height.height_set_mid(LoadmidPos)                          
+      waitcnt((clkfreq/8)+cnt)
+      Height.height_set_high(LoadHighPos) 
+      waitcnt((clkfreq/8)+cnt)
+    
+      PC.str(string("$350,Loaded and running,",13))
+      PC.str(string("$350,Waiting for command,",13))
+
+
+'================================ Init Serial comm ==========================
+PRI InitSerialComm
+  MaxWaitTime := 500                    'ms wait time for incoming string  
+  StrSp:=0
+  ByteFill(@StrBuf,0,MaxStr)
+  PC_COG:=PC.start(cxTXD, cxRXD, 0, cxBaud)     'Start PC serial interface
+  PC.str(string("$350,Communication COG started,",13))
+
+'================================ Do Xbee command input and execution ==========================
+PRI CheckForSerialCommands
+
+    StrCnt++
+    if PC.rxavail
+      PC.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
+      PC.rxflush             
+      if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest$400,1,
+        DoCommand                                   'Check input string for new commands and execute them
+        Bytefill(@StrBuf,0,MaxStr)                  'Clear buffer
+
+'===============================================================
+PUB DoCommand | Sender, OK, lCh, enable
+  StrP:=0  'Reset line pointer
+  Sender:=0
+  StrLen:=strsize(@StrBuf)  
+  OK:=1
+
+  if StrLen > (MaxStr-1)        'Check max len
+    OK:=-1                      'Error: String too long
+    
+  if StrLen == 0                'Check zero length
+    OK:=-2                      'Error: Null string
+    
+  if OK==1                      'Parse string
+    lCh:=sGetch
+    repeat while (lch<>"$") and (OK == 1)       'Find start char
+      lCh:=sGetch
+      if StrP == StrLen
+        OK:=-3                  'Error: No Command Start  found
+        Quit                    'Exit loop
+
+    if OK == 1
+      Sender:=sGetPar
+      Case Sender
+
+        400 : enable:=sGetPar
+              if enable == 1
+                enabled:=TRUE
+                  PC.str(string("$400,"))
+                  PC.dec(1)
+              elseif enable == 0
+                  enabled:=FALSE 
+                  PC.str(string("$400,"))
+                  PC.dec(0)
+              else
+                  PC.str(string("$400,"))
+                  PC.dec(-1)
+
+              PC.str(string(",",13))
+
+        401 : ser_req_pos:=sGetPar
+              if ser_req_pos == 2
+                Height.height_set_position(POS_LOW)  
+              elseif ser_req_pos == 3
+                Height.height_set_position(POS_MID)  
+              elseif ser_req_pos == 4
+                Height.height_set_position(POS_HIGH)
+              else
+                Height.height_set_position(POS_STOP)
+              pos_reached_send := FALSE              
+
+        402 : PC.str(string("$402,"))
+              PC.dec(Height.get_current_pos)
+              PC.str(string(",",13))
+
+        403 : PC.str(string("$403,"))
+              PC.dec(Height.height_get_low)
+              PC.str(string(","))
+              PC.dec(Height.height_get_mid)
+              PC.str(string(","))
+              PC.dec(Height.height_get_high)
+              PC.str(string(",",13)) 
+
+        404 : PC.str(string("$404,"))
+              PC.dec(Height.height_get_position)
+              PC.str(string(",",13))
   
-  waitInit := TRUE
-  waitcnt((clkfreq/2)+cnt)
+        451 : specialcommand := Height.height_get_position
+              PC.str(string("$451,"))
+              PC.dec(specialcommand)
+              PC.str(string(",",13))
+              Height.height_set_mid(specialcommand)
+              waitcnt((clkfreq/8)+cnt)
 
-  if (PC.start(31,30,0,BaudRate))
-    ii := 1
-  else
-    ii := 0
+        452 : specialcommand := Height.height_get_position
+              PC.str(string("$452,"))
+              PC.dec(specialcommand)
+              PC.str(string(",",13))
+              Height.height_set_low(specialcommand)
+              waitcnt((clkfreq/8)+cnt)
 
-  repeat while waitInit
-    lch2 := PC.rxcheck
-        
-        if lch2 > 0
-          'PC.dec(ii)
-           'PC.out(lch)
-           DoCommand(lch2)
-           
-           lch2 := 0      
-
-  if (ii)
-    PC.str(string("$350,Communication COG started,#",13))
-  else
-    PC.str(string("$351,Communication COG error,#",13))
-
-  PC.str(string("$350,Starting up,#",13))
-
-  PC.str(string("$350, Platform controller level 2 --> Version: "))
-  PC.str(@version)          
-  PC.str(string(",#",13))
-   
-  PC.str(string("$350,Loading settings from EEPROM,#",13))
-  
-  
-  temp := Sensor.LoadLowPos
-
-  waitcnt((clkfreq/8)+cnt)
-  Height.height_set_low(temp)
-
-
-                             
-  temp := Sensor.LoadHighPos
-  waitcnt((clkfreq/8)+cnt)
-  Height.height_set_high(temp)
-
-  temp := Sensor.LoadSettings
-   
-  PC.str(string("$350,Checking Sensors,#",13))
-  if (Sensor.CheckSensors == 255)
-    PC.str(string("$350,All sensors online!,#",13))
-    PC.str(string("$350,Sensor checksum: "))
-    PC.dec(Sensor.CheckSensors)
-    PC.str(string(",#",13))
-  else
-    PC.str(string("$351,There is a problem with the sensors!,#",13))
-    PC.str(string("Sensor checksum: "))
-    PC.dec(Sensor.CheckSensors)
-    PC.str(string(",#",13))
-   
-  PC.str(string("$350,Initializing Sensors,#",13))
-  PC.str(string("$350,Starting Sensor Sequence,#",13))
-  if (Sensor.SensorStart)
-    PC.str(string("$350,Sensor COG started,#",13))
-  else
-    PC.str(string("$351,Sensor COG Error,#",13)) 
-   
-  waitcnt((clkfreq/8)+cnt)
-
-  'Initialise the heigth controller
-  PC.str(string("$350,Initializing Height,#",13))
-  Height.height_init (temp)
-                              
-  
-  ii :=Height.height_start
-  PC.str(string("$350,Height COG: "))
-  PC.dec(ii)
-  PC.str(string(",#",13))
-  
-  if (ii)
-    PC.str(string("$350,Height COG started,#",13))
-  else
-    PC.str(string("$351,Height COG Error,#",13))    
-   
-  waitcnt((clkfreq/8)+cnt)
-   
-  PC.str(string("$350,Loaded and running,#",13))
-  PC.str(string("$350,Waiting for command,#",13))
-  CStep := 0
-  
-PUB DoCommand (lCmd)
-
-  if lCmd == "$"
-    CStep := 1
-    PC.rxflush
-    Command := 0
-  else
-    case Cstep
-      1  : case lCmd
-             "3" : Command := 300
-             "4" : Command := 400
-           CStep := 2
-           PC.rxflush
-      2  : case lCmd
-             "0" : Command := Command + 0
-             "1" : Command := Command + 10
-             "2" : Command := Command + 20
-             "3" : Command := Command + 30
-             "4" : Command := Command + 40
-             "5" : Command := Command + 50
-             "6" : Command := Command + 60
-             "7" : Command := Command + 70
-             "8" : Command := Command + 80
-             "9" : Command := Command + 90
-           CStep := 3
-           PC.rxflush  
-      3  : case lCmd
-             "0" : Command := Command + 0
-             "1" : Command := Command + 1
-             "2" : Command := Command + 2
-             "3" : Command := Command + 3
-             "4" : Command := Command + 4
-             "5" : Command := Command + 5
-             "6" : Command := Command + 6
-             "7" : Command := Command + 7
-             "8" : Command := Command + 8
-             "9" : Command := Command + 9
-           CStep := 4      
-      4  : if lCmd == ","
-             CStep := 5
-           elseif lCmd == 13
-             ActivateCommand
-             PC.rxflush
-           else             
-             CStep := 0
-      5  : Value[1] := 0
-           Value[1] := ChartoDec(lCmd,1)
-           CStep := 6
-      6  : Value[1] := Value[1] + ChartoDec(lCmd,0)
-           CStep := 7
-      7  : if lCmd == ","
-             CStep := 8
-           else
-             CStep := 0
-      8  : Value[2] := 0
-           Value[2] := ChartoDec(lCmd,1)
-           CStep := 9          
-      9  : Value [2] := Value[2] + ChartoDec(lCmd,0)
-           CStep:= 10
-      10 : if lCmd == ","
-             PC.rxflush
-             CStep := 11
-           else
-             CStep := 0        
-      11 : if lCmd == "#"
-             ActivateSpecialCommand
-             PC.rxflush
-             CStep := 0
-           else
-             CStep := 0
-      Other : CStep := 0
-
-PUB ActivateSpecialCommand
-  case SpecialCommand
-
-    315 : PC.str(string("$350,Execute Special Command 315,#",13))
-          PC.dec(Value[1])
-          PC.str(string(" ",13))
-          PC.dec(Value[2])
-          PC.str(string(" ",13))
-    316 : PC.str(string("$350,Execute Special Command 316,#",13))
-          PC.dec(Value[1])
-          PC.str(string(" ",13))
-          PC.dec(Value[2])
-          PC.str(string(" ",13))    
-    317 : PC.str(string("$350,Execute Special Command 317,#",13))
-          PC.dec(Value[1])
-          PC.str(string(" ",13))
-          PC.dec(Value[2])
-          PC.str(string(" ",13))     
-
-SpecialCommand := 0
-
-PUB ActivateCommand
-
-  case Command
-
-    300 : PC.str(string("$350,Execute Command 300,#",13))      
-          Sensor.SensorStart
-          PC.str(string("$350,Sensor COG started,#",13))
-    301 : PC.str(string("$350,Execute Command 301,#",13))
-          Sensor.SensorStop
-          PC.str(string("$350,Sensor COG stopped,#",13)) 
-    302 : PC.str(string("$350,Execute Command 302,#",13)) 
-          X:=1
-          PC.str(string("$350,"))
-          repeat 8
-            PC.dec(Sensor.ShowResult(X))
-            PC.Str(string(","))
-            X++
-          PC.str(string("#",13)) 
-    303 : PC.str(string("$350,Execute Command 303,#",13))
-    304 : PC.str(string("$350,Execute Command 304,#",13))
-    305 : PC.str(string("$350,Execute Command 305,#",13))
-    306 : PC.str(string("$350,Execute Command 306,#",13))
-    307 : PC.str(string("$350,Execute Command 307,#",13))
-    308 : PC.str(string("$350,Execute Command 308,#",13))
-    309 : PC.str(string("$350,Execute Command 309,#",13))
-    310 : PC.str(string("$350,Execute Command 310,#",13))
-    311 : PC.str(string("$350,Execute Command 311,#",13))
-    312 : PC.str(string("$350,Execute Command 312,#",13))
-          X:=1
-          PC.str(string("$350,"))
-          repeat 8
-            PC.hex(Sensor.ReadAddressSetting(X),2)
-            PC.Str(string(","))
-            X++
-          PC.str(string("#",13))
-    313 : PC.str(string("$350,Execute Command 313,#",13))
-          X:=1
-          PC.str(string("$350,"))
-          repeat 8
-            PC.dec(Sensor.ReadGainSetting(X))
-            PC.Str(string(","))
-            X++
-          PC.str(string("#",13))
-    314 : PC.str(string("$350,Execute Command 314,#",13))
-          X:=1
-          PC.str(string("$350,"))
-          repeat 8
-            PC.hex(Sensor.ReadRangeSetting(X),2)
-            PC.Str(string(","))
-            X++
-          PC.str(string("#",13))    
-    315 : PC.str(string("$350,Execute Command 315,#",13))
-          SpecialCommand := 315
-          CStep := 4    
-    316 : PC.str(string("$350,Execute Command 316,#",13))
-          SpecialCommand := 316
-          CStep := 4
-    317 : PC.str(string("$350,Execute Command 317,#",13))
-          SpecialCommand := 317
-          CStep := 4
-    318 : PC.str(string("$350,Execute Command 318,#",13))
-    319 : PC.str(string("$350,Execute Command 319,#",13))
-    320 : PC.str(string("$350,Execute initialization,#",13))
-          if waitInit == FALSE
-            PC.str(string("$350,Waiting for command,#",13))
-          waitInit := FALSE
-          
-    400 : PC.str(string("$350, Start height cog,#",13))
-          Height.height_start
-    401 : PC.str(string("$350,Stop height cog,#",13))
-          Height.height_stop
-    402 : PC.str(string("$350,"))
-          PC.hex(Height.height_get_position,4)
-          PC.str(string(",#",13))
-    403 : PC.str(string("$350,Stored position: "))
-          PC.hex(Height.height_get_low,4)
-          PC.str(string(","))
-          PC.hex(Height.height_get_mid_position,4)
-          PC.str(string(","))
-          PC.hex(Height.height_get_high,4)
-          PC.str(string(",#",13))
-    404 : PC.str(string("$350,Current height: "))
-          PC.hex(Height.height_get_position,4)
-          PC.str(string(",#",13))            
-    405 : PC.str(string("$350,ADC config register: "))
-          PC.hex(Height.height_get_config_register,2)
-          PC.str(string(",#",13))
-    406 : PC.str(string("$350,Height status,"))
-          PC.dec(Height.get_current_pos)
-          PC.str(string(",#",13))
-    410 : PC.str(string("$350,Go to low position,#",13))
-          Height.height_set_position(POS_LOW)
-          b_pos_reached := TRUE
-    420 : PC.str(string("$350,Go to mid position,#",13))
-          Height.height_set_position(POS_MID)
-          b_pos_reached := TRUE
-    430 : PC.str(string("$350,Go to high position,#",13))
-          Height.height_set_position(POS_HIGH)
-          b_pos_reached := TRUE
-    440 : PC.str(string("$350,Stop height adjustment,#",13))
-          Height.height_set_position(POS_STOP)
-          b_pos_reached := TRUE
-          
-    451 : specialcommand := Height.height_get_position
-          PC.str(string("$350,"))
-          PC.hex(specialcommand,4)
-          PC.str(string(",#",13))
-          Sensor.SensorStop
-          Sensor.StoreHeightSettings(specialcommand)
-          Height.height_set_mid_position(specialcommand)
-          Sensor.SensorStart
-          waitcnt((clkfreq/8)+cnt)
-    452 : specialcommand := Height.height_get_position
-          PC.str(string("$350,"))
-          PC.hex(specialcommand,4)
-          PC.str(string(",#",13))
-          Sensor.SensorStop
-          Sensor.StoreHeightSettingsLow(specialcommand)
-          Height.height_set_low(specialcommand)
-          Sensor.SensorStart
-          waitcnt((clkfreq/8)+cnt)
-    453 : specialcommand := Height.height_get_position
-          PC.str(string("$350,"))
-          PC.hex(specialcommand,4)
-          PC.str(string(",#",13))
-          Sensor.SensorStop
-          Sensor.StoreHeightSettingsHigh(specialcommand)
-          Height.height_set_high(specialcommand)
-          Sensor.SensorStart
-          waitcnt((clkfreq/8)+cnt)
-    470 : Height.turn_cw
-    480 : Height.turn_ccw
-    490 : PC.str(string("$350,Version: "))
-          PC.str(@version)          
-          PC.str(string(",#",13))
-                                       
-    499 : PC.str(string("$350,REBOOT,#",13))
-      REBOOT
-    Other : PC.str(string("$351,Unknown Command,#",13))      
-
- Command := 0
+        453 : specialcommand := Height.height_get_position
+              PC.str(string("$453,"))
+              PC.dec(specialcommand)
+              PC.str(string(",",13))
+              Height.height_set_high(specialcommand)
+              waitcnt((clkfreq/8)+cnt)
+        470 : Height.turn_cw
+        480 : Height.turn_ccw
+                                           
+        499 : PC.str(string("$499,REBOOT,",13))
+              waitcnt((clkfreq/8)+cnt)
+              REBOOT
+        Other:PC.str(string("$",1))
+              PC.dec(Sender) 
+              PC.str(string(",Unknown Command,",13))      
 
 PUB ChartoDec (input,sbit) : output
 
@@ -537,3 +368,55 @@ PUB ChartoDec (input,sbit) : output
   else
     return output
                
+' ---------------- Get next parameter from string ---------------------------------------
+PRI sGetPar | j, jj, lPar, lch
+  j:=0
+  Bytefill(@LastPar1,0,CmdLen)   'Clear buffer
+  lch:=sGetch                    'Get comma and point to first numeric char
+  jj:=0
+  repeat until lch=="," 'Get parameter until comma
+    if lch<>"," and j<CmdLen
+      LastPar1[j++]:=lch
+    lch:=sGetch           'skip next
+ 
+  LPar:=PC.strtodec(@LastPar1)
+Return Lpar
+
+' ---------------- Get next character from string ---------------------------------------
+PRI sGetCh | lch 'Get next character from commandstring
+   lch:=Byte[@StrBuf][StrP++]
+Return lch
+
+'---------------EEPROM FUNCTIONS----
+PUB EEPROMInit
+  'Initialize I2C communication module
+  i2cObject.Initialize(i2cSCL)                                            
+  ' pause 2 seconds
+  repeat 2
+        waitcnt((clkfreq/2)+cnt)
+
+PUB LoadLowPos
+  return i2cObject.ReadWord(i2cSCL,EEPROMAddr,$A100)
+
+PUB LoadMidPos
+  return i2cObject.ReadWord(i2cSCL,EEPROMAddr,$A000)
+
+PUB LoadHighPos
+  return i2cObject.ReadWord(i2cSCL,EEPROMAddr,$A200)
+
+PUB StoreHeightSettings(ADC_store_value)
+
+  ' Store the ADC value of the medium height
+  i2cObject.WriteWord(i2cSCL, EEPROMAddr, $A000, ADC_store_value)
+
+PUB StoreHeightSettingsLow(ADC_store_value1)
+
+  ' Store the ADC value of the low height
+  i2cObject.WriteWord(i2cSCL, EEPROMAddr, $A100, ADC_store_value1)
+
+PUB StoreHeightSettingsHigh(ADC_store_value2)
+
+  ' Store the ADC value of the high height
+  i2cObject.WriteWord(i2cSCL, EEPROMAddr, $A200, ADC_store_value2)
+ 
+  
