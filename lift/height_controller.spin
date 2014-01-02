@@ -217,7 +217,7 @@ PUB turn_ccw
   OUTA[PIN_INA]~
   OUTA[PIN_INB]~~
   
-PRI motor_stop
+PUB motor_stop
 
   OUTA[PIN_INB]~
   OUTA[PIN_INA]~

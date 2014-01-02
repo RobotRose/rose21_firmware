@@ -49,6 +49,7 @@ CON
 ' Version
    Version = 36
    SubVersion = "a" 
+   CONTROLLER_ID = 1
 
 'Set 80Mhz
    _clkmode=xtal1+pll16x
@@ -120,6 +121,8 @@ CON
 'Error logging
   ErrorCnt = 100
 
+'Debugging
+  DEBUG = FALSE
 
 'Platform status bits
    Serialbit     = 0              '0= Serial Debug of 1= Serial pdebug port on
@@ -165,7 +168,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
 
     'Xbee input
     Long XbeeCmdCntr  
-    Long Sender, CMDi, myID, Debug, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
+    Long Sender, CMDi, myID, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
     Byte Cmd[LineLen] ,LastPar1[CmdLen]
     Byte XbeeTimeout
 
@@ -204,7 +207,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     'Parameters for saving logdata
     Long StartlVar, MaxCurrent[MotorCnt], ErrorLog[ErrorCnt], ActErrNr, EndLVar
        
-' ---------------- Main program ---------------------------------------
+' ---------------- Main program CONTROLLER_ID---------------------------------------
 PUB main | Up, T1, lch 
   InitMain
   !outa[Led]                             ' Toggle I/O Pin for debug
@@ -214,10 +217,11 @@ PUB main | Up, T1, lch
 
   repeat
     T1:=cnt
-    lch:= ser.RxCheck                     ' Check serial port debug port
-    if lch>0                                            
-      DoCommand(lch)
-      lch:=0
+    if DEBUG
+      lch:= ser.RxCheck                     ' Check serial port debug port
+      if lch>0                                            
+        DoCommand(lch)
+        lch:=0
 
     DoXbeeCmd                              'Linux pc roboto controller runtime com
 
@@ -230,18 +234,53 @@ PUB main | Up, T1, lch
     !outa[Led]                           'Toggle I/O Pin for debug
     MainTime:=(cnt-T1)/80000
     MainCntr++
-'    t.Pause1ms(50)
-    
+
+' ----------------  Init main program ---------------------------------------
+PRI InitMain
+  dira[Led]~~                            'Set I/O pin for LED to output…
+  !outa[Led]                             'Toggle I/O Pin for debug
+
+  drive_pid_vals_set:=false
+  steer_pid_vals_set:=false
+  expected_wd:=1                     'Watchdog Stuff
+  wd:=0
+  wd_cnt:=0
+  if DEBUG
+    SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
+    t.Pause1ms(200)
+    ser.Clear
+  else
+    SerCog:=0
+  
+  InitXbeeCmd
+
+  !outa[Led]                               'Toggle I/O Pin for debug
+
+  MAECog:=CogNew(MAESense, @MAEStack)                   'Start MAE sensing
+  SafetyCog:= CogNew(DoSafety, @SafetyStack)
+  
+  PIDCog:=PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops)  
+  PIDMode:=PID.GetPIDMode(0)                            'Set open loop mode
+
+  repeat while PID.GetPIDStatus<>2                      'Wait while PID initializes
+
+  ShowParameters                                        'Show control parameters
+  !outa[Led]                                            'Toggle I/O Pin for debug
+
+  t.Pause1ms(2000)
+  !outa[Led]                        'Toggle I/O Pin for debug
+
+
 
 '================================ Init Xbee comm ==========================
 PRI InitXbeeCmd
-  MaxWaitTime := 50                    'ms wait time for incoming string  
+  MaxWaitTime := 100                    'ms wait time for incoming string  
   StrSp:=0
   
   ByteFill(@StrBuf,0,MaxStr)
   ByteFill(@cStrBuf,0,MaxStr)
   XbeeCog:=xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
-
+  Xbee.str(string("Serial started", 13))
 
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
@@ -256,28 +295,6 @@ PRI DoXbeeCmd
 
         ProcessCommand                                  'Execute new commands
 
-
-'==================================== EnableSerial ==========================
-PRI EnablePfSerial     'Enable serial port
-  SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port
-  t.Pause1ms(500)
-  ser.tx(CS)
-  
-  SerEnabled:=true
-  ShowParameters
-
-  SetBit(@PfStatus,Serialbit)
-  
-'==================================== DisablePfSerial ==========================
-PRI DisablePfSerial      'DisablePf serial port
-  ser.tx(CS)
-  ser.str(string("Pf Debug Comm stopped", CR))
-  t.Pause1ms(100)
-
-  Ser.stop
-  SerEnabled:=false
-
-  ResetBit(@PfStatus,Serialbit)
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | t1, ClkCycles, Period, OldCnt
@@ -305,7 +322,10 @@ PRI DoSafety | t1, ClkCycles, Period, OldCnt
     '-- watchdog --
     if Enabled 
         wd_cnt++
-    if wd_cnt > 5               ' 5 will result in shutdown if no WD communication has taken place for approximatly 1 sec
+    else
+        wd_cnt:=0
+
+    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 4 sec
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
@@ -378,13 +398,13 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
   StrP:=0  'Reset line pointer
   Sender:=0
   StrLen:=strsize(@StrBuf)  
-  
+
   if StrLen > (MaxStr-1)        'Check max len
     OK:=-1                      'Error: String too long
-    
+
   if StrLen == 0                'Check zero length
     OK:=-2                      'Error: Null string
-    
+
   if OK==1                      'Parse string
     lCh:=sGetch
     repeat while (lch<>"$") and (OK == 1)       'Find start char
@@ -395,7 +415,13 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
 
     if OK == 1
       Sender:=sGetPar
+
       Case Sender
+        '--- Communicate controller id ---
+        100 : Xbee.str(string("$100,"))
+              Xbee.dec(CONTROLLER_ID)
+              Xbee.tx(",")  
+              Xbee.tx(CR) 
         '--- WATCHDOG ---
         111:      
              received_wd := sGetPar
@@ -669,7 +695,10 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 xBee.dec(pid.GetFE(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
-
+        other: Xbee.tx("$")
+               Xbee.dec(sender)
+               xBee.tx(",")
+               xBee.str(string("Unkown command", 13)) 
 
   XbeeTime:=cnt-t1
   XbeeCmdCntr++    
@@ -718,21 +747,17 @@ PRI sGetPar | j, jj, lPar, lch
       LastPar1[j++]:=lch
     lch:=sGetch           'skip next
  
-  LPar:=ser.strtodec(@LastPar1)
+  LPar:=Xbee.strtodec(@LastPar1)
 Return Lpar
 
 ' ---------------- Get next character from string ---------------------------------------
 Pri sGetCh | lch 'Get next character from commandstring
    lch:=Byte[@StrBuf][StrP++]
-'   ser.tx("\")          
-'   ser.tx(lch)
- '  Cmd[Lp++]:=lch
 Return lch
 
 ' ---------------- Print program status to PC ---------------------------------------
 PRI DoStatus2PC
   Xbee.tx("$")
-'  Xbee.tx("%")
   Xbee.dec(Sender)        'Last Sender
   Xbee.tx(",")
   Xbee.dec(MoveMode)      'Mode mode 0 = manual 1= US sensor control
@@ -759,7 +784,6 @@ PRI DoStatus2PC
 PRI DoPos2PC | i
   i:=0
   Xbee.tx("$")
-'  Xbee.tx("%")
   Xbee.dec(Sender)
   Xbee.tx(",")
 
@@ -898,39 +922,6 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax
       steer_pid_vals_set:=true
 
 '=============================================================================
-' ----------------  Init main program ---------------------------------------
-PRI InitMain
-  dira[Led]~~                            'Set I/O pin for LED to output…
-  !outa[Led]                             'Toggle I/O Pin for debug
-
-  drive_pid_vals_set:=false
-  steer_pid_vals_set:=false
-  expected_wd:=1                     'Watchdog Stuff
-  wd:=0
-  wd_cnt:=0
-  SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
-
-  t.Pause1ms(200)
-  ser.Clear
-  
-  InitXbeeCmd
-
-  !outa[Led]                               'Toggle I/O Pin for debug
-
-  MAECog:=CogNew(MAESense, @MAEStack)                   'Start MAE sensing
-  SafetyCog:= CogNew(DoSafety, @SafetyStack)
-  
-  PIDCog:=PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops)  
-  PIDMode:=PID.GetPIDMode(0)                            'Set open loop mode
-
-  repeat while PID.GetPIDStatus<>2                      'Wait while PID initializes
-
-  ShowParameters                                        'Show control parameters
-  !outa[Led]                                            'Toggle I/O Pin for debug
-
-  t.Pause1ms(2000)
-  !outa[Led]                        'Toggle I/O Pin for debug
-
 
 
 '---------------- 'Set rotation limits to steer motors to about +-(3/4)*pi --------
@@ -961,90 +952,91 @@ PRI MAESense | t1 , lMAE0Pin, lMAE1Pin, lMAE2Pin, lMAE3Pin
 PUB GetPIDCTime
 Return PIDConnTime/80
 
-' ----------------  Show PID parameters ---------------------------------------
+' ----------------  Show P    ID parameters ---------------------------------------
 PRI ShowParameters | i
-  ser.Position(0,0)
-  ser.str(string("OmniBot (c) 8-DOF platform QiK PID  Opteq HJK V"))
-  ser.dec(Version)
-  ser.tx(SubVersion)
-  ser.str(string(" Max Cog : "))
-  ser.dec(pid.GetQIKCog)
-
-  ser.tx(CR)
-  ser.Position(0,pControlPars)
-  ser.str(string(" PID pars: PID Cycle Time (ms): "))
-  ser.dec(PIDCTime)
-  
-  ser.str(string(CR,"Serial Cog "))
-  ser.dec(SerCog)
-  ser.str(string(" Encoder Cog "))
-  ser.dec(pid.GetEncCog)
-  ser.str(string(" Xbee Cog "))
-  ser.dec(XbeeCog)
-  ser.str(string(" PID Cog "))
-  ser.dec(PIDCog)
-  ser.str(string(" MAE Cog "))
-  ser.dec(MAECog)
-  ser.str(string(" PID Con Cog "))
-  ser.dec(PIDCCog)
-  ser.str(string(" QiK Cog "))
-  ser.dec(pid.GetQIKCog)
-  ser.str(string( "  # PID loops "))
-  ser.dec(MotorCnt)
-
-  ser.str(string(CR, "Control parameters: "))
-  ser.str(string( "Actual PID loop : "))
-  ser.dec(ActPID)
-
-  ser.str(string(CR,"      # : "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(i,6))
-    ser.tx("|")
-  ser.str(string(CR,"      KI: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(PID.getKI(i),6))
-    ser.tx("|")
-  ser.str(string(CR,"       K: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(PID.getK(i),6))
-    ser.tx("|")
-  ser.str(string(CR,"      Kp: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(PID.getKp(i),6))
-    ser.tx("|")
-  ser.str(string(CR,"PosScale: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(pid.GetPosScale(i),6))
-    ser.tx("|")
-  ser.str(string(CR,"VelScale: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(pid.GetVelScale(i),6))
-    ser.tx("|")
-  ser.str(string(CR,"  Ilimit: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(pid.GetIlimit(i),6))
-    ser.tx("|")
-
-  ser.str(string(CR,"PID Mode: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(PID.GetPIDMode(i),6))
-    ser.tx("|")
-
-  ser.str(string(CR,"MAE Offs: "))
-  repeat i from 0 to MAECnt-1
-    ser.str(n.decf(MAEOffs[i],6))
-    ser.tx("|")
-
-  ser.str(string(CR,"FE limit: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(PID.GetFEMax(i),6))
-    ser.tx("|")
-
-  ser.str(string(CR,"Curr lim: "))
-  repeat i from 0 to MotorIndex
-    ser.str(n.decf(pid.GetMaxCurrent(i),6))
-    ser.tx("|")
-  ser.str(string(CR,"======================================================================="))  
+   if SerCog <> 0
+      ser.Position(0,0)
+      ser.str(string("OmniBot (c) 8-DOF platform QiK PID  Opteq HJK V"))
+      ser.dec(Version)
+      ser.tx(SubVersion)
+      ser.str(string(" Max Cog : "))
+      ser.dec(pid.GetQIKCog)
+    
+      ser.tx(CR)
+      ser.Position(0,pControlPars)
+      ser.str(string(" PID pars: PID Cycle Time (ms): "))
+      ser.dec(PIDCTime)
+      
+      ser.str(string(CR,"Serial Cog "))
+      ser.dec(SerCog)
+      ser.str(string(" Encoder Cog "))
+      ser.dec(pid.GetEncCog)
+      ser.str(string(" Xbee Cog "))
+      ser.dec(XbeeCog)
+      ser.str(string(" PID Cog "))
+      ser.dec(PIDCog)
+      ser.str(string(" MAE Cog "))
+      ser.dec(MAECog)
+      ser.str(string(" PID Con Cog "))
+      ser.dec(PIDCCog)
+      ser.str(string(" QiK Cog "))
+      ser.dec(pid.GetQIKCog)
+      ser.str(string( "  # PID loops "))
+      ser.dec(MotorCnt)
+    
+      ser.str(string(CR, "Control parameters: "))
+      ser.str(string( "Actual PID loop : "))
+      ser.dec(ActPID)
+    
+      ser.str(string(CR,"      # : "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(i,6))
+        ser.tx("|")
+      ser.str(string(CR,"      KI: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(PID.getKI(i),6))
+        ser.tx("|")
+      ser.str(string(CR,"       K: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(PID.getK(i),6))
+        ser.tx("|")
+      ser.str(string(CR,"      Kp: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(PID.getKp(i),6))
+        ser.tx("|")
+      ser.str(string(CR,"PosScale: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(pid.GetPosScale(i),6))
+        ser.tx("|")
+      ser.str(string(CR,"VelScale: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(pid.GetVelScale(i),6))
+        ser.tx("|")
+      ser.str(string(CR,"  Ilimit: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(pid.GetIlimit(i),6))
+        ser.tx("|")
+    
+      ser.str(string(CR,"PID Mode: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(PID.GetPIDMode(i),6))
+        ser.tx("|")
+    
+      ser.str(string(CR,"MAE Offs: "))
+      repeat i from 0 to MAECnt-1
+        ser.str(n.decf(MAEOffs[i],6))
+        ser.tx("|")
+    
+      ser.str(string(CR,"FE limit: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(PID.GetFEMax(i),6))
+        ser.tx("|")
+    
+      ser.str(string(CR,"Curr lim: "))
+      repeat i from 0 to MotorIndex
+        ser.str(n.decf(pid.GetMaxCurrent(i),6))
+        ser.tx("|")
+      ser.str(string(CR,"======================================================================="))  
 
 ' ---------------- Dump PID settigns to Xbee ---------------------------------------
 PRI DoPIDSettings | i
@@ -1083,6 +1075,7 @@ PRI DoPIDSettings | i
         
 ' ----------------  Show actual value screen ---------------------------------------
 PRI ShowScreen | i
+  if SerCog <> 0
     ser.Position(0,pActualPars)                      'Show actual values PID
     ser.str(string(CR,"    Setp: |"))
     repeat i from 0 to MotorIndex

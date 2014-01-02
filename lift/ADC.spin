@@ -51,7 +51,6 @@ PUB adc_init
   i2cObject.Initialize(i2cSCL)                                            
   ' pause 2 seconds
   repeat 2
-        'PC.str(string(".",13))
         waitcnt((clkfreq/2)+cnt)
 
   adc_config

@@ -138,11 +138,13 @@ CON
   i2cSCL        = 28
   'i2cSDA        = 29
   EEPROMAddr    = $A0
+
+
 DAT
   version BYTE "1.30",0 ' Software version
+  CONTROLLER_ID LONG 2
 
 OBJ
-
   PC        : "FullDuplexSerial_rr005"
   Height    : "height_controller"
   i2cObject : "basic_i2c_driver"
@@ -164,13 +166,16 @@ VAR
   Long StrSP, StrCnt, StrP, StrLen, MaxWaitTime     'Instring semaphore, counter, Stringpointer
   Byte Cmd[LineLen] ,LastPar1[CmdLen] 
 
+  'Watchdog
+  long expected_wd, wd, wd_cnt
+
 
 '======================MAIN============================
 PUB Main | lch
     enabled:=FALSE
     InitSerialComm
     EEPROMInit
-    waitcnt((clkfreq/8)+cnt)
+    'waitcnt((clkfreq/8)+cnt)
 
     repeat      
       'Wait until enabled
@@ -180,67 +185,83 @@ PUB Main | lch
       main_init
       pos_reached_send := TRUE
       ser_req_pos := -1
+      PC.str(string("$400,"))           'Communicate enabled
+      PC.dec(1)
+      PC.str(string(",",13))
       repeat while enabled == TRUE
         CheckForSerialCommands
-    
+
+        'Watchdog (not while moving)
+        if Height.get_requested_pos == Height.get_current_pos
+            wd_cnt := wd_cnt + 1
+        if wd_cnt > 10 
+          enabled := FALSE  
+
         'Check height status
         if ((Height.get_requested_pos == Height.get_current_pos) AND pos_reached_send == FALSE)
-          PC.str(string("$400,"))
+          PC.str(string("$401,"))
           PC.dec(ser_req_pos)
           PC.str(string(",", 13))
           pos_reached_send := TRUE   
 
       'Not enabled any longer, disable
-      Height.height_stop
+      Height.motor_stop 
+      Height.height_stop                'Stop cog
+      PC.str(string("$400,"))           'Communicate disabled
+      PC.dec(0)
+      PC.str(string(",",13))
 
 
 PRI main_init | ii, T1, temp, lch2
+      'Reset Watchdog
+      wd:=0
+      expected_wd:=0
+      wd_cnt:=0
 
       'Initialise the height controller
-      PC.str(string("Initializing Height,",13))
+      'PC.str(string("Initializing Height,",13))
       Height.height_init   
       if not Height.height_get_cog
         Height.height_start
 
       if (Height.height_get_cog)
-        PC.str(string("Height COG started,",13))
+        'PC.str(string("Height COG started,",13))
       else
         repeat
             PC.str(string("Height COG Error,",13))    
             waitcnt((clkfreq/8)+cnt)
-      PC.str(string("Loading settings from EEPROM,",13))
+      'PC.str(string("Loading settings from EEPROM,",13))
       Height.height_set_low(LoadLowPos)
-      waitcnt((clkfreq/8)+cnt)
+      'waitcnt((clkfreq/8)+cnt)
       Height.height_set_mid(LoadmidPos)                          
-      waitcnt((clkfreq/8)+cnt)
+      'waitcnt((clkfreq/8)+cnt)
       Height.height_set_high(LoadHighPos) 
-      waitcnt((clkfreq/8)+cnt)
+      'waitcnt((clkfreq/8)+cnt)
     
-      PC.str(string("$350,Loaded and running,",13))
-      PC.str(string("$350,Waiting for command,",13))
+      'PC.str(string("Loaded and running, waiting for command",13))
 
 
 '================================ Init Serial comm ==========================
 PRI InitSerialComm
-  MaxWaitTime := 500                    'ms wait time for incoming string  
+  MaxWaitTime := 200                    'ms wait time for incoming string  
   StrSp:=0
   ByteFill(@StrBuf,0,MaxStr)
   PC_COG:=PC.start(cxTXD, cxRXD, 0, cxBaud)     'Start PC serial interface
-  PC.str(string("$350,Communication COG started,",13))
+  'PC.str(string("Communication COG started,",13))
 
 '================================ Do Xbee command input and execution ==========================
 PRI CheckForSerialCommands
-
     StrCnt++
     if PC.rxavail
       PC.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
+      'PC.StrInMax(@StrBuf,MaxStr)           'Blocking until return received or max str
       PC.rxflush             
       if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest$400,1,
         DoCommand                                   'Check input string for new commands and execute them
         Bytefill(@StrBuf,0,MaxStr)                  'Clear buffer
 
 '===============================================================
-PUB DoCommand | Sender, OK, lCh, enable
+PUB DoCommand | Sender, OK, lCh, enable, received_wd
   StrP:=0  'Reset line pointer
   Sender:=0
   StrLen:=strsize(@StrBuf)  
@@ -262,23 +283,70 @@ PUB DoCommand | Sender, OK, lCh, enable
 
     if OK == 1
       Sender:=sGetPar
-      Case Sender
 
+      'Force sender to zero if not enabled and not enabling or asking for controller id
+      if enabled == FALSE
+        if Sender <> 100 AND Sender <>400
+          Sender := -1        
+
+      Case Sender
+        '--- Communicate enabled first ---
+        -1:   PC.str(string("ERROR: Enable controller first!", 13))
+
+        '--- Communicate controller id ---
+        100 : PC.str(string("$100,"))
+              PC.dec(CONTROLLER_ID)
+              PC.str(string(",",13))
+
+        '--- WATCHDOG ---
+        111: received_wd := sGetPar
+             ' Check value
+             if received_wd <> expected_wd
+                enabled:=FALSE 
+                PC.str(string("$111,"))
+                PC.dec(-1)
+                PC.str(string(",",13))
+             else    
+                if expected_wd == 1
+                    expected_wd := 0             
+                else
+                    expected_wd := 1
+
+                if wd == 1
+                    wd := 0             
+                else
+                    wd := 1
+
+                wd_cnt := 0
+
+                PC.str(string("$111,"))
+                PC.dec(wd)
+                PC.str(string(",",13))
+
+        '--- Enable and disable ---
         400 : enable:=sGetPar
               if enable == 1
-                enabled:=TRUE
-                  PC.str(string("$400,"))
+                'Check if already enabled
+                if enabled == TRUE
+                  PC.str(string("$400,"))               'Communicate enabled
                   PC.dec(1)
+                  PC.str(string(",",13))        
+
+                enabled:=TRUE
               elseif enable == 0
-                  enabled:=FALSE 
-                  PC.str(string("$400,"))
+                'Check if already disabled
+                if enabled == FALSE
+                  PC.str(string("$400,"))               'Communicate disabled
                   PC.dec(0)
+                  PC.str(string(",",13))        
+                
+                enabled:=FALSE 
               else
                   PC.str(string("$400,"))
                   PC.dec(-1)
+                  PC.str(string(",",13))
 
-              PC.str(string(",",13))
-
+        '--- pose request ---
         401 : ser_req_pos:=sGetPar
               if ser_req_pos == 2
                 Height.height_set_position(POS_LOW)  
@@ -290,10 +358,12 @@ PUB DoCommand | Sender, OK, lCh, enable
                 Height.height_set_position(POS_STOP)
               pos_reached_send := FALSE              
 
+        '--- Get current pose ---
         402 : PC.str(string("$402,"))
               PC.dec(Height.get_current_pos)
               PC.str(string(",",13))
 
+        '--- Get low, mid and high ADC values ---
         403 : PC.str(string("$403,"))
               PC.dec(Height.height_get_low)
               PC.str(string(","))
@@ -302,10 +372,20 @@ PUB DoCommand | Sender, OK, lCh, enable
               PC.dec(Height.height_get_high)
               PC.str(string(",",13)) 
 
+        '--- Get current ADC value ---
         404 : PC.str(string("$404,"))
               PC.dec(Height.height_get_position)
               PC.str(string(",",13))
-  
+
+        '--- Store current ADC position as low position ---  
+        450 : specialcommand := Height.height_get_position
+              PC.str(string("$450,"))
+              PC.dec(specialcommand)
+              PC.str(string(",",13))
+              Height.height_set_low(specialcommand)
+              waitcnt((clkfreq/8)+cnt)
+
+        '--- Store current ADC position as middle position ---  
         451 : specialcommand := Height.height_get_position
               PC.str(string("$451,"))
               PC.dec(specialcommand)
@@ -313,28 +393,40 @@ PUB DoCommand | Sender, OK, lCh, enable
               Height.height_set_mid(specialcommand)
               waitcnt((clkfreq/8)+cnt)
 
+        '--- Store current ADC position as high position ---
         452 : specialcommand := Height.height_get_position
               PC.str(string("$452,"))
               PC.dec(specialcommand)
               PC.str(string(",",13))
-              Height.height_set_low(specialcommand)
-              waitcnt((clkfreq/8)+cnt)
-
-        453 : specialcommand := Height.height_get_position
-              PC.str(string("$453,"))
-              PC.dec(specialcommand)
-              PC.str(string(",",13))
               Height.height_set_high(specialcommand)
               waitcnt((clkfreq/8)+cnt)
+
+        ' --- Turn clockwise (DOWN) for 2.0 sec, NO LIMITS!! ---
         470 : Height.turn_cw
+              waitcnt((clkfreq/4)+cnt)
+              Height.motor_stop 
+              PC.str(string("$470", 13))
+
+        ' --- Turn counterclockwise (UP) for 2.0 sec, NO LIMITS!! ---        
         480 : Height.turn_ccw
-                                           
-        499 : PC.str(string("$499,REBOOT,",13))
-              waitcnt((clkfreq/8)+cnt)
-              REBOOT
-        Other:PC.str(string("$",1))
-              PC.dec(Sender) 
-              PC.str(string(",Unknown Command,",13))      
+              waitcnt((clkfreq/4)+cnt)
+              Height.motor_stop 
+              PC.str(string("$480", 13))
+
+        ' --- Stop the motor ---        
+        490 : Height.motor_stop 
+              PC.str(string("$490", 13))
+
+        Other: PC.dec(Sender) 
+               PC.str(string(",Unknown Command,",13))      
+
+ { PC.str(string("OK: "))
+  PC.dec(OK) 
+  PC.str(string(13))
+  PC.str(string("StrBuf: "))
+  PC.str(@strbuf)
+  PC.str(string(13))
+ }
 
 PUB ChartoDec (input,sbit) : output
 
