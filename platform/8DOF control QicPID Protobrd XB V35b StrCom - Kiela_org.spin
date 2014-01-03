@@ -223,7 +223,7 @@ PUB main | Up, T1, lch
         DoCommand(lch)
     lch:=0
     DoXbeeCmd                              'Linux pc roboto controller runtime com
-
+    
     if Enabled                             'Move! if enabled
         Move           
        
@@ -274,7 +274,7 @@ PRI InitMain
 
 '================================ Init Xbee comm ==========================
 PRI InitXbeeCmd
-  MaxWaitTime := 10                    'ms wait time for incoming string  
+  MaxWaitTime := 100                    'ms wait time for incoming string  
   StrSp:=0
   
   ByteFill(@StrBuf,0,MaxStr)
@@ -299,7 +299,7 @@ PRI DoXbeeCmd
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | t1, ClkCycles, Period, OldCnt
-  Period:= 100
+  Period:= 200
   ClkCycles := ((clkfreq / _1ms * Period) - 4296) #> 381   'Calculate 1 ms time unit
 
   repeat
@@ -434,6 +434,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 Xbee.dec(111)
                 Xbee.tx(",")
                 Xbee.dec(-1)
+                Xbee.tx(",")  
+                Xbee.dec(wd_cnt)
                 Xbee.tx(",")            
                 Xbee.tx(CR)  
              else    
