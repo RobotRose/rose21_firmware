@@ -152,7 +152,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long Setp[MotorCnt] 'Actual position and velocity, Setpoint
     Long EngU[MotorCnt] 'The user units for readout and commanding a servo motor
     Byte ActPID, SerCog
-    Long FeError', CurrError[MotorCnt], AnyCurrError 
+    Long FeError
     
     'PID Connect vars                    
     Byte PIDCCog, MAECog
@@ -221,15 +221,15 @@ PUB main | Up, T1, lch
       lch:= ser.RxCheck                     ' Check serial port debug port
       if lch>0                                            
         DoCommand(lch)
-        lch:=0
-
+    lch:=0
     DoXbeeCmd                              'Linux pc roboto controller runtime com
 
     if Enabled                             'Move! if enabled
         Move           
-                                   
-    if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
-      ShowScreen
+       
+    if DEBUG                            
+      if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
+        ShowScreen
 
     !outa[Led]                           'Toggle I/O Pin for debug
     MainTime:=(cnt-T1)/80000
@@ -274,13 +274,14 @@ PRI InitMain
 
 '================================ Init Xbee comm ==========================
 PRI InitXbeeCmd
-  MaxWaitTime := 100                    'ms wait time for incoming string  
+  MaxWaitTime := 10                    'ms wait time for incoming string  
   StrSp:=0
   
   ByteFill(@StrBuf,0,MaxStr)
   ByteFill(@cStrBuf,0,MaxStr)
   XbeeCog:=xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
-  Xbee.str(string("Serial started", 13))
+  'Xbee.str(string("Serial started", 13))
+
 
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
@@ -289,7 +290,7 @@ PRI DoXbeeCmd
     Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
     Xbee.rxflush
     if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
-        ByteMove(@cStrBuf,@StrBuf,MaxStr)            'Copy received string in display buffer for debug
+        'ByteMove(@cStrBuf,@StrBuf,MaxStr)            'Copy received string in display buffer for debug
 
         XBeeStat:=DoXCommand                          'Check input string for new commands
 
@@ -355,10 +356,11 @@ PRI ProcessCommand
     
 '------------------ Move all wheels individually --------------------------------
 PRI Move
-  Setp[0]:=wSpeed[0]
-  Setp[2]:=-wSpeed[1]
-  Setp[4]:=wSpeed[2]
-  Setp[6]:=-wSpeed[3]
+  Setp[0]:=wSpeed[0]    'Front right is 0
+  Setp[2]:=-wSpeed[1]   'Front left is  2
+  Setp[4]:=wSpeed[2]    'Back right is  4
+  Setp[6]:=-wSpeed[3]   'Back left is   6
+
   Setp[1]:=wAngle[0]
   Setp[3]:=wAngle[1]
   Setp[5]:=wAngle[2]
@@ -445,15 +447,18 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                  else
                     wd := 1
 
-                 wd_cnt := 0
-
                  Xbee.tx("$")
                  Xbee.dec(111)
                  Xbee.tx(",")
                  Xbee.dec(wd)
                  Xbee.tx(",")  
+                 Xbee.dec(wd_cnt)
+                 Xbee.tx(",")                
                  Xbee.tx(CR)  
-            
+                 
+                 'Reset the watchdog counter
+                 wd_cnt := 0           
+
         '=== Set drive PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr
         900: Ki:= sGetPar
              K:= sGetPar
@@ -541,15 +546,19 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
              Xbee.tx(",")
              Xbee.tx(CR)         
 
-        '=== Set the movement speeds and directions
-        903: wSpeed[0]:=-PID.GetMaxVel(0) #> sGetPar  <# PID.GetMaxVel(0)      
-             wSpeed[1]:=-PID.GetMaxVel(2) #> sGetPar  <# PID.GetMaxVel(2)               
-             wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)               
+        '=== Set the movement speeds and directions, 
+        'Front right is 0
+        'Front left is  2
+        'Back right is  4
+        'Back left is   6
+        903: wSpeed[0]:=-PID.GetMaxVel(0) #> sGetPar  <# PID.GetMaxVel(0)        
+             wSpeed[1]:=-PID.GetMaxVel(2) #> sGetPar  <# PID.GetMaxVel(2)         
+             wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)          
              wSpeed[3]:=-PID.GetMaxVel(6) #> sGetPar  <# PID.GetMaxVel(6)
-             wAngle[0]:=PID.GetSetpMaxMin(1) #> sGetPar <# PID.GetSetpMaxPlus(1)              
-             wAngle[1]:=PID.GetSetpMaxMin(3) #> sGetPar <# PID.GetSetpMaxPlus(3)               
-             wAngle[2]:=PID.GetSetpMaxMin(5) #> sGetPar <# PID.GetSetpMaxPlus(5)               
-             wAngle[3]:=PID.GetSetpMaxMin(7) #> sGetPar <# PID.GetSetpMaxPlus(7)             
+             wAngle[0]:=PID.GetSetpMaxMin(1) #> sGetPar <# PID.GetSetpMaxPlus(1)      
+             wAngle[1]:=PID.GetSetpMaxMin(3) #> sGetPar <# PID.GetSetpMaxPlus(3)     
+             wAngle[2]:=PID.GetSetpMaxMin(5) #> sGetPar <# PID.GetSetpMaxPlus(5)           
+             wAngle[3]:=PID.GetSetpMaxMin(7) #> sGetPar <# PID.GetSetpMaxPlus(7)      
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
              Xbee.dec(903)
@@ -592,7 +601,10 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 Xbee.tx("$")
                 Xbee.dec(1000)
                 xBee.tx(",")
-                xBee.dec(pid.GetActVel(req_id))  
+                if req_id == 2 or req_id == 6
+                    xBee.dec(-pid.GetActVel(req_id))  
+                else
+                    xBee.dec(pid.GetActVel(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
