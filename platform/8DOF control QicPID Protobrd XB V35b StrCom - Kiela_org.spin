@@ -240,11 +240,8 @@ PRI InitMain
   dira[Led]~~                            'Set I/O pin for LED to output…
   !outa[Led]                             'Toggle I/O Pin for debug
 
-  drive_pid_vals_set:=false
-  steer_pid_vals_set:=false
-  expected_wd:=1                     'Watchdog Stuff
-  wd:=0
-  wd_cnt:=0
+  ResetPfStatus
+
   if DEBUG
     SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
     t.Pause1ms(200)
@@ -554,38 +551,37 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         'Back right is  4
         'Back left is   6
         903: wSpeed[0]:=-PID.GetMaxVel(0) #> sGetPar  <# PID.GetMaxVel(0)        
+             wAngle[0]:=PID.GetSetpMaxMin(1) #> sGetPar <# PID.GetSetpMaxPlus(1)
              wSpeed[1]:=-PID.GetMaxVel(2) #> sGetPar  <# PID.GetMaxVel(2)         
-             wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)          
-             wSpeed[3]:=-PID.GetMaxVel(6) #> sGetPar  <# PID.GetMaxVel(6)
-             wAngle[0]:=PID.GetSetpMaxMin(1) #> sGetPar <# PID.GetSetpMaxPlus(1)      
              wAngle[1]:=PID.GetSetpMaxMin(3) #> sGetPar <# PID.GetSetpMaxPlus(3)     
-             wAngle[2]:=PID.GetSetpMaxMin(5) #> sGetPar <# PID.GetSetpMaxPlus(5)           
-             wAngle[3]:=PID.GetSetpMaxMin(7) #> sGetPar <# PID.GetSetpMaxPlus(7)      
+             wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)          
+             wAngle[2]:=PID.GetSetpMaxMin(5) #> sGetPar <# PID.GetSetpMaxPlus(5)     
+             wSpeed[3]:=-PID.GetMaxVel(6) #> sGetPar  <# PID.GetMaxVel(6)
+             wAngle[3]:=PID.GetSetpMaxMin(7) #> sGetPar <# PID.GetSetpMaxPlus(7)                        
+             
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
              Xbee.dec(903)
              Xbee.tx(",")
              Xbee.dec(wSpeed[0])
              Xbee.tx(",")
-             Xbee.dec(wSpeed[1])
-             Xbee.tx(",")
-             Xbee.dec(wSpeed[2])
-             Xbee.tx(",")
-             Xbee.dec(wSpeed[3])
-             Xbee.tx(",")
              Xbee.dec(wAngle[0])
+             Xbee.tx(",")             
+             Xbee.dec(wSpeed[1])
              Xbee.tx(",")
              Xbee.dec(wAngle[1])
              Xbee.tx(",")
+             Xbee.dec(wSpeed[2])
+             Xbee.tx(",")
              Xbee.dec(wAngle[2])
+             Xbee.tx(",")
+             Xbee.dec(wSpeed[3])
              Xbee.tx(",")
              Xbee.dec(wAngle[3])
              Xbee.tx(",")
              Xbee.tx(CR)  
 
         999: ResetPfStatus        'Reset platform status
-             pid.ResetCurrError
-             ResetPfStatus   
             'Send a reply (mirroring the received command)
              Xbee.tx("$")
              Xbee.dec(999)
@@ -737,6 +733,7 @@ PRI DoCurrents2PC | i
 ' ---------------- Reset platform -------------------------------
 PRI ResetPfStatus 
 
+  pid.ResetCurrError 
   pid.ClearErrors
   PfStatus:=0
   ResetBit(@PfStatus,USAlarm)          'Reset error bits in PfStatus
@@ -748,7 +745,13 @@ PRI ResetPfStatus
   PcSpeed:=0                           'Reset setpoints
   MoveSpeed:=0
   MoveDir:=0
-  
+
+  drive_pid_vals_set:=false
+  steer_pid_vals_set:=false
+
+  expected_wd:=1                     'Watchdog Stuff
+  wd:=0
+  wd_cnt:=0
 
 ' ---------------- Get next parameter from string ---------------------------------------
 PRI sGetPar | j, jj, lPar, lch
@@ -941,8 +944,8 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax
 '---------------- 'Set rotation limits to steer motors to about +-(3/4)*pi --------
 PRI setRotationLimits | i
   repeat i from 1 to MotorCnt-1 step 2                  
-    PID.SetSetpMaxMin(i,-1800)
-    PID.SetSetpMaxPlus(i,1800)                         
+    PID.SetSetpMaxMin(i,-1000)
+    PID.SetSetpMaxPlus(i,1000)                         
          
 
 ' ----------------  MAE absolute encoder sense ---------------------------------------
