@@ -135,7 +135,9 @@ CON
    CurrBit       = 9              'Current error on any axis
    MAEBit        = 10             'MAE encoder alarm
    NoAlarmBit    = 15             'No alarm present   
- 
+
+
+
 OBJ
   ser           : "Parallax Serial Terminal"            ' Serial communication object
   xBee          : "FullDuplexSerial_rr005" '            "FullDuplexSerialPlus"       ' Xbee serial
@@ -194,7 +196,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long VelMax
     Long FeMax
     Long MaxCurr 
-
+    long FR_a_err, FL_a_err, BR_a_err, BL_a_err
     'Platform vars
     Long MoveSpeed, MoveDir, lMoveSpeed, lMoveDir, MoveMode, A1, A2, Rv
     Long wSpeed[nWheels], wAngle[nWheels]
@@ -206,7 +208,9 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
 
     'Parameters for saving logdata
     Long StartlVar, MaxCurrent[MotorCnt], ErrorLog[ErrorCnt], ActErrNr, EndLVar
-       
+
+    'Movement 
+    Long start_a_err, stop_a_err, stopstart_a_err     
 ' ---------------- Main program CONTROLLER_ID---------------------------------------
 PUB main | Up, T1, lch 
   InitMain
@@ -239,6 +243,11 @@ PUB main | Up, T1, lch
 PRI InitMain
   dira[Led]~~                            'Set I/O pin for LED to output…
   !outa[Led]                             'Toggle I/O Pin for debug
+
+  ' Load start stop movement when rotating default values
+  start_a_err := 10
+  stop_a_err := 200
+  stopstart_a_err := start_a_err
 
   ResetPfStatus
 
@@ -350,25 +359,42 @@ PRI ProcessCommand
        EnableWheelUnits
     else
        Disable
-    
+
 '------------------ Move all wheels individually --------------------------------
 PRI Move
-  Setp[0]:=wSpeed[0]    'Front right is 0
-  Setp[2]:=-wSpeed[1]   'Front left is  2
-  Setp[4]:=wSpeed[2]    'Back right is  4
-  Setp[6]:=-wSpeed[3]   'Back left is   6
-
+  
   Setp[1]:=wAngle[0]
   Setp[3]:=wAngle[1]
   Setp[5]:=wAngle[2]
-  Setp[7]:=wAngle[3]
-  
- 'Disable wheels if no speed command given to avoid lock up of wheels and battery drainage
- if wSpeed[0]==0 and wSpeed[1] ==0 and wSpeed[2] == 0 and wSpeed[3] == 0   'Disable wheels to save battery
-     DisableWheels
- else
-   if Enabled
-     EnableWheels
+  Setp[7]:=wAngle[3]  
+ 
+  FR_a_err := Setp[1] - pid.GetActPos(1)
+  FL_a_err := Setp[3] - pid.GetActPos(3)
+  BR_a_err := Setp[5] - pid.GetActPos(5)
+  BL_a_err := Setp[7] - pid.GetActPos(7)
+
+  'Set speed to zero if a wheelunit is still turning
+  if (FR_a_err > stopstart_a_err or FR_a_err < -stopstart_a_err) or (FL_a_err > stopstart_a_err or FL_a_err < -stopstart_a_err) or (BR_a_err > stopstart_a_err or BR_a_err < -stopstart_a_err) or (BL_a_err > stopstart_a_err or BL_a_err < -stopstart_a_err)
+      Setp[0]:=0    
+      Setp[2]:=0   
+      Setp[4]:=0   
+      Setp[6]:=0   
+      'Wait for totally rotated
+      stopstart_a_err := start_a_err
+  else
+      Setp[0]:=wSpeed[0]    'Front right is 0
+      Setp[2]:=-wSpeed[1]   'Front left is  2
+      Setp[4]:=wSpeed[2]    'Back right is  4
+      Setp[6]:=-wSpeed[3]   'Back left is   6
+      'Set rotation erro stop driving value
+      stopstart_a_err := stop_a_err
+
+  'Disable wheels if no speed command given to avoid lock up of wheels and battery drainage
+  if (wSpeed[0]==0 and wSpeed[1] ==0 and wSpeed[2] == 0 and wSpeed[3] == 0)
+      DisableWheels    'Disable wheels to save battery
+  else
+      if Enabled
+         EnableWheels
 
 ' ---------------- Report platform parameters to PC ---------------------------------------
 PRI DoReportPFPars | i
@@ -580,6 +606,20 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
              Xbee.dec(wAngle[3])
              Xbee.tx(",")
              Xbee.tx(CR)  
+
+            '=== Set start/stop movement angle error values
+        904: start_a_err:= sGetPar
+             stop_a_err:= sGetPar
+
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(904)
+             Xbee.tx(",")
+             Xbee.dec(start_a_err)
+             Xbee.tx(",")
+             Xbee.dec(stop_a_err)
+             Xbee.tx(",")
+             Xbee.tx(CR)         
 
         999: ResetPfStatus        'Reset platform status
             'Send a reply (mirroring the received command)
