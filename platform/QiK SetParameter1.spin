@@ -30,9 +30,6 @@ CON
   _clkmode=xtal1+pll16x
   _xinfreq = 5000000      'MRS1
 
-'  _clkmode = xtal1 + pll8x  'Spinstamp  
-'  _xinfreq = 10_000_000  'spin stamp
-
   Version = 11
 '' Led
   Led = 27
