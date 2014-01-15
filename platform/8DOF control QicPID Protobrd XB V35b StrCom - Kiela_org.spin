@@ -79,7 +79,7 @@ CON
   MotorCnt = nPIDLoops
   nWheels = 4
   MotorIndex = MotorCnt - 1
-  PIDCTime = 20            ' PID Cycle time ms
+  PIDCTime = 20000            ' PID Cycle time us
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -249,12 +249,14 @@ PRI InitMain
   stop_a_err := 200
   stopstart_a_err := start_a_err
 
-  ResetPfStatus
-
   if DEBUG
+    if SerCog > 0
+      ser.Stop
+
     SerCog:=ser.StartRxTx(cRXD, cTXD, 0, cBaud)                       'Start debug port via standard usb
     t.Pause1ms(200)
     ser.Clear
+    ser.Str(string("Serial Debug Interface Started", CR))
   else
     SerCog:=0
   
@@ -262,15 +264,8 @@ PRI InitMain
 
   !outa[Led]                               'Toggle I/O Pin for debug
 
-  MAECog:=CogNew(MAESense, @MAEStack)                   'Start MAE sensing
-  SafetyCog:= CogNew(DoSafety, @SafetyStack)
-  
-  PIDCog:=PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops)  
-  PIDMode:=PID.GetPIDMode(0)                            'Set open loop mode
+  ResetPfStatus
 
-  repeat while PID.GetPIDStatus<>2                      'Wait while PID initializes
-
-  ShowParameters                                        'Show control parameters
   !outa[Led]                                            'Toggle I/O Pin for debug
 
   t.Pause1ms(2000)
@@ -289,6 +284,10 @@ PRI InitXbeeCmd
   'Xbee.str(string("Serial started", 13))
 
 
+PRI InitWatchDog
+  expected_wd:=0                     'Watchdog Stuff
+  wd:=0
+  wd_cnt:=0
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
 
@@ -304,27 +303,26 @@ PRI DoXbeeCmd
 
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | t1, ClkCycles, Period, OldCnt
-  Period:= 200
-  ClkCycles := ((clkfreq / _1ms * Period) - 4296) #> 381   'Calculate 1 ms time unit
-
+PRI DoSafety | i, ConnectionError
+  PID.ResetCurrError
   repeat
-    t1:=cnt
+    ConnectionError := false
     SafetyCntr++
     if PID.GetFEAnyTrip
       Disable
-      ResetBit(@PfStatus,NoAlarm)
+      ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,FeBit)
       LastAlarm:=1
       FEError:=1
-      
+      NoAlarm := false
+
     if PID.GetAnyCurrError
       Disable
-      ResetBit(@PfStatus,NoAlarm)
+      ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,CurrBit)
       LastAlarm:=2
-
       CurrError:=1
+      NoAlarm := false
 
     '-- watchdog --
     if Enabled 
@@ -332,32 +330,40 @@ PRI DoSafety | t1, ClkCycles, Period, OldCnt
     else
         wd_cnt:=0
 
-    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 4 sec
+    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 0.5 sec
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
       LastAlarm:=3
+      NoAlarm := false
 
-    waitcnt(ClkCycles + T1)       'Wait for designated time
+    'Check for connection errors
+    repeat i from 0 to MotorCnt-1
+        ConnectionError := ConnectionError or PID.GetConnectionError(i)
+        
+    if ConnectionError
+      Disable
+      ResetBit(@PfStatus,NoAlarm)
+      LastAlarm:=4
+      NoAlarm := false
+
+    If pMAECntr == MAECntr
+      Disable
+      ResetBit(@PfStatus,NoAlarmBit)
+      SetBit(@PfStatus,MAEBit)
+      LastAlarm:=5
+    pMAECntr := MAECntr  
+
+
+    t.Pause1ms(200)
     
 ' ---------------- Add error to log ---------------------------------------
 PRI AddError2Log(ErCode)
-
-' ---------------- Watch various critical processes ---------------------------------------
-PRI WatchProcesses
-  If pMAECntr == MAECntr
-    Disable
-    ResetBit(@PfStatus,NoAlarm)
-    SetBit(@PfStatus,MAEBit)
-    LastAlarm:=4
-
-  pMAECntr := MAECntr
-
 ' ---------------- Process Xbee commands into motion commands---------------------------------------
 PRI ProcessCommand   
-    if do_enable==1     'Enable Disable platform 1 = enabled 0 = disabled
+    if do_enable == 1 and not Enabled    'Enable Disable platform 1 = enabled 0 = disabled
        EnableWheelUnits
-    else
+    elseif do_enable == 0 and Enabled 
        Disable
 
 '------------------ Move all wheels individually --------------------------------
@@ -460,29 +466,37 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 Xbee.tx(",")  
                 Xbee.dec(wd_cnt)
                 Xbee.tx(",")            
+                Xbee.dec(received_wd)
+                Xbee.tx(",")   
+                Xbee.dec(expected_wd)
+                Xbee.tx(",")   
                 Xbee.tx(CR)  
              else    
-                 if expected_wd == 1
-                    expected_wd := 0             
-                 else
-                    expected_wd := 1
+                Xbee.tx("$")
+                Xbee.dec(111)
+                Xbee.tx(",")
+                Xbee.dec(wd)
+                Xbee.tx(",")  
+                Xbee.dec(wd_cnt)
+                Xbee.tx(",")                
+                Xbee.dec(received_wd)
+                Xbee.tx(",")   
+                Xbee.dec(expected_wd)
+                Xbee.tx(",")   
+                Xbee.tx(CR)  
 
-                 if wd == 1
-                    wd := 0             
-                 else
-                    wd := 1
+                if expected_wd == 1
+                   expected_wd := 0             
+                else
+                   expected_wd := 1
 
-                 Xbee.tx("$")
-                 Xbee.dec(111)
-                 Xbee.tx(",")
-                 Xbee.dec(wd)
-                 Xbee.tx(",")  
-                 Xbee.dec(wd_cnt)
-                 Xbee.tx(",")                
-                 Xbee.tx(CR)  
-                 
-                 'Reset the watchdog counter
-                 wd_cnt := 0           
+                if wd == 1
+                   wd := 0             
+                else
+                   wd := 1                                 
+ 
+                'Reset the watchdog counter
+                wd_cnt := 0           
 
         '=== Set drive PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr
         900: Ki:= sGetPar
@@ -745,6 +759,18 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 xBee.dec(pid.GetFE(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
+        '=== Get AlarmState and LastAlarm number
+        1011: Xbee.tx("$")
+              Xbee.dec(1011)
+              xBee.tx(",")
+              if not NoAlarm
+                 xBee.dec(1)  
+              else
+                 xBee.dec(0)  
+              xBee.tx(",") 
+              xBee.dec(LastAlarm)  
+              xBee.tx(",")
+              Xbee.tx(CR)
         other: Xbee.tx("$")
                Xbee.dec(sender)
                xBee.tx(",")
@@ -772,6 +798,53 @@ PRI DoCurrents2PC | i
 
 ' ---------------- Reset platform -------------------------------
 PRI ResetPfStatus 
+  if DEBUG
+    ser.Str(string("Pre MAECog    : "))
+    ser.dec(MAECog)
+    ser.Str(string(CR))
+
+  if MAECog > 0
+    cogstop(MAECog~ - 1)
+    t.Pause1ms(1)
+  MAECog:=CogNew(MAESense, @MAEStack) + 1                  'Start MAE sensing
+
+  
+  if DEBUG
+    ser.Str(string("After MAECog  : "))
+    ser.dec(MAECog)
+    ser.Str(string(CR))
+
+  if DEBUG
+    ser.Str(string("Pre PIDcog    : "))
+    ser.dec(PIDcog)
+    ser.Str(string(CR))
+
+  if PIDcog > 0
+    PID.Stop
+    t.Pause1ms(1)
+  PIDCog  := PID.Start(PIDCTime*1000, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
+  PIDMode := PID.GetPIDMode(0)                            'Set open loop mode
+  repeat while PID.GetPIDStatus <> 3                     'Wait while PID initializes
+
+  if DEBUG
+    ser.Str(string("After PIDcog  : "))
+    ser.dec(PIDcog)
+    ser.Str(string(CR))
+
+  if DEBUG
+    ser.Str(string("Pre SafetyCog : "))
+    ser.dec(SafetyCog)
+    ser.Str(string(CR)) 
+ 
+  if SafetyCog > 0
+    cogstop(SafetyCog~ - 1)  
+    t.Pause1ms(1)
+  SafetyCog:= CogNew(DoSafety, @SafetyStack) + 1
+
+  if DEBUG
+    ser.Str(string("After SafetyCog: "))
+    ser.dec(SafetyCog)
+    ser.Str(string(CR))
 
   pid.ResetCurrError 
   pid.ClearErrors
@@ -781,17 +854,14 @@ PRI ResetPfStatus
   SetBit(@PfStatus,NoAlarmBit)
   NoAlarm:=true                        'Reset global alarm var
   LastAlarm:=0                         'Reset last alarm message
-  
   PcSpeed:=0                           'Reset setpoints
   MoveSpeed:=0
   MoveDir:=0
 
   drive_pid_vals_set:=false
-  steer_pid_vals_set:=false
+  steer_pid_vals_set:=false  
 
-  expected_wd:=1                     'Watchdog Stuff
-  wd:=0
-  wd_cnt:=0
+  InitWatchDog  
 
 ' ---------------- Get next parameter from string ---------------------------------------
 PRI sGetPar | j, jj, lPar, lch
@@ -934,13 +1004,11 @@ PRI DisableWheels
   
 ' ----------------  Disable all wheels and steerin ---------------------------------------
 PRI Disable 
-  expected_wd:=0
-  wd:=0
-  do_enable:= 0
+  do_enable:=0
   PID.KillAll
   Enabled:=false
   ResetBit(@PfStatus,EnableBit)
-  ShowParameters  
+  'ShowParameters  
   
 ' Set drive motor control parameters
 PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
@@ -970,12 +1038,10 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax
       PID.SetMaxCurr(i,lMaxCurr)  
 
       setRotationLimits
-
       MAEOffs[0]:=2000
       MAEOffs[1]:=2000
       MAEOffs[2]:=2000
       MAEOffs[3]:=2000  
-
       steer_pid_vals_set:=true
 
 '=============================================================================
@@ -1011,9 +1077,9 @@ Return PIDConnTime/80
 
 ' ----------------  Show P    ID parameters ---------------------------------------
 PRI ShowParameters | i
-   if SerCog <> 0
+   if SerCog > -1
       ser.Position(0,0)
-      ser.str(string("OmniBot (c) 8-DOF platform QiK PID  Opteq HJK V"))
+      ser.str(string("Rose 2.0 Drive Firmware - Rose B.V. - 2014"))
       ser.dec(Version)
       ser.tx(SubVersion)
       ser.str(string(" Max Cog : "))
@@ -1132,7 +1198,7 @@ PRI DoPIDSettings | i
         
 ' ----------------  Show actual value screen ---------------------------------------
 PRI ShowScreen | i
-  if SerCog <> 0
+  if SerCog > -1
     ser.Position(0,pActualPars)                      'Show actual values PID
     ser.str(string(CR,"    Setp: |"))
     repeat i from 0 to MotorIndex
@@ -1193,7 +1259,7 @@ PRI ShowScreen | i
     repeat i from 0 to MotorIndex
       ser.hex(pid.GetError(i),2)
       ser.str(string("   | "))
-    ser.str(string(CR,"MaxStCur: |"))
+    ser.str(string(CR,"MaxStCurr:|"))
     repeat i from 0 to MotorIndex
       ser.str(n.decf(pid.GetMaxSetCurrent(i),6))
       ser.str(string("|"))
@@ -1217,11 +1283,13 @@ PRI ShowScreen | i
       ser.str(string("|"))
     ser.str(n.decf(pid.getAnyCurrError,6))
       
-    ser.str(string(CR,CR,"PIDTime (ms): "))
+    ser.str(string(CR,CR,"PIDTime (us): "))
     ser.dec(PID.GetPIDTime)
-    ser.str(string("  PIDLeadTime (ms): "))
+    ser.str(string("  PIDLeadTime (us): "))
     ser.dec(PID.GetPIDLeadTime)
-    ser.str(string("  PID LoopTime (ms): "))
+    ser.str(string("  PID WaitTime (us): "))
+    ser.dec(PID.GetPIDWaitTime)
+    ser.str(string("  PID LoopTime (us): "))
     ser.dec(PIDCTime)
     ser.str(string("  MAE LoopTime (ms): "))
     ser.dec(MAETime)
@@ -1241,6 +1309,32 @@ PRI ShowScreen | i
     ser.dec(MAECntr)
     ser.str(string(CR," PID Mode: "))
     ser.dec(PID.GetPIDMode(0))
+    ser.str(string(", "))
+    ser.dec(PID.GetPIDMode(1))
+    ser.str(string(" LastErr: "))
+    ser.hex(PID.GetError(0), 2)
+    ser.str(string(", "))
+    ser.hex(PID.GetError(1), 2)
+    ser.str(string(", "))
+    ser.hex(PID.GetError(2), 2)
+    ser.str(string(", "))
+    ser.hex(PID.GetError(3), 2)
+    ser.str(string(" ConnErr: "))
+    ser.dec(PID.GetConnectionError(0))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(1))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(2))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(3))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(4))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(5))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(6))
+    ser.str(string(", "))
+    ser.dec(PID.GetConnectionError(7))
     ser.str(string(" Xbee Time ms: "))
     ser.dec(XbeeTime/80000)
     ser.str(string(" Xbee Stat: "))
@@ -1249,34 +1343,18 @@ PRI ShowScreen | i
     ser.dec(XbeeCmdCntr)
     ser.str(string(" Last Alarm: "))
     ser.dec(LastAlarm)
-    ser.str(string("Watchdog cnt: "))
+    ser.str(string(" Watchdog cnt: "))
     ser.dec(wd_cnt)
     ser.tx(" ")
     ser.str(@cStrBuf)
     
     ser.str(string(CE,CR, " Enabled: "))
-    ser.str(n.decf(Enabled,3))
+    ser.str(n.dec(Enabled))
     ser.str(string(" PfStatus: "))
     ser.str(n.ibin(PfStatus,16))
        
     ser.str(string(CE,CR," Sender: "))
     ser.str(n.decf(Sender,4))
-    ser.tx(CE)
-    ser.tx(" ")
-    ser.str(string(CR," Platf Speed: "))
-    ser.str(n.decf(MoveSpeed,4))
-    ser.str(string(" Dir: "))
-    ser.str(n.decf(MoveDir,4))
-    ser.str(string(" MoveMode: "))
-    ser.str(n.decf(MoveMode,4))
-    ser.str(string(" Ang1: "))
-    ser.str(n.decf(A1,4))
-    ser.str(string(" Ang2: "))
-    ser.str(n.decf(A2,4))
-    ser.str(string(" Speed Ratio: "))
-    ser.str(n.decf(Rv,4))
-    ser.str(string(" MoveMode: "))
-    ser.str(n.decf(MoveMode,4))
 
 ' ---------------- 'Set bit in 32 bit Long var -------------------------------
 PRI SetBit(VarAddr,Bit) | lBit, lMask

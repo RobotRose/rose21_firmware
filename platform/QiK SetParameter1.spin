@@ -281,14 +281,20 @@ PRI ListPars(Address) | R, i
   ser.str(string("M0 current : "))
   ser.dec(R)
   ser.tx(CR)
+
+  R:=QiK.GetCurrentM1(Address)  
   if R < 0
        ser.str(string("TIMEOUT",CR))
-  R:=QiK.GetCurrentM1(Address)  
   ser.str(string("M1 current : "))
   ser.dec(R)
-  
   ser.tx(CR)
-  
+
+  R:=QiK.GetFirmWare(Address)  
+  if R < 0
+       ser.str(string("TIMEOUT",CR))
+  ser.str(string("Firmware : "))
+  ser.dec(R)
+  ser.tx(CR)
 {{
 
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐

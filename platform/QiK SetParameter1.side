@@ -1,5 +1,6 @@
 QiK SetParameter1.spin
 FullDuplexSerial_rr005.spin
+Timing.spin
 QiKCommands.spin
 simple_numbers.spin
 Parallax Serial Terminal.spin

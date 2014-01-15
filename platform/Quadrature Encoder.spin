@@ -12,14 +12,14 @@ VAR
   Long          EncTime         'Measures time per cycle
 '  Long          T1
 
-PUB Start(StartPin, NumEnc, NumDelta, PosAddr): Pass
+PUB Start(StartPin, NumEnc, NumDelta, PosAddr)
 ''Record configuration, clear all encoder positions and launch a continuous encoder-reading cog.
 ''PARAMETERS: StartPin = (0..63) 1st pin of encoder 1.  2nd pin of encoder 1 is StartPin+1.
 ''                       Additional pins for other encoders are contiguous starting with StartPin+2 but MUST NOT cross port boundry (31).
 ''            NumEnc   = Number of encoders (1..16) to monitor.
 ''            NumDelta = Number of encoders (0..16) needing delta value support (can be less than NumEnc).
 ''            PosAddr  = Address of a buffer of longs where each encoder's position (and deta position, if any) is to be stored.
-''RETURNS:    True if successful, False otherwise.
+''RETURNS:    cog
 
   Pin := StartPin                                                                                     
   TotEnc := NumEnc                                                                                    
@@ -27,14 +27,14 @@ PUB Start(StartPin, NumEnc, NumDelta, PosAddr): Pass
   Pos := PosAddr
   Stop
   longfill(Pos, 0, TotEnc+TotDelta)
-  Pass := (Cog := cognew(@Update, Pos))' + 1) > 0
-
+  Cog := cognew(@Update, Pos) + 1
+return Cog
 
 PUB Stop
 ''Stop the encoder-reading cog, if there is one.
 
   if Cog > 0
-    cogstop(Cog-1)
+    cogstop(Cog~ - 1)
 
 
 PUB ReadDelta(EncID): DeltaPos

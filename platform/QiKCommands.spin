@@ -68,12 +68,11 @@ CON
 
   nMotor = 8    'Max number of motors for brake array. Modify when more needed
 
-  TimeOut = 1000  'Timeout in us for response by Qik on request
+  TimeOut = 1  'Timeout in ms for response by Qik on request
     
 OBJ
-'  qic           : "FullDuplexSerial"       ' Standard serial communication
   qic           : "FullDuplexSerial_rr005"       ' Standard serial communication
-  
+  t             : "Timing"
   
 Var Byte  ActQiK
     Byte  lTxPin, lRxPin
@@ -177,7 +176,7 @@ PUB SetParameter(Address,Parameter, Value) | lS, NewCommand, R
   qic.tx(Value)
   qic.tx($55)      'extra bytes for security
   qic.tx($2A)
-  R:=qic.rxtime1(TimeOut) 'Wait for return charater before continuing max 100 us
+  R:=qic.rxtime(TimeOut) 'Wait for return charater before continuing max 100 us
 Return R           'Return result of parameter set     Check with SetParRes2str(Resnr) result
 
 ' --------------------- 'Get Parameter  ----------------------------
@@ -189,19 +188,19 @@ PUB GetParameter(Address, Parameter) | R, NewCommand
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
   qic.tx(Parameter) 'Get requested parameter
-  R:=qic.rxtime1(TimeOut) 'Expect response within timeout
+  R:=qic.rxtime(TimeOut) 'Expect response within timeout
 Return  R
 
 
 ' --------------------- 'Get motor 0 current -----------------------
 PUB GetCurrentM0(Address) | R, NewCommand
   NewCommand:=cGetM0Current 'Get current M0
-  if ActQiK==17
+  if ActQiK==1
     qic.tx($AA)    
     qic.tx(Address)
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
-  R:=qic.rxtime1(TimeOut)     'Expect response within timeout 
+  R:=qic.rxtime(TimeOut)     'Expect response within timeout 
 Return R*150            'Scale output to mA
 
 ' ---------------------  'Get  motor 1 current    ------------------
@@ -212,7 +211,7 @@ PUB GetCurrentM1(Address) | R, NewCommand
     qic.tx(Address)
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
-  R:=qic.rxtime1(TimeOut)     'Expect response within timeout   
+  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
 Return R*150            'Scale output to mA 
 
 ' ---------------------  'Get  motor 0 speed      ------------------
@@ -223,7 +222,7 @@ PUB GetSpeedM0(Address) | R, NewCommand
     qic.tx(Address)
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
-  R:=qic.rxtime1(TimeOut)     'Expect response within timeout   
+  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
 ' ---------------------  'Get  motor 1 speed      ------------------
@@ -234,7 +233,7 @@ PUB GetSpeedM1(Address) | R, NewCommand
     qic.tx(Address)
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
-  R:=qic.rxtime1(TimeOut)     'Expect response within timeout   
+  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
 ' ---------------------  'Get  motor 0 Brake      ------------------
@@ -255,32 +254,20 @@ PUB GetFirmWare(Address) | R, NewCommand
     qic.tx(Address)
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
-  R:=qic.rxtime1(TimeOut)     'Expect response within timeout   
+  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
+  't.Pause10us(50)
 Return R
 
 ' ---------------------  'Get  error              ------------------
 PUB GetError(Address) | R, NewCommand
-  NewCommand:=cGetError 'Get errors
+  NewCommand:=cGetError     'Get errors
   if ActQiK==1
     qic.tx($AA)    
     qic.tx(Address)
     NewCommand:=NewCommand - $80
   qic.tx(NewCommand) 
-  R:=qic.rxtime1(TimeOut)     'Expect response within timeout   
+  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
 Return R
-
-' ---------------------  'List Parameters Qik drive         ------------------
-'PUB ListPars(Address) | R, i
-'  ser.str(string(CR,"List parameters",CR))
-'  repeat i from 0 to 11 '' MaxParameters
-'    ser.dec(i)
-'    ser.tx(" ")
-'    R:=GetParameter(Address,i)  'get parameter value
-'    ser.str(Par2Str(i))
-'    ser.dec(R)
-'    ser.tx(CR)
-  
-'  ser.tx(CR)
 
 ' ---------------------  Return QiC errorstring -----------------------------
 PUB Error2Str(Error)| lBuf

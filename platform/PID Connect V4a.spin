@@ -44,9 +44,11 @@ CON
   MotorCnt = nPIDLoops
 
   Drive0   = 10           ' Drive 0 address, 2 motor per address
-  Drive1   = Drive0 +1           ' Drive 1
-  Drive2   = Drive0 +2           ' Drive 2
-  Drive3   = Drive0 +3           ' Drive 3
+  Drive1   = 11           ' Drive 1
+  Drive2   = 12           ' Drive 2
+  Drive3   = 13           ' Drive 3
+
+  FIRMWARE_VERSION = 50
 
 ' Quadrature encoders
   Enc0Pin  = 0            'Start pin
@@ -75,12 +77,12 @@ Var Long PotmValue0
     Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt]
     Long PrevEncPos[PIDCnt], DVT[PIDCnt], DPT[PIDCnt]
     Long PIDStack[400]
-    Long PIDTime, lPeriod, PIDLeadTime
-    Long PIDCog, PIDStatus, PIDBusy, PIDCyclesPerSec
+    Long PIDTime, lPeriod, PIDLeadTime, PIDWaitTime
+    Long PIDCog, PIDStatus, PIDBusy
     Word PIDCntr
     Long Pos[MotorCnt], Vel[MotorCnt], Input[MotorCnt], Output[MotorCnt]
     Long ActCurrent[PIDCnt], MaxCurrent[PIDCnt], MaxSetCurrent[PIDCnt], CurrError[PIDCnt], AnyCurrError
-
+    Long ConnectionError[PIDCnt]
     'Encoder vars
     Long  EncCog, EncCntr
  
@@ -95,17 +97,8 @@ Var Long PotmValue0
 
     Long MAEState, mMAEPos, mMAEOffset
         
-' ----------------  Stop PID loop -----
-{PUB PIDStop
-  CogStop(PIDCog)
-
-' ----------------  Start PID loop -----
-PUB PIDStart
-  PIDCog:=CogNew(PID(lPeriod), @PIDStack)
-Return PIDCog
- }
 '--------------------------- Start QiC PID --------------------------------
-'With Period in ms 
+'With Period in ms
 ' oud PUB Start(Period, aEncPos, alActVel, aSetp, aOutput, lPIDCnt)
 PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  
 
@@ -115,34 +108,37 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)
 
   lPeriod:=Period                  'Save PID cycle time
 
-'  EncPosAddr  := aEncPos                  'Save PID input and output addresses
-'  lActVelAddr  := alActVel
-   SetpAddr := aSetp
-'  MOutput   := aOutPut
+  SetpAddr := aSetp
+    
+  if EncCog > 0
+    cogstop(EncCog~ - 1)  
+  EncCog:=PosEnc.start(Enc0Pin, EncCnt, 0, @EncPos) 'Start quadrature encoder
 
-  EncCog:=PosEnc.start(Enc0Pin, EncCnt, 0, @EncPos)  'Start quadrature encoder
-  
-  PIDCog:=CogNew(PID(lPeriod), @PIDStack)       'Start PID loop at 20 ms rate
+  if QikCog > 0
+    cogstop(QikCog~ - 1)  
+  QikCog:=QiK.Init(RXQ, TXQ)  'Start QiK serial communication
+  QiK.SetProtocol(1)          'Enable QiK protocol  
+
+  if PIDCog > 0
+     cogstop(PIDCog~ - 1)  
+  PIDCog:=CogNew(PID(lPeriod), @PIDStack) + 1      'Start PID loop at 20 ms rate
   PIDMode:=1
-  PIDCyclesPerSec:=1000/Period
 
-'  PIDCCog:=CogNew(PIDConnect(TXQ, RXQ, Drive0), @PIDCStack)    'Start PID loop connector
-
-  QikCog:=QiK.Init(RXQ, TXQ)     'Start QiK serial communication
-  QiK.SetProtocol(1)               'Enable QiK protocol
-  
 Return PIDCog
-  
+
+
+PUB Stop  
+  if PIDCog > 0
+     cogstop(PIDCog~ - 1)  
 
 ' ----------------  PID loop ---------------------------------------
 PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Period ms
 
     dira[PIDLed]~~                 'Set I/O pin for LED to output…
-    Period:= 1 #> Period <# 1000   'Limit PID period
+    Period:= 1 #> Period <# 1000000000   'Limit PID period 
     PIDStatus:=1
     ClkCycles := ((clkfreq / _1ms * Period) - 4296) #> 381   'Calculate 1 ms time unit
     Repeat i from 0 to PIDMax                 'Init temp vars
-'      PrevEncPos[i]:=Long[EncPosAddr][i]
       PrevEncPos[i]:=EncPos[i]
       K[i]:= 1000                        'Loop gain Prop velocity 
       KI[i]:=50                          'Loop gain I- action velocity loop
@@ -155,17 +151,26 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Peri
       ILimit[i]:=cIlimit                 'I action limit
       FEMax[i]:=1100                     'Following error limit
       InPosWindow[i]:=100                'In position window               
-      
+      FETrip[i] := FALSE
+      MaxSetCurrent[i] := 1000
+ 
+    FEAny := FALSE
+
+    ResetCurrError
+
     PIDStatus:=2                         'PID Init done
-    F:=1000  
+    F:=1000 
     T1:=Cnt
+ 
     !outa[PIDLed]                        'Toggle I/O Pin for debug
                                          
-    PIDStatus:=3                         'PID running 
-
+    PIDStatus:=3                         'PID running      
     Repeat                               'Main loop     Volgfout!!
       Repeat i from 0 to PIDMax          'Cycle through the loops
+     
         T2:=Cnt
+
+        
         case i                 'Connect sensor inputs
           0: lActPos[0]:= EncPos[0]           'PID 0 Wheel Front Right
              lActVelPos[0]:= EncPos[0]             'Velocity input loop 0
@@ -191,25 +196,19 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Peri
           7: lActPos[7]:= long[mMAEOffset][3] - long[mMAEPos][3]   'PID 7 Steer Rear Left
              lActVelPos[7]:= EncPos[7]             'Velocity input loop 7 steer Rear left
              Setp[7]:=long[SetpAddr][7]
-
-'        lActVel[i]:=(Long[lActVelAddr][i]/VelScale[i] - PrevEncPos[i])*F 'Calculate velocities M0 - M3 from delta position
+        
         lActVel[i]:=(lActVelPos[i]/VelScale[i] - PrevEncPos[i])*F 'Calculate velocities M0 - M3 from delta position
-'        PrevEncPos[i]:=Long[lActVelAddr][i]/VelScale[i]
         PrevEncPos[i]:=lActVelPos[i]/VelScale[i]
 
         Case PIDMode[i]                        'Process various PID modes
-'          -2: Long[MOutput][i]:=OpenLoopCmd[i] 'Open loop output command
           -2: Output[i]:=OpenLoopCmd[i]                                          'Open loop output command
            
-'          -1,0: Long[MOutput][i]:=0            'Open loop and in brake mode
           -1,0: Output[i]:=0                                                    'Open loop and in brake mode
              SetVel[i]:=0
              lI[i]:=0
              FE[i]:=0
              InPos[i]:=false
 
-'          3: lSetPos:= Long[SetpAddr][i]       'current set position for limiter calculation
-'             FE[i]:= Long[SetpAddr][i] - Long[EncPosAddr][i]/PosScale[i]
           3: FE[i]:= Setp[i] - lActPos[i]/PosScale[i]                           'Current set position for limiter calculation
              FETrip[i]:= FETrip[i] or (||FE[i] > FEMax[i])                      'Keep FE trip even if error disappears
              FEAny:=FEAny OR FETrip[i]
@@ -217,7 +216,6 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Peri
              SetVel[i]:= -MaxVel[i] #> ( FE[i] * Kp[i]/1000) <# MaxVel[i]
              DVT[i]:= (SetVel[i]*100-lActVel[i]) / F                            'Delta Velocity
 
-'          2: FE[i]:= Long[SetpAddr][i] - Long[EncPosAddr][i]/PosScale[i]
           2: FE[i]:= Setp[i] - lActPos[i]/PosScale[i]                           'Pos mode No velocity limiter 
              FETrip[i]:= FETrip[i] or (||FE[i] > FEMax[i])                      'Keep FE trip even if error disappears
              FEAny:=FEAny OR FETrip[i]
@@ -225,20 +223,15 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Peri
              SetVel[i]:= FE[i]  * Kp[i]/1000   'Position mode
              DVT[i]:= (SetVel[i]*100-lActVel[i]) / F                            'Delta Velocity
 
-'          1: SetVel[i]:= Long[SetpAddr][i]                                     'Velocity mode
           1: SetVel[i]:= Setp[i]                                                'Velocity mode
              DVT[i]:= -MaxVel[i] #> ((SetVel[i]*F-lActVel[i]) / F)  <# MaxVel[i]                             'Delta Velocity
              FE[i]:=0
 
         if PIDMode[i]>0                                       'The actual control loop
           lI[i]:= -Ilimit[i] #> (lI[i]+DVT[i]) <# Ilimit[i]   'Limit I-action
-'          PIDBusy:=1
-
            if FETrip[i]
              PIDMode[i]:=0     'Set loop open on FE
-
-'          Long[MOutput][i]:=-Outlimit #> (DVT[i]*K[i] + lI[i]*KI[i]) / (F*OutputScale[i]) <# Outlimit 'Calculate limited PID Out
-          Output[i]:=-Outlimit #> (DVT[i]*K[i] + lI[i]*KI[i]) / (F*OutputScale[i]) <# Outlimit 'Calculate limited PID Out
+          Output[i]:=-Outlimit #> (DVT[i]*K[i] + lI[i]*KI[i]) / (F*OutputScale[i]) <# Outlimit 'Calculate limited PID Out      
 
         case i
            0: qik.SetSpeedM0(Drive0, Output[0])
@@ -251,10 +244,10 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Peri
               ActCurrent[1]:=qik.GetCurrentM1(Drive0)    'Get motor 1 current
 
            2: qik.SetSpeedM0(Drive1, Output[2])
-             LastErr:=qik.GetError(Drive1)            'Get drive errors if any  any and clear error flag
-             if LastErr>0
-               Err[1]:=LastErr
-             ActCurrent[2]:=qik.GetCurrentM0(Drive1)     'Get motor current
+              LastErr:=qik.GetError(Drive1)            'Get drive errors if any  any and clear error flag
+              if LastErr>0
+                Err[1]:=LastErr
+              ActCurrent[2]:=qik.GetCurrentM0(Drive1)     'Get motor current
 
            3: qik.SetSpeedM1(Drive1, Output[3])
               ActCurrent[3]:=qik.GetCurrentM1(Drive1)    'Get motor current
@@ -276,20 +269,41 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel ' Cycle runs every Peri
 
            7: qik.SetSpeedM1(Drive3, Output[7])
               ActCurrent[7]:=qik.GetCurrentM1(Drive3)    'Get motor 1 current
-             
-'          PIDBusy:=0
+   
+        if ActCurrent[i] == -1 or ActCurrent[i] == $FF or LastErr >= $10
+            ConnectionError[i] := TRUE
+            ActCurrent[i] := 0
+
+        if ActCurrent[i] <> $FF and LastErr == 0
+            ConnectionError[i] := FALSE
+
+        if qik.GetFirmWare(Drive0) <> FIRMWARE_VERSION 
+            ConnectionError[0] := ConnectionError[1] := TRUE
+        if qik.GetFirmWare(Drive1) <> FIRMWARE_VERSION
+            ConnectionError[1] := ConnectionError[2] := TRUE
+        if qik.GetFirmWare(Drive2) <> FIRMWARE_VERSION
+            ConnectionError[3] := ConnectionError[4] := TRUE
+        if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION
+            ConnectionError[5] := ConnectionError[6] := TRUE
+
         MaxCurrent[i] #>= ActCurrent[i]  'Check for current overload 
         CurrError[i]:= CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])  'Check if any current limit exceeded set alarm if exceeded
         AnyCurrError:= AnyCurrError or CurrError[i]                  'Check if any current error
 
-        PIDLeadTime:=Cnt-T2
-
-
-      PIDTime:=Cnt-T1                    'Measure actual loop time in clock cycles
-      waitcnt(ClkCycles + T1)            'Wait for designated time
-      PIDCntr++                          'Update PIDCounter               
+        PIDLeadTime:=(Cnt-T1)*(1000000000/clkfreq) '[ns]
+      
+      PIDCntr++                                   'Update PIDCounter               
+      PIDTime:=(Cnt-T1)*(1000000000/clkfreq)      'Measure actual loop time in [ns] 
+      PIDWaitTime:=Period - (PIDTime)     
+      if(PIDWaitTime > 10)
+        t.Pause10us((PIDWaitTime)/10000)
+       ' waitcnt(ClkCycles - PIDTime)     'Wait for designated time
+        
+       
       if (PIDCntr//4)==0
-        !outa[PIDLed]                      'Toggle I/O Pin for debug
+        !outa[PIDLed]                    'Toggle I/O Pin for debug
+
+      
       T1:=Cnt
 
 ' ----------------  Brake wheels  ---------------------------------------
@@ -313,17 +327,23 @@ PUB ResetCurrError | i
     AnyCurrError[i]:=false
     CurrError:=0
     MaxCurrent[i]:=0
-
+    
 ' ----------------  Clear errors of drives ---------------------------------------
 PUB ClearErrors | i 
   repeat i from 0 to PIDMax
     Err[i]:=0
-    
+
+
 ' ----------------------- Public functions -----------------------
 ' ---------------------  Set In pos Window -----------------------------
 PUB SetInPosWindow(i,lInPosWindow)
   i:= 0 #> i <# PIDMax
   InPosWindow[i]:=lInPosWindow
+
+' ---------------------  Get ConnectionError ---------------------------
+PUB GetConnectionError(i)
+  i:= 0 #> i <# PIDMax
+Return ConnectionError[i]
 
 ' ---------------------  Get In pos Window ---------------------------
 PUB GetInPosWindow(i)
@@ -486,13 +506,12 @@ Return Ilimit[i]
 ' ---------------------   Return Actual Velocity Cnts/sec -----------------------------
 PUB GetActVel(i)
   i:= 0 #> i <# PIDMax
-Return lActVel[i]/F ' * PIDCyclesPerSec  
+Return lActVel[i]/F
 
 ' ---------------------   Return Set Velocity Cnts/sec -----------------------------
 PUB GetSetVel(i)
   i:= 0 #> i <# PIDMax
-Return SetVel[i] ' * PIDCyclesPerSec  
-
+Return SetVel[i] 
 ' ---------------------  Return Position in cnts -----------------------------
 PUB GetActPos(i)
   i:= 0 #> i <# PIDMax
@@ -544,7 +563,7 @@ PUB GetDeltaVel(i)
 Return DVT[i]
 
 ' ---------------------   Set PID mode     -----------------------------
-PUB SetPIDMode(i,lMode)             '0= open loop, 1=Velocity control, 2= position control 3= Pos cntrl Vel limit
+PUB SetPIDMode(i, lMode)             '0= open loop, 1=Velocity control, 2= position control 3= Pos cntrl Vel limit
   i:= 0 #> i <# PIDMax
 '  if (PIDMode[i]==0 and lMode<>0)   'Do something before closing loop to avoid sudden jumps
   PIDMode[i] := lMode
@@ -569,14 +588,16 @@ PUB GetPIDMode(i)
   i:= 0 #> i <# PIDMax
 Return PIDMode[i]
 
-' --------------------- Return PID Time in us -----------------------------
+' --------------------- Return PID Time in ns -----------------------------
 PUB GetPIDTime
 Return PIDTime/80000
 
 ' --------------------- Return PIDLead Time in us -----------------------------
 PUB GetPIDLeadTime
 Return PIDLeadTime/80000
-
+' --------------------- Return PIDWaitTime in us -----------------------------
+PUB GetPIDWaitTime
+Return PIDWaitTime/80000
 ' ---------------------  Return PID Status -----------------------------
 PUB GetPIDStatus 
 Return  PIDStatus
