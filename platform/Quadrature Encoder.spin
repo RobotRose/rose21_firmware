@@ -66,9 +66,9 @@ Update                  test    Pin, #$20               wc      'Test for upper 
                         mov     IPosAddr, #IntPos               'Clear all internal encoder position values
                         movd    :IClear, IPosAddr               '  set starting internal pointer
                         mov     Idx, TotEnc                     '  for all encoders...  
-        :IClear         mov     0, #0                           '  clear internal memory
+        :IClear         mov     0, #0                           '  clear internal memory 
                         add     IPosAddr, #1                    '  increment pointer
-                        movd    :IClear, IPosAddr               
+                        movd    :IClear, IPosAddr                                   
                         djnz    Idx, #:IClear                   '  loop for each encoder
                                                                 
                         mov     St2, ina                        'Take first sample of encoder pins

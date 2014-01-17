@@ -79,7 +79,7 @@ CON
   MotorCnt = nPIDLoops
   nWheels = 4
   MotorIndex = MotorCnt - 1
-  PIDCTime = 20000            ' PID Cycle time us
+  PIDCTime = 50            ' PID Cycle time ms
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -295,11 +295,8 @@ PRI DoXbeeCmd
     Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
     Xbee.rxflush
     if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
-        'ByteMove(@cStrBuf,@StrBuf,MaxStr)            'Copy received string in display buffer for debug
-
-        XBeeStat:=DoXCommand                          'Check input string for new commands
-
-        ProcessCommand                                  'Execute new commands
+        XBeeStat:=DoXCommand                        'Check input string for new commands
+        ProcessCommand                              'Execute new commands
 
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
@@ -392,7 +389,7 @@ PRI Move
       Setp[2]:=-wSpeed[1]   'Front left is  2
       Setp[4]:=wSpeed[2]    'Back right is  4
       Setp[6]:=-wSpeed[3]   'Back left is   6
-      'Set rotation erro stop driving value
+      'Set rotation error stop driving value
       stopstart_a_err := stop_a_err
 
   'Disable wheels if no speed command given to avoid lock up of wheels and battery drainage
@@ -401,25 +398,6 @@ PRI Move
   else
       if Enabled
          EnableWheels
-
-' ---------------- Report platform parameters to PC ---------------------------------------
-PRI DoReportPFPars | i
-  xBee.str(string("$902"))
-  repeat i from 0 to MotorCnt-1   'Actual positions
-    xBee.tx(",")
-    xBee.dec(pid.GetActPos(i))
-  
-  repeat i from 0 to MotorCnt-1   'Actual currents
-    xBee.tx(",")
-    xBee.dec(pid.GetActCurrent(i))
-
- { repeat i from 0 to MotorCnt-1   'Actual currents
-    xBee.tx(",")
-    xBee.dec(MaxCurrent[i])     } 
-
-  xBee.tx(",") 
-  xBee.tx(CR)
-
   
 ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
 PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
@@ -666,7 +644,14 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 Xbee.tx("$")
                 Xbee.dec(1001)
                 xBee.tx(",")
-                xBee.dec(pid.GetActPos(req_id))  
+                if req_id == 0 or req_id == 2 or req_id == 4 or req_id == 6         'Drive motor, normal encoders
+                    if req_id == 2 or req_id == 6
+                        xBee.dec(-pid.GetActEncPos(req_id))  
+                    else
+                        xBee.dec(pid.GetActEncPos(req_id))   
+                else                                                                'Steer motors, absolute encoders
+                    xBee.dec(pid.GetActPos(req_id))  
+                
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
@@ -822,7 +807,7 @@ PRI ResetPfStatus
   if PIDcog > 0
     PID.Stop
     t.Pause1ms(1)
-  PIDCog  := PID.Start(PIDCTime*1000, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
+  PIDCog  := PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
   PIDMode := PID.GetPIDMode(0)                            'Set open loop mode
   repeat while PID.GetPIDStatus <> 3                     'Wait while PID initializes
 
@@ -1202,58 +1187,58 @@ PRI ShowScreen | i
     ser.Position(0,pActualPars)                      'Show actual values PID
     ser.str(string(CR,"    Setp: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(Setp[i],6))
+      ser.str(n.decf(Setp[i],8))
       ser.tx("|")
 
     ser.str(string(CR,"     MAE: |"))
     repeat i from 0 to MAECnt-1
-      ser.str(n.decf(pid.GetMAEpos(i),6))
+      ser.str(n.decf(pid.GetMAEpos(i),8))
       ser.tx("|")
                                               
     ser.str(string(CR,"ActEncPs: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(pid.GetActEncPos(i),6))
+      ser.str(n.decf(pid.GetActEncPos(i),8))
       ser.tx("|")
     ser.str(string(CR,"  ActPos: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(pid.GetActPos(i),6))
+      ser.str(n.decf(pid.GetActPos(i),8))
       ser.tx("|")
     ser.str(string(CR," PidSetP: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(Pid.GetSetP(i),6))
+      ser.str(n.decf(Pid.GetSetP(i),8))
       ser.tx("|")
       
     ser.str(string(CR,"     Vel: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetActVel(i),6))
+      ser.str(n.decf(PID.GetActVel(i),8))
       ser.tx("|")
     ser.str(string(CR,"DeltaVel: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetDeltaVel(i),6))
+      ser.str(n.decf(PID.GetDeltaVel(i),8))
       ser.tx("|")
     ser.str(string(CR," MSetVel: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetSetVel(i),6))
+      ser.str(n.decf(PID.GetSetVel(i),8))
       ser.tx("|")
     ser.str(string(CR,"    Ibuf: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetIbuf(i),6))
+      ser.str(n.decf(PID.GetIbuf(i),8))
       ser.tx("|")
     ser.str(string(CR," PID Out: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetPIDOut(i),6))
+      ser.str(n.decf(PID.GetPIDOut(i),8))
       ser.tx("|")
-    ser.str(string(CR," Setp Max plus: |"))
+    ser.str(string(CR," SetpM.+: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetSetpMaxPlus(i),6))
+      ser.str(n.decf(PID.GetSetpMaxPlus(i),8))
       ser.tx("|")
-    ser.str(string(CR," Setp Max min: |"))
+    ser.str(string(CR," SetpM.-: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetSetpMaxMin(i),6))
+      ser.str(n.decf(PID.GetSetpMaxMin(i),8))
       ser.tx("|")    
     ser.str(string(CR," Current: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(pid.GetActCurrent(i),6))
+      ser.str(n.decf(pid.GetActCurrent(i),8))
       ser.tx("|")
     ser.str(string(CR,"DriveErr: | "))
     repeat i from 0 to MotorIndex
@@ -1261,36 +1246,38 @@ PRI ShowScreen | i
       ser.str(string("   | "))
     ser.str(string(CR,"MaxStCurr:|"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(pid.GetMaxSetCurrent(i),6))
+      ser.str(n.decf(pid.GetMaxSetCurrent(i),8))
       ser.str(string("|"))
     ser.str(string(CR,"MaxCurr : |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(pid.GetMaxCurrent(i),6))
+      ser.str(n.decf(pid.GetMaxCurrent(i),8))
       ser.str(string("|"))
     ser.str(string(CR,"Fe      : |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetFE(i),6))
+      ser.str(n.decf(PID.GetFE(i),8))
       ser.str(string("|"))
 
     ser.str(string(CR,"FeTrip  : |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetFETrip(i),6))
+      ser.str(n.decf(PID.GetFETrip(i),8))
       ser.str(string("|"))
-    ser.str(n.decf(PID.GetFEAnyTrip,6))
+    ser.str(n.decf(PID.GetFEAnyTrip,8))
     ser.str(string(CR,"Cur Trip: |"))                  
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetCurrError(i),6))
+      ser.str(n.decf(PID.GetCurrError(i),8))
       ser.str(string("|"))
-    ser.str(n.decf(pid.getAnyCurrError,6))
+    ser.str(n.decf(pid.getAnyCurrError,8))
       
-    ser.str(string(CR,CR,"PIDTime (us): "))
+    ser.str(string(CR,CR,"PIDTime (ms): "))
     ser.dec(PID.GetPIDTime)
-    ser.str(string("  PIDLeadTime (us): "))
+    ser.str(string("  PIDLeadTime (ms): "))
     ser.dec(PID.GetPIDLeadTime)
-    ser.str(string("  PID WaitTime (us): "))
+    ser.str(string("  PID WaitTime (ms): "))
     ser.dec(PID.GetPIDWaitTime)
-    ser.str(string("  PID LoopTime (us): "))
+    ser.str(string("  PID LoopTime (ms): "))
     ser.dec(PIDCTime)
+    ser.str(string("  clkfreq: "))
+    ser.dec(clkfreq)
     ser.str(string("  MAE LoopTime (ms): "))
     ser.dec(MAETime)
     ser.str(string(CR,"  Main loop Time (ms): "))
