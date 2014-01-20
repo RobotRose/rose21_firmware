@@ -119,6 +119,16 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
   QikCog:=QiK.Init(RXQ, TXQ)  'Start QiK serial communication
   QiK.SetProtocol(1)          'Enable QiK protocol  
 
+  qik.SetSpeedM0(Drive0, 0)
+  qik.SetSpeedM1(Drive0, 0)
+  qik.SetSpeedM0(Drive1, 0)
+  qik.SetSpeedM1(Drive1, 0)
+  qik.SetSpeedM0(Drive2, 0)
+  qik.SetSpeedM1(Drive2, 0)
+  qik.SetSpeedM0(Drive3, 0)
+  qik.SetSpeedM1(Drive3, 0)
+
+
   if PIDCog > 0
      cogstop(PIDCog~ - 1)  
   PIDCog:=CogNew(PID(lPeriod), @PIDStack) + 1      'Start PID loop at 20 ms rate
@@ -130,6 +140,15 @@ Return PIDCog
 PUB Stop  
   if PIDCog > 0
      cogstop(PIDCog~ - 1)  
+     PIDCog := 0
+
+  if EncCog > 0
+    cogstop(EncCog~ - 1)
+    EncCog := 0
+
+  if QikCog > 0
+    cogstop(QikCog~ - 1)
+    QikCog := 0
 
 ' ----------------  PID loop ---------------------------------------
 PRI PID(Period) | i, T1, T2, Tspeed, ClkCycles, LSetPos, ActRVel ' Cycle runs every Period ms
@@ -324,7 +343,8 @@ PUB ResetCurrError | i
     AnyCurrError[i]:=false
     CurrError:=0
     MaxCurrent[i]:=0
-    
+    lI[i]:= 0 
+    Output[i]:= 0
 ' ----------------  Clear errors of drives ---------------------------------------
 PUB ClearErrors | i 
   repeat i from 0 to PIDMax

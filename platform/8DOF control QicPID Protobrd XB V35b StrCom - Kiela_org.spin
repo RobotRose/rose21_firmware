@@ -782,7 +782,7 @@ PRI DoCurrents2PC | i
   Xbee.tx(CR)
 
 ' ---------------- Reset platform -------------------------------
-PRI ResetPfStatus 
+PRI ResetPfStatus | i
   if DEBUG
     ser.Str(string("Pre MAECog    : "))
     ser.dec(MAECog)
@@ -805,6 +805,8 @@ PRI ResetPfStatus
     ser.Str(string(CR))
 
   if PIDcog > 0
+    pid.ResetCurrError 
+    pid.ClearErrors
     PID.Stop
     t.Pause1ms(1)
   PIDCog  := PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
@@ -831,8 +833,7 @@ PRI ResetPfStatus
     ser.dec(SafetyCog)
     ser.Str(string(CR))
 
-  pid.ResetCurrError 
-  pid.ClearErrors
+
   PfStatus:=0
   ResetBit(@PfStatus,USAlarm)          'Reset error bits in PfStatus
   ResetBit(@PfStatus,CommCntrBit)
@@ -842,6 +843,18 @@ PRI ResetPfStatus
   PcSpeed:=0                           'Reset setpoints
   MoveSpeed:=0
   MoveDir:=0
+
+  repeat i from 0 to MotorCnt-1
+    Setp[i] := 0
+
+  wSpeed[0]:=0
+  wSpeed[1]:=0
+  wSpeed[2]:=0
+  wSpeed[3]:=0
+  wAngle[0]:=0
+  wAngle[1]:=0
+  wAngle[2]:=0
+  wAngle[3]:=0
 
   drive_pid_vals_set:=false
   steer_pid_vals_set:=false  
