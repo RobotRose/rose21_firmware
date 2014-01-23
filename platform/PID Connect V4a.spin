@@ -90,17 +90,25 @@ Var Long PotmValue0
     Long QiKCog, LastErr
     Long Err[PIDCnt]                     'Last error in drive
 
-
     'Limits
     Long SetpMaxPlus[PIDCnt], SetpMaxMin[PIDCnt], FE[PIDCnt], FEMax[PIDCnt], FETrip[PIDCnt], FEAny
-    Long InPosWindow[PIDCnt], InPos[PIDCnt]
+    Long InPosWindow[PIDCnt], InPos[PIDCnt], Tspeed[PIDCnt]
 
     Long MAEState, mMAEPos, mMAEOffset
+
+    byte enc_semaphore
+    long EncPosSemCopy[PIDCnt], EncPosSemCopy_prev[PIDCnt], enc_clk, enc_clk_prev
         
 '--------------------------- Start QiC PID --------------------------------
 'With Period in ns
 PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
 
+  enc_clk_prev := 0
+  enc_clk := 0
+  enc_semaphore := FALSE
+  bytefill(@EncPosSemCopy, 0, PIDCnt*4)
+  bytefill(@EncPosSemCopy_prev, 0, PIDCnt*4)
+  
   PIDMax := lPIDCnt-1    'Calculate loop max PID
   mMAEPos:=aMAEPos   'Store addres MAE abs encoder data
   mMAEOffset:=aMAEOffset
@@ -151,7 +159,7 @@ PUB Stop
     QikCog := 0
 
 ' ----------------  PID loop ---------------------------------------
-PRI PID(Period) | i, T1, T2, Tspeed, ClkCycles, LSetPos, ActRVel ' Cycle runs every Period ms
+PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_distance ' Cycle runs every Period ms
 
     dira[PIDLed]~~                 'Set I/O pin for LED to output…
     Period:= 1 #> Period <# 1000000   'Limit PID period 
@@ -189,70 +197,78 @@ PRI PID(Period) | i, T1, T2, Tspeed, ClkCycles, LSetPos, ActRVel ' Cycle runs ev
      
         T2:=Cnt
 
-        
-        case i                 'Connect sensor inputs
-          0: lActPos[0]:= EncPos[0]           'PID 0 Wheel Front Right
-             lActVelPos[0]:= EncPos[0]             'Velocity input loop 0
-             Setp[0]:=long[SetpAddr]
-          1: lActPos[1]:= long[mMAEOffset] - long[mMAEPos]   'PID 1 steer Front right
-             lActVelPos[1]:= EncPos[1]             'Vel input steer FR
+        'Connect sensor inputs
+        case i                 
+          0: lActPos[0]:= EncPos[0]                                 'PID 0 Wheel Front Right
+             lActVelPos[0]:= EncPos[0]                              'Velocity input loop 0
+             Setp[0]:=long[SetpAddr]/1000
+          1: lActPos[1]:= long[mMAEOffset] - long[mMAEPos]          'PID 1 steer Front right
+             lActVelPos[1]:= EncPos[1]                              'Vel input steer FR
              Setp[1]:=long[SetpAddr][1]
-          2: lActPos[2]:= EncPos[2]           'PID 2 Wheel Front Left 
-             lActVelPos[2]:= EncPos[2]             'Velocity input loop 2
-             Setp[2]:=long[SetpAddr][2]
-          3: lActPos[3]:= long[mMAEOffset][1] - long[mMAEPos][1] 'PID 3 Steer Front Left 
-             lActVelPos[3]:= EncPos[3]             'Velocity input loop 3
+          2: lActPos[2]:= EncPos[2]                                 'PID 2 Wheel Front Left 
+             lActVelPos[2]:= EncPos[2]                              'Velocity input loop 2
+             Setp[2]:=long[SetpAddr][2]/1000
+          3: lActPos[3]:= long[mMAEOffset][1] - long[mMAEPos][1]    'PID 3 Steer Front Left 
+             lActVelPos[3]:= EncPos[3]                              'Velocity input loop 3
              Setp[3]:=long[SetpAddr][3]
-          4: lActPos[4]:= EncPos[4]           'PID 4 Wheel Rear Right
-             lActVelPos[4]:= EncPos[4]             'Velocity input loop 4
-             Setp[4]:=long[SetpAddr][4]
-          5: lActPos[5]:= long[mMAEOffset][2] - long[mMAEPos][2]  'PID 5 Steer Rear Right
-             lActVelPos[5]:= EncPos[5]             'Velocity input loop 5
+          4: lActPos[4]:= EncPos[4]                                 'PID 4 Wheel Rear Right
+             lActVelPos[4]:= EncPos[4]                              'Velocity input loop 4
+             Setp[4]:=long[SetpAddr][4]/1000
+          5: lActPos[5]:= long[mMAEOffset][2] - long[mMAEPos][2]    'PID 5 Steer Rear Right
+             lActVelPos[5]:= EncPos[5]                              'Velocity input loop 5
              Setp[5]:=long[SetpAddr][5]
-          6: lActPos[6]:= EncPos[6]           'PID 6 Wheel Rear Left  
-             lActVelPos[6]:= EncPos[6]             'Velocity input loop 6
-             Setp[6]:=long[SetpAddr][6]
-          7: lActPos[7]:= long[mMAEOffset][3] - long[mMAEPos][3]   'PID 7 Steer Rear Left
-             lActVelPos[7]:= EncPos[7]             'Velocity input loop 7 steer Rear left
+          6: lActPos[6]:= EncPos[6]                                 'PID 6 Wheel Rear Left  
+             lActVelPos[6]:= EncPos[6]                              'Velocity input loop 6
+             Setp[6]:=long[SetpAddr][6]/1000
+          7: lActPos[7]:= long[mMAEOffset][3] - long[mMAEPos][3]    'PID 7 Steer Rear Left
+             lActVelPos[7]:= EncPos[7]                              'Velocity input loop 7 steer Rear left
              Setp[7]:=long[SetpAddr][7]
-        
-        lActVel[i]:=(lActVelPos[i] - PrevEncPos[i])/((Cnt-Tspeed)/(clkfreq/1000))  'Calculate velocities M0 - M3 from delta position in pulses per 2ms
-       ' lActVel[i]:=lActVel[i]
-        PrevEncPos[i]:=lActVelPos[i]
-        Tspeed:=Cnt
 
-        Case PIDMode[i]                        'Process various PID modes
-          -2: Output[i]:=OpenLoopCmd[i]                                          'Open loop output command
-           
+        'Calculate velocities M0 - M3 from delta position in [pulses/ms]
+        speed_time_ms   := (Cnt-Tspeed[i])/(clkfreq/1000)
+        speed_distance  := (lActVelPos[i] - PrevEncPos[i])
+        lActVel[i] := speed_distance/speed_time_ms                       
+        Tspeed[i]  := Cnt
+        PrevEncPos[i] := lActVelPos[i]
+
+        'Process various PID modes
+        Case PIDMode[i]                                                         
+          -2: Output[i]:=OpenLoopCmd[i]                                         'Open loop output command
+              OutputScale[i] := 1
+
           -1,0: Output[i]:=0                                                    'Open loop and in brake mode
              SetVel[i]:=0
              lI[i]:=0
              FE[i]:=0
              InPos[i]:=false
+             OutputScale[i] := 1
 
-          3: FE[i]:= Setp[i] - lActPos[i]/PosScale[i]                           'Current set position for limiter calculation
+          3: FE[i]:= Setp[i] - lActPos[i]                                       'Current set position for limiter calculation
              FETrip[i]:= FETrip[i] or (||FE[i] > FEMax[i])                      'Keep FE trip even if error disappears
              FEAny:=FEAny OR FETrip[i]
              InPos[i]:=(||FE[i] < InPosWindow[i])                               'Check in position of axis
              SetVel[i]:= -MaxVel[i] #> ( FE[i] * Kp[i]) <# MaxVel[i]
              DVT[i]:= (SetVel[i]-lActVel[i])                                    'Delta Velocity
+             OutputScale[i] := PosScale[i]
 
-          2: FE[i]:= Setp[i] - lActPos[i]/PosScale[i]                           'Pos mode No velocity limiter 
+          2: FE[i]:= Setp[i] - lActPos[i]                                       'Pos mode No velocity limiter 
              FETrip[i]:= FETrip[i] or (||FE[i] > FEMax[i])                      'Keep FE trip even if error disappears
              FEAny:=FEAny OR FETrip[i]
              InPos[i]:=(||FE[i] < InPosWindow[i])                               'Check in position of axis
              SetVel[i]:= FE[i]  * Kp[i]                                         'Position mode
              DVT[i]:= (SetVel[i]-lActVel[i])                                    'Delta Velocity
+             OutputScale[i] := PosScale[i]
 
           1: SetVel[i]:= Setp[i]                                                'Velocity mode
-             DVT[i]:= -MaxVel[i]*VelScale[i] #> (SetVel[i]-lActVel[i])  <# MaxVel[i]*VelScale[i]    'Delta Velocity
+             DVT[i]:= -MaxVel[i] #> (SetVel[i]-lActVel[i])  <# MaxVel[i]        'Delta Velocity
              FE[i]:=0
+             OutputScale[i] := VelScale[i]
 
         if PIDMode[i]>0                                       'The actual control loop
-          lI[i]:= -Ilimit[i]*VelScale[i] #> (lI[i]+(DVT[i])) <# Ilimit[i]*VelScale[i]   'Limit I-action
+          lI[i]:= -Ilimit[i] #> (lI[i]+(DVT[i])) <# Ilimit[i] 'Limit I-action
            if FETrip[i]
              PIDMode[i]:=0                                    'Set loop open on FE
-          Output[i]:=-Outlimit #> ((DVT[i])*K[i] + lI[i]*KI[i])/VelScale[i]  <# Outlimit 'Calculate limited PID Out      
+          Output[i]:=-Outlimit #> ((DVT[i])*K[i] + lI[i]*KI[i])/OutputScale[i]  <# Outlimit 'Calculate limited PID Out      
 
         case i
            0: qik.SetSpeedM0(Drive0, Output[0])
@@ -311,13 +327,20 @@ PRI PID(Period) | i, T1, T2, Tspeed, ClkCycles, LSetPos, ActRVel ' Cycle runs ev
         CurrError[i]:= CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])  'Check if any current limit exceeded set alarm if exceeded
         AnyCurrError:= AnyCurrError or CurrError[i]                  'Check if any current error
 
-        PIDLeadTime:=(Cnt-T1)/(clkfreq/1000)            '[ms]
-      
+        PIDLeadTime:=(Cnt-T1)/80000                '[ms]
+ 
+      if enc_semaphore == FALSE
+        bytemove(@EncPosSemCopy_prev, @EncPosSemCopy, 32)   ' 32 = PIDCntr * 4
+        bytemove(@EncPosSemCopy, @EncPos, 32)               ' 32 = PIDCntr * 4
+        enc_clk_prev := enc_clk
+        enc_clk := cnt
+        enc_semaphore := TRUE
+          
       PIDCntr++                                         'Update PIDCounter               
-      PIDTime:=(Cnt-T1)/(clkfreq/1000)                  'Measure actual loop time in [ms] 
+      PIDTime:=(Cnt-T1)/80000                           'Measure actual loop time in [ms] 
       PIDWaitTime:=Period - (PIDTime)     
-      if(PIDWaitTime > 10)
-        t.Pause10us((PIDWaitTime)/10000)        
+      if(PIDWaitTime*1000 > 10)
+        t.Pause10us(PIDWaitTime*100)        
        
       if (PIDCntr//4)==0
         !outa[PIDLed]                    'Toggle I/O Pin for debug
@@ -393,10 +416,8 @@ Return SetpMaxPlus[i]
 ' ---------------------  Get Setpoint ----------------------------------
 PUB GetSetp(i)
   i:= 0 #> i <# PIDMax
-  if GetPIDMode(i) == 1                        'if velocity control
-    Return Setp[i]'++++++*GetVelScale(i) 
-  else
-    Return Setp[i]
+  Return Setp[i]
+
 
 ' --------------------- Reset FolErr Trip -----------------------------
 PUB ResetFETrip(i)
@@ -530,7 +551,7 @@ Return lActVel[i]
 ' ---------------------   Return Set Velocity Cnts/sec -----------------------------
 PUB GetSetVel(i)
   i:= 0 #> i <# PIDMax
-Return SetVel[i] 
+Return SetVel[i]
 ' ---------------------  Return Position in cnts -----------------------------
 PUB GetActPos(i)
   i:= 0 #> i <# PIDMax
@@ -539,7 +560,27 @@ Return lActPos[i]
 ' ---------------------  Return Encoder Position in cnts -----------------------------
 PUB GetActEncPos(i)
   i:= 0 #> i <# PIDMax
-Return EncPos[i]
+Return EncPosSemCopy[i]
+
+' ---------------------  Return Encoder Position Difference in cnts in enc_clk time-----------------------------
+PUB GetActEncPosDiff(i)
+  i:= 0 #> i <# PIDMax
+  Return EncPosSemCopy[i] - EncPosSemCopy_prev[i] 
+
+' ---------------------  Reset the act encoder semaphore -----------------------------
+PUB resetActEncPosSem
+  enc_semaphore := FALSE 
+  
+' ---------------------  Return Encoder Position in cnts -----------------------------
+PUB getEncSem
+  return enc_semaphore
+
+' ---------------------  Return Encoder Clock difference in cnts -----------------------------
+PUB getEncClkDiff
+  if(enc_clk_prev > enc_clk)
+    return enc_clk_prev - enc_clk
+  else
+    return enc_clk - enc_clk_prev
 
 ' ---------------------  Return MAE-Position in cnts -----------------------------
 PUB GetMAEpos(i)
@@ -574,7 +615,7 @@ Return CurrError[i]
 ' ---------------------  Return Ibuf -----------------------------
 PUB GetIBuf(i)
   i:= 0 #> i <# PIDMax
-Return lI[i]/VelScale[i]
+Return lI[i]
 
 ' ---------------------  Return Delta vel -----------------------------
 PUB GetDeltaVel(i)

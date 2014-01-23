@@ -1,4 +1,4 @@
-{=============================================================================
+ de{=============================================================================
  Qic PID object real version for 8 motors dec/febr 2010 HJK
  Uses quadrature encoder to measure motor velocity
  Velocity/position control in 8 fold PID loop velocity and position at approx. 500 us per loop
@@ -22,8 +22,8 @@
  V33: Release version okt 2011
  V33a/b: Nov 2011 Minor mod's: debug screen, Setpoints and braking
  V35: Serial communication with PC via Serial port and Debug Via standard USB port
- V36: Okke: Major overhaul, removed unneccesary code, changed communication protocol
-      
+ V36: Okke: Major overhaul, removed unneccesary code, changed communication protocol, PID loop timing and velocity calc changed
+            Added watchdog
  To do: MAE time out error, xbee comm time out error
  
 =============================================================================
@@ -51,8 +51,8 @@ CON
    SubVersion = "a" 
    CONTROLLER_ID = 1
 
-'Set 80Mhz
-   _clkmode=xtal1+pll16x
+   'Set 80Mhz
+   _clkmode = xtal1+pll16x
    _xinfreq = 5000000      'MRS1
 
 '  Led
@@ -79,7 +79,7 @@ CON
   MotorCnt = nPIDLoops
   nWheels = 4
   MotorIndex = MotorCnt - 1
-  PIDCTime = 50            ' PID Cycle time ms
+  PIDCTime = 40            ' PID Cycle time ms
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -122,7 +122,7 @@ CON
   ErrorCnt = 100
 
 'Debugging
-  DEBUG = FALSE
+  DEBUG = TRUE
 
 'Platform status bits
    Serialbit     = 0              '0= Serial Debug of 1= Serial pdebug port on
@@ -244,7 +244,7 @@ PRI InitMain
   dira[Led]~~                            'Set I/O pin for LED to output…
   !outa[Led]                             'Toggle I/O Pin for debug
 
-  ' Load start stop movement when rotating default values
+  ' Load movement schmitt start stop default values
   start_a_err := 10
   stop_a_err := 200
   stopstart_a_err := start_a_err
@@ -569,13 +569,13 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         'Back right is  4
         'Back left is   6
         903: wSpeed[0]:=-PID.GetMaxVel(0) #> sGetPar  <# PID.GetMaxVel(0)        
-             wAngle[0]:=PID.GetSetpMaxMin(1) #> sGetPar <# PID.GetSetpMaxPlus(1)
+             wAngle[0]:=PID.GetSetpMaxMin(1) #> -sGetPar <# PID.GetSetpMaxPlus(1)
              wSpeed[1]:=-PID.GetMaxVel(2) #> sGetPar  <# PID.GetMaxVel(2)         
-             wAngle[1]:=PID.GetSetpMaxMin(3) #> sGetPar <# PID.GetSetpMaxPlus(3)     
+             wAngle[1]:=PID.GetSetpMaxMin(3) #> -sGetPar <# PID.GetSetpMaxPlus(3)     
              wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)          
-             wAngle[2]:=PID.GetSetpMaxMin(5) #> sGetPar <# PID.GetSetpMaxPlus(5)     
+             wAngle[2]:=PID.GetSetpMaxMin(5) #> -sGetPar <# PID.GetSetpMaxPlus(5)     
              wSpeed[3]:=-PID.GetMaxVel(6) #> sGetPar  <# PID.GetMaxVel(6)
-             wAngle[3]:=PID.GetSetpMaxMin(7) #> sGetPar <# PID.GetSetpMaxPlus(7)                        
+             wAngle[3]:=PID.GetSetpMaxMin(7) #> -sGetPar <# PID.GetSetpMaxPlus(7)                        
              
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
@@ -583,19 +583,19 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
              Xbee.tx(",")
              Xbee.dec(wSpeed[0])
              Xbee.tx(",")
-             Xbee.dec(wAngle[0])
+             Xbee.dec(-wAngle[0])
              Xbee.tx(",")             
              Xbee.dec(wSpeed[1])
              Xbee.tx(",")
-             Xbee.dec(wAngle[1])
+             Xbee.dec(-wAngle[1])
              Xbee.tx(",")
              Xbee.dec(wSpeed[2])
              Xbee.tx(",")
-             Xbee.dec(wAngle[2])
+             Xbee.dec(-wAngle[2])
              Xbee.tx(",")
              Xbee.dec(wSpeed[3])
              Xbee.tx(",")
-             Xbee.dec(wAngle[3])
+             Xbee.dec(-wAngle[3])
              Xbee.tx(",")
              Xbee.tx(CR)  
 
@@ -756,10 +756,45 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
               xBee.dec(LastAlarm)  
               xBee.tx(",")
               Xbee.tx(CR)
-        other: Xbee.tx("$")
-               Xbee.dec(sender)
-               xBee.tx(",")
-               xBee.str(string("Unkown command", 13)) 
+
+        '=== Get All drive motor positions number
+        1012: if pid.getEncSem
+                Xbee.tx("$")
+                Xbee.dec(1012)
+                xBee.tx(",")
+                xBee.dec(pid.GetActEncPosDiff(0)) 
+                xBee.tx(",")
+                xBee.dec(-pid.GetActEncPosDiff(2))  
+                xBee.tx(",")
+                xBee.dec(pid.GetActEncPosDiff(4)) 
+                xBee.tx(",")
+                xBee.dec(-pid.GetActEncPosDiff(6)) 
+                xBee.tx(",")          
+                xBee.dec(pid.getEncClkDiff) 
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+                pid.resetActEncPosSem              
+              else
+                Xbee.tx("$")
+                Xbee.dec(1012)
+                xBee.tx(",")
+                xBee.dec(0) 
+                xBee.tx(",")
+                xBee.dec(0)  
+                xBee.tx(",")
+                xBee.dec(0) 
+                xBee.tx(",")
+                xBee.dec(0) 
+                xBee.tx(",")          
+                xBee.dec(0) 
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        other:Xbee.tx("$")
+              Xbee.dec(sender)
+              xBee.tx(",")
+              xBee.str(string("Unkown command", 13)) 
 
   XbeeTime:=cnt-t1
   XbeeCmdCntr++    
@@ -793,7 +828,6 @@ PRI ResetPfStatus | i
     t.Pause1ms(1)
   MAECog:=CogNew(MAESense, @MAEStack) + 1                  'Start MAE sensing
 
-  
   if DEBUG
     ser.Str(string("After MAECog  : "))
     ser.dec(MAECog)
