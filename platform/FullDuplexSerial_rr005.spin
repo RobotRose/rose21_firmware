@@ -21,7 +21,7 @@
 
 CON
 
-  bufsiz = 256 '16              'buffer size (16, 32, 64, 128, 256, 512) must be factor of 2, max is 256
+  bufsiz = 128 '16              'buffer size (16, 32, 64, 128, 256, 512) must be factor of 2, max is 256
   bufmsk = bufsiz - 1           'buffer mask used for wrap-around ($00F, $01F, $03F, $07F, $0FF, $1FF)
 
   ''    Control Character Constants
@@ -211,12 +211,32 @@ starting at stringptr.  Waits until either full string received, timed out, or m
       NL,-1:quit                                                                'Get chars until NL or -1
   byte[stringptr+(byte[stringptr-1] == NL)]~  
 
+PUB StrInMaxTimeUs(stringptr, maxcount,us)
+{{Receive a string of characters (either carriage return terminated or maxcount in length) and stores it (zero terminated)
+starting at stringptr.  Waits until either full string received, timed out, or maxcount characters received.
+  Parameters:
+    stringptr - pointer to memory in which to store received string characters.
+                Memory reserved must be large enough for all string characters plus a zero terminator (maxcount + 1).
+    maxcount  - maximum length of string to receive, or -1 for unlimited.}}
+    
+  repeat while (maxcount--)                                                     'While maxcount not reached
+    case  (byte[stringptr++] := CharInTimeUs(us))
+      NL,-1:quit                                                                'Get chars until NL or -1
+  byte[stringptr+(byte[stringptr-1] == NL)]~  
+
 PUB CharInTime(ms) : rxbyte | t      
 {{
   Receive byte with timeout
 }}
   t := cnt
   repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq / 1000) > ms
+
+PUB CharInTimeUs(us) : rxbyte | t      
+{{
+  Receive byte with timeout
+}}
+  t := cnt
+  repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq) > us
 
 PUB dec(value) | i, x
 

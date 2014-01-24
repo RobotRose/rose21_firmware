@@ -122,7 +122,7 @@ CON
   ErrorCnt = 100
 
 'Debugging
-  DEBUG = TRUE
+  DEBUG = FALSE
 
 'Platform status bits
    Serialbit     = 0              '0= Serial Debug of 1= Serial pdebug port on
@@ -268,14 +268,9 @@ PRI InitMain
 
   !outa[Led]                                            'Toggle I/O Pin for debug
 
-  t.Pause1ms(2000)
-  !outa[Led]                        'Toggle I/O Pin for debug
-
-
-
 '================================ Init Xbee comm ==========================
 PRI InitXbeeCmd
-  MaxWaitTime := 100                    'ms wait time for incoming string  
+  MaxWaitTime := 50                   'ms wait time for incoming string  
   StrSp:=0
   
   ByteFill(@StrBuf,0,MaxStr)
