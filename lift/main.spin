@@ -201,6 +201,9 @@ PUB Main | lch
 
         'Check height status
         if ((Height.get_requested_pos == Height.get_current_pos) AND pos_reached_send == FALSE)
+          PC.str(string("$401,"))
+          PC.dec(ser_req_pos)
+          PC.str(string(",", 13))
           pos_reached_send := TRUE   
 
       'Not enabled any longer, disable
