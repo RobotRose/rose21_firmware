@@ -3,6 +3,6 @@ basic_i2c_driver.spin
 adc.spin
 FullDuplexSerial_rr005.spin
 height_controller.spin
-PC =  2.spin
+FullDuplexSerial_rr005.spin
 basic_i2c_driver.spin
 >compiler=SPIN

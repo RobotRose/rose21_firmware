@@ -303,25 +303,44 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
              ' Check value
              if received_wd <> expected_wd
                 enabled:=FALSE 
-                PC.str(string("$111,"))
-                PC.dec(-1)
-                PC.str(string(",",13))
+                Xbee.tx("$")
+                Xbee.dec(111)
+                Xbee.tx(",")
+                Xbee.dec(-1)
+                Xbee.tx(",")  
+                Xbee.dec(wd_cnt)
+                Xbee.tx(",")            
+                Xbee.dec(received_wd)
+                Xbee.tx(",")   
+                Xbee.dec(expected_wd)
+                Xbee.tx(",")   
+                Xbee.tx(CR)  
              else    
+                Xbee.tx("$")
+                Xbee.dec(111)
+                Xbee.tx(",")
+                Xbee.dec(wd)
+                Xbee.tx(",")  
+                Xbee.dec(wd_cnt)
+                Xbee.tx(",")                
+                Xbee.dec(received_wd)
+                Xbee.tx(",")   
+                Xbee.dec(expected_wd)
+                Xbee.tx(",")   
+                Xbee.tx(CR)  
+
                 if expected_wd == 1
-                    expected_wd := 0             
+                   expected_wd := 0             
                 else
-                    expected_wd := 1
+                   expected_wd := 1
 
                 if wd == 1
-                    wd := 0             
+                   wd := 0             
                 else
-                    wd := 1
-
-                wd_cnt := 0
-
-                PC.str(string("$111,"))
-                PC.dec(wd)
-                PC.str(string(",",13))
+                   wd := 1                                 
+ 
+                'Reset the watchdog counter
+                wd_cnt := 0    
 
         '--- Enable and disable ---
         400 : enable:=sGetPar
