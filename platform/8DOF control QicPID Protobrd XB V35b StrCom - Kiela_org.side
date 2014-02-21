@@ -6,7 +6,7 @@ FullDuplexSerial_rr005.spin
 Timing.spin
 QiKCommands.spin
 Timing.spin
-PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_distance.spin
+PID Connect V4a.spin
 Eeprom.spin
 simple_numbers.spin
 Parallax Serial Terminal.spin
