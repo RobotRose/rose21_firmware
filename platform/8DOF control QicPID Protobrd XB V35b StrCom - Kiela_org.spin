@@ -1,4 +1,4 @@
- de{=============================================================================
+ {=============================================================================
  Qic PID object real version for 8 motors dec/febr 2010 HJK
  Uses quadrature encoder to measure motor velocity
  Velocity/position control in 8 fold PID loop velocity and position at approx. 500 us per loop
@@ -25,6 +25,7 @@
  V36: Okke: Major overhaul, removed unneccesary code, changed communication protocol, PID loop timing and velocity calc changed
             Added watchdog
  To do: MAE time out error, xbee comm time out error
+
  
 =============================================================================
 }
@@ -322,7 +323,7 @@ PRI DoSafety | i, ConnectionError
     else
         wd_cnt:=0
 
-    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 0.5 sec
+    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 4.0 sec
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
