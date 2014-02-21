@@ -33,7 +33,7 @@ VAR
   
 OBJ
                    
-  i2cObject      : "basic_i2c_driver"
+  i2cObject      : "Basic_I2C_Driver"
 
 PUB adc_Start : ok
 

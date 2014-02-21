@@ -133,6 +133,11 @@ CON
   LineLen = 100           ' Buffer size for incoming line
   SenderLen= 10
   Cmdlen = 10
+   CR = 13
+   LF = 10
+   CS = 0
+   CE = 11                 'CE: Clear to End of line
+   EOT = 4                 'End of trainsmission
 
 'EEPROM
   i2cSCL        = 28
@@ -147,7 +152,7 @@ DAT
 OBJ
   PC        : "FullDuplexSerial_rr005"
   Height    : "height_controller"
-  i2cObject : "basic_i2c_driver"
+  i2cObject : "Basic_I2C_Driver"
 
 VAR
   long key
@@ -182,41 +187,35 @@ PUB Main | lch
       repeat while enabled == FALSE
         CheckForSerialCommands
 
-      main_init
       pos_reached_send := TRUE
       ser_req_pos := -1
-      PC.str(string("$400,"))           'Communicate enabled
-      PC.dec(1)
-      PC.str(string(",",13))
+   
       repeat while enabled == TRUE
         CheckForSerialCommands
 
         'Watchdog (not while moving)
         if Height.get_requested_pos == Height.get_current_pos
-            wd_cnt := wd_cnt + 1
-        if wd_cnt > 10 
+            wd_cnt := wd_cnt '+ 1
+        if wd_cnt > 20
           enabled := FALSE  
 
         'Check height status
         if ((Height.get_requested_pos == Height.get_current_pos) AND pos_reached_send == FALSE)
-          PC.str(string("$401,"))
-          PC.dec(ser_req_pos)
-          PC.str(string(",", 13))
           pos_reached_send := TRUE   
 
       'Not enabled any longer, disable
       Height.motor_stop 
       Height.height_stop                'Stop cog
-      PC.str(string("$400,"))           'Communicate disabled
-      PC.dec(0)
-      PC.str(string(",",13))
 
+
+PRI InitWatchDog
+  expected_wd:=0                     'Watchdog Stuff
+  wd:=0
+  wd_cnt:=0
 
 PRI main_init | ii, T1, temp, lch2
       'Reset Watchdog
-      wd:=0
-      expected_wd:=0
-      wd_cnt:=0
+      InitWatchDog
 
       'Initialise the height controller
       'PC.str(string("Initializing Height,",13))
@@ -228,8 +227,8 @@ PRI main_init | ii, T1, temp, lch2
         'PC.str(string("Height COG started,",13))
       else
         repeat
-            PC.str(string("Height COG Error,",13))    
-            waitcnt((clkfreq/8)+cnt)
+          PC.str(string("Height COG Error,",CR))    
+          waitcnt((clkfreq/8)+cnt)
       'PC.str(string("Loading settings from EEPROM,",13))
       Height.height_set_low(LoadLowPos)
       'waitcnt((clkfreq/8)+cnt)
@@ -251,14 +250,11 @@ PRI InitSerialComm
 
 '================================ Do Xbee command input and execution ==========================
 PRI CheckForSerialCommands
-    StrCnt++
-    if PC.rxavail
-      PC.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
-      'PC.StrInMax(@StrBuf,MaxStr)           'Blocking until return received or max str
-      PC.rxflush             
-      if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest$400,1,
-        DoCommand                                   'Check input string for new commands and execute them
-        Bytefill(@StrBuf,0,MaxStr)                  'Clear buffer
+  StrCnt++
+  PC.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
+  PC.rxflush
+  if Strsize(@StrBuf)>3                         'Received string must be larger than 3 char's skip rest
+      DoCommand                                 'Check input string for new commands
 
 '===============================================================
 PUB DoCommand | Sender, OK, lCh, enable, received_wd
@@ -294,7 +290,7 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
         -1:   PC.str(string("ERROR: Enable controller first!", 13))
 
         '--- Communicate controller id ---
-        100 : PC.str(string("$100,"))
+        100:  PC.str(string("$100,"))
               PC.dec(CONTROLLER_ID)
               PC.str(string(",",13))
 
@@ -313,7 +309,7 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
                 PC.dec(received_wd)
                 PC.tx(",")   
                 PC.dec(expected_wd)
-                PC.tx(string(",",13))    
+                PC.str(string(",",13))    
              else    
                 PC.tx("$")
                 PC.dec(111)
@@ -325,7 +321,7 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
                 PC.dec(received_wd)
                 PC.tx(",")   
                 PC.dec(expected_wd)
-                PC.tx(string(",",13))   
+                PC.str(string(",",13))     
 
                 if expected_wd == 1
                    expected_wd := 0             
@@ -343,25 +339,23 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
         '--- Enable and disable ---
         400 : enable:=sGetPar
               if enable == 1
-                'Check if already enabled
-                if enabled == TRUE
-                  PC.str(string("$400,"))               'Communicate enabled
-                  PC.dec(1)
-                  PC.str(string(",",13))        
-
+                'Enable
+                main_init                
                 enabled:=TRUE
-              elseif enable == 0
-                'Check if already disabled
-                if enabled == FALSE
-                  PC.str(string("$400,"))               'Communicate disabled
-                  PC.dec(0)
-                  PC.str(string(",",13))        
+                PC.str(string("$400,"))               'Communicate enabled
+                PC.dec(1)
+                PC.str(string(",",13))     
                 
-                enabled:=FALSE 
+              elseif enable == 0
+                'Disable
+                enabled:=FALSE                 
+                PC.str(string("$400,"))               'Communicate disabled
+                PC.dec(0)
+                PC.str(string(",",13))        
               else
-                  PC.str(string("$400,"))
-                  PC.dec(-1)
-                  PC.str(string(",",13))
+                PC.str(string("$400,"))
+                PC.dec(-1)
+                PC.str(string(",",13))
 
         '--- pose request ---
         401 : ser_req_pos:=sGetPar
@@ -436,14 +430,6 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
 
         Other: PC.dec(Sender) 
                PC.str(string(",Unknown Command,",13))      
-
- { PC.str(string("OK: "))
-  PC.dec(OK) 
-  PC.str(string(13))
-  PC.str(string("StrBuf: "))
-  PC.str(@strbuf)
-  PC.str(string(13))
- }
 
 PUB ChartoDec (input,sbit) : output
 

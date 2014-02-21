@@ -54,7 +54,7 @@ CON
 
 '' Declare symbol object references
 OBJ
-  ADC      : "adc"
+  ADC      : "ADC"
   PC2      : "FullDuplexSerial_rr005"
 
 VAR

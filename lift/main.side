@@ -1,8 +1,7 @@
 main.spin
-basic_i2c_driver.spin
-adc.spin
+ADC.spin
 FullDuplexSerial_rr005.spin
 height_controller.spin
 FullDuplexSerial_rr005.spin
-basic_i2c_driver.spin
+Basic_I2C_Driver.spin
 >compiler=SPIN
