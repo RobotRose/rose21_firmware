@@ -145,7 +145,7 @@ OBJ
   t             : "Timing"
   MAE           : "MAE3"                                ' MAE absolute encoder object
   PID           : "PID Connect V4a"                      ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
-  n             : "simple_numbers"                      ' Number to string conversion
+  n             : "Simple_Numbers"                      ' Number to string conversion
   eprom         : "Eeprom"                              ' Routines for saving and reloading settings
   
 Var Long PotmValue0, SpeedCom, DoShowParameters

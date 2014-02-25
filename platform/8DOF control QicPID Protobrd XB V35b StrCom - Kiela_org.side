@@ -8,7 +8,7 @@ QiKCommands.spin
 Timing.spin
 PID Connect V4a.spin
 Eeprom.spin
-simple_numbers.spin
+Simple_Numbers.spin
 Parallax Serial Terminal.spin
 Timing.spin
 FullDuplexSerial_rr005.spin
