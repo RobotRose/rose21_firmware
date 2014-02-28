@@ -320,7 +320,7 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
             ConnectionError[1] := ConnectionError[2] := TRUE
         if qik.GetFirmWare(Drive2) <> FIRMWARE_VERSION
             ConnectionError[3] := ConnectionError[4] := TRUE
-        if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION
+        if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION  
             ConnectionError[5] := ConnectionError[6] := TRUE
 
         MaxCurrent[i] #>= ActCurrent[i]  'Check for current overload 
@@ -362,10 +362,9 @@ PUB BrakeWheels(BrakeValue) | lB
 
 ' ---------------- 'Reset current stuff -------------------------------
 PUB ResetCurrentStatus | i
+  AnyCurrError := false
   repeat i from 0 to PIDMax
     CurrError[i]:=false
-    AnyCurrError[i]:=false
-    CurrError:=0
     MaxCurrent[i]:=0
     lI[i]:= 0 
     Output[i]:= 0
@@ -688,7 +687,7 @@ Return AnyCurrError
 PUB ClearAnyCurrError | i
   repeat i from 0 to PIDMax
     CurrError[i]:=false
-    AnyCurrError[i]:=false
+  AnyCurrError:=false
   CurrError:=0
     
     

@@ -52,9 +52,9 @@ CON
   
 OBJ
 
-  ser           : "Parallax Serial Terminal"            ' Serial communication object
-  t             : "Timing"
-  QiK           : "QiKCommands"
+  ser           : "parallax_serial_terminal"            ' Serial communication object
+  t             : "timing"
+  QiK           : "QiK_commands"
   n             : "simple_numbers"                      ' Number to string conversion
   
 Var Long MSetVel[4]

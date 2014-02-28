@@ -120,7 +120,7 @@ CON
  EptromStart = $7000        'Free range for saving
 
 'Errors
-  current_error_counter_threshold = 1         '1 count per 200ms
+  current_error_counter_threshold = 2         '1 count per 200ms
   connection_error_counter_threshold = 5      '1 count per 200ms
   
 'Error logging
@@ -188,10 +188,11 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
 
     'Safety
     Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
-    long current_error_counter, connection_error_counter
+    Long current_error_counter, connection_error_counter
 
     'Received command variables
-    Byte pcCommand, LastAlarm, PfStatus
+    Byte pcCommand, PfStatus
+    Long LastAlarm
     Long pcSpeed, pcDirection, pcCntr
     Long do_enable                  
     Long Ki           
@@ -257,6 +258,9 @@ PRI InitMain
   start_a_err := 10
   stop_a_err := 200
   stopstart_a_err := start_a_err
+  
+  current_error_counter := 0
+  connection_error_counter := 0
 
   if DEBUG
     if SerCog > 0
@@ -306,6 +310,12 @@ PRI DoXbeeCmd
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError
   PID.ResetCurrentStatus
+  current_error_counter    := 0
+  connection_error_counter := 0 
+  
+  repeat while PIDCog == 0
+    t.Pause1ms(10)
+    
   repeat
     ConnectionError := false
     SafetyCntr++
@@ -317,7 +327,7 @@ PRI DoSafety | i, ConnectionError
       FEError:=1
       NoAlarm := false
 
-    if PID.GetAnyCurrError
+    if PID.GetAnyCurrError == true
       current_error_counter := current_error_counter + 1
       PID.ClearAnyCurrError
     else
@@ -346,9 +356,10 @@ PRI DoSafety | i, ConnectionError
 
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
-        ConnectionError := ConnectionError or PID.GetConnectionError(i)
+      if PID.GetConnectionError(i)
+        ConnectionError := i + 1
         
-    if ConnectionError
+    if ConnectionError > 0
       connection_error_counter := connection_error_counter + 1
     else
       connection_error_counter := 0  
@@ -356,7 +367,7 @@ PRI DoSafety | i, ConnectionError
     if connection_error_counter > connection_error_counter_threshold
       Disable
       ResetBit(@PfStatus,NoAlarm)
-      LastAlarm:=4
+      LastAlarm:= 40 + ConnectionError
       NoAlarm := false
       
     If pMAECntr == MAECntr
