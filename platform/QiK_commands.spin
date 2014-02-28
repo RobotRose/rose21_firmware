@@ -71,8 +71,8 @@ CON
   TimeOut = 1  'Timeout in ms for response by Qik on request
     
 OBJ
-  qic           : "FullDuplexSerial_rr005"       ' Standard serial communication
-  t             : "Timing"
+  qic           : "full_duplex_serial_005"       ' Standard serial communication
+  t             : "timing"
   
 Var Byte  ActQiK
     Byte  lTxPin, lRxPin

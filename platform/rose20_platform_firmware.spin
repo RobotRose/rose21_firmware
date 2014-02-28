@@ -119,8 +119,13 @@ CON
  cCheck = 12345             'Check value for correct restore of values.
  EptromStart = $7000        'Free range for saving
 
+'Errors
+  current_error_counter_threshold = 1         '1 count per 200ms
+  connection_error_counter_threshold = 5      '1 count per 200ms
+  
 'Error logging
   ErrorCnt = 100
+   
 
 'Debugging
   DEBUG = FALSE
@@ -140,13 +145,13 @@ CON
 
 
 OBJ
-  ser           : "Parallax Serial Terminal"            ' Serial communication object
-  xBee          : "FullDuplexSerial_rr005" '            "FullDuplexSerialPlus"       ' Xbee serial
-  t             : "Timing"
+  ser           : "parallax_serial_terminal"            ' Serial communication object
+  xBee          : "full_duplex_serial_005"              ' 
+  t             : "timing"
   MAE           : "MAE3"                                ' MAE absolute encoder object
-  PID           : "PID Connect V4a"                      ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
-  n             : "Simple_Numbers"                      ' Number to string conversion
-  eprom         : "Eeprom"                              ' Routines for saving and reloading settings
+  PID           : "PID_4A"                      ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
+  n             : "simple_numbers"                      ' Number to string conversion
+  eprom         : "eeprom"                              ' Routines for saving and reloading settings
   
 Var Long PotmValue0, SpeedCom, DoShowParameters
     Long s, ms, us
@@ -183,6 +188,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
 
     'Safety
     Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
+    long current_error_counter, connection_error_counter
 
     'Received command variables
     Byte pcCommand, LastAlarm, PfStatus
@@ -211,7 +217,9 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long StartlVar, MaxCurrent[MotorCnt], ErrorLog[ErrorCnt], ActErrNr, EndLVar
 
     'Movement 
-    Long start_a_err, stop_a_err, stopstart_a_err     
+    Long start_a_err, stop_a_err, stopstart_a_err  
+    
+       
 ' ---------------- Main program CONTROLLER_ID---------------------------------------
 PUB main | Up, T1, lch 
   InitMain
@@ -297,7 +305,7 @@ PRI DoXbeeCmd
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError
-  PID.ResetCurrError
+  PID.ResetCurrentStatus
   repeat
     ConnectionError := false
     SafetyCntr++
@@ -310,6 +318,12 @@ PRI DoSafety | i, ConnectionError
       NoAlarm := false
 
     if PID.GetAnyCurrError
+      current_error_counter := current_error_counter + 1
+      PID.ClearAnyCurrError
+    else
+      current_error_counter := 0  
+
+    if current_error_counter > current_error_counter_threshold      
       Disable
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,CurrBit)
@@ -323,7 +337,7 @@ PRI DoSafety | i, ConnectionError
     else
         wd_cnt:=0
 
-    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 4.0 sec
+    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 4.0 sec (200ms per count)
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
@@ -335,11 +349,16 @@ PRI DoSafety | i, ConnectionError
         ConnectionError := ConnectionError or PID.GetConnectionError(i)
         
     if ConnectionError
+      connection_error_counter := connection_error_counter + 1
+    else
+      connection_error_counter := 0  
+
+    if connection_error_counter > connection_error_counter_threshold
       Disable
       ResetBit(@PfStatus,NoAlarm)
       LastAlarm:=4
       NoAlarm := false
-
+      
     If pMAECntr == MAECntr
       Disable
       ResetBit(@PfStatus,NoAlarmBit)
@@ -835,7 +854,7 @@ PRI ResetPfStatus | i
     ser.Str(string(CR))
 
   if PIDcog > 0
-    pid.ResetCurrError 
+    pid.ResetCurrentStatus
     pid.ClearErrors
     PID.Stop
     t.Pause1ms(1)
@@ -1419,3 +1438,4 @@ PRI ResetBit(VarAddr,Bit) | lBit, lMask
 │ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.                         │
 └──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 }}
+

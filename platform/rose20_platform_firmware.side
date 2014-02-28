@@ -1,0 +1,15 @@
+rose20_platform_firmware.spin
+Timing.spin
+MAE3.spin
+quadrature_encoder.spin
+full_duplex_serial_005.spin
+timing.spin
+QiK_commands.spin
+timing.spin
+PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_distance.spin
+eeprom.spin
+simple_numbers.spin
+parallax_serial_terminal.spin
+timing.spin
+full_duplex_serial_005.spin
+>compiler=SPIN

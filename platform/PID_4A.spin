@@ -59,9 +59,9 @@ CON
   RXQ      = 25           ' Serial in  
     
 OBJ
-  t             : "Timing"
-  QiK           : "QiKCommands"                         ' Standard serial for drives
-  PosEnc        : "Quadrature Encoder"                  ' Position Encoder object
+  t             : "timing"
+  QiK           : "QiK_commands"                         ' Standard serial for drives
+  PosEnc        : "quadrature_encoder"                  ' Position Encoder object
 
 Var Long PotmValue0
     long s, ms, us
@@ -183,7 +183,7 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
  
     FEAny := FALSE
 
-    ResetCurrError
+    ResetCurrentStatus
 
     PIDStatus:=2                         'PID Init done
     T1:=Cnt
@@ -357,10 +357,11 @@ PUB BrakeWheels(BrakeValue) | lB
   QiK.SetBrakeM0(Drive0,lB)                     'Brake wheels
   QiK.SetBrakeM0(Drive1,lB)                     
   QiK.SetBrakeM0(Drive2,lB)                    
-  QiK.SetBrakeM0(Drive3,lB)                 
+  QiK.SetBrakeM0(Drive3,lB)   
+                
 
-' ---------------- 'Reset current errors -------------------------------
-PUB ResetCurrError | i
+' ---------------- 'Reset current stuff -------------------------------
+PUB ResetCurrentStatus | i
   repeat i from 0 to PIDMax
     CurrError[i]:=false
     AnyCurrError[i]:=false
@@ -683,6 +684,14 @@ Return PIDCntr
 PUB GetAnyCurrError
 Return AnyCurrError
 
+'----------------- Clear AnyCurrError ------------------------
+PUB ClearAnyCurrError | i
+  repeat i from 0 to PIDMax
+    CurrError[i]:=false
+    AnyCurrError[i]:=false
+  CurrError:=0
+    
+    
 ' ---------------------   Get drive Error  -----------------------------
 PUB GetError(i)
   i:= 0 #> i <# PIDMax
