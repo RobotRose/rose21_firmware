@@ -81,7 +81,7 @@ Var Long PotmValue0
     Long PIDCog, PIDStatus, PIDBusy
     Word PIDCntr
     Long Pos[MotorCnt], Vel[MotorCnt], Input[MotorCnt], Output[MotorCnt]
-    Long ActCurrent[PIDCnt], MaxCurrent[PIDCnt], MaxSetCurrent[PIDCnt], CurrError[PIDCnt], AnyCurrError
+    Long ActCurrent[PIDCnt], MaxCurrent[PIDCnt], MaxSetCurrent[PIDCnt], CurrError[PIDCnt], AnyCurrError, AnyCurrErrorLoop
     Long ConnectionError[PIDCnt]
     'Encoder vars
     Long  EncCog, EncCntr
@@ -193,6 +193,8 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
                                          
     PIDStatus:=3                         'PID running      
     Repeat                               'Main loop     Volgfout!!
+      AnyCurrError     := AnyCurrError or AnyCurrErrorLoop
+      AnyCurrErrorLoop := false
       Repeat i from 0 to PIDMax          'Cycle through the loops
      
         T2:=Cnt
@@ -308,7 +310,6 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
               ActCurrent[7]:=qik.GetCurrentM1(Drive3)    'Get motor 1 current
    
         if ActCurrent[i] == -1 or ActCurrent[i] == $FF or LastErr >= $10
-            ConnectionError[i] := TRUE
             ActCurrent[i] := 0
 
         if ActCurrent[i] <> $FF and LastErr == 0
@@ -316,16 +317,19 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
 
         if qik.GetFirmWare(Drive0) <> FIRMWARE_VERSION 
             ConnectionError[0] := ConnectionError[1] := TRUE
+        t.Pause10us(10)  
         if qik.GetFirmWare(Drive1) <> FIRMWARE_VERSION
             ConnectionError[1] := ConnectionError[2] := TRUE
+        t.Pause10us(10) 
         if qik.GetFirmWare(Drive2) <> FIRMWARE_VERSION
             ConnectionError[3] := ConnectionError[4] := TRUE
+        t.Pause10us(10) 
         if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION  
             ConnectionError[5] := ConnectionError[6] := TRUE
 
         MaxCurrent[i] #>= ActCurrent[i]  'Check for current overload 
         CurrError[i]:= CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])  'Check if any current limit exceeded set alarm if exceeded
-        AnyCurrError:= AnyCurrError or CurrError[i]                  'Check if any current error
+        AnyCurrErrorLoop:= AnyCurrErrorLoop or CurrError[i]                  'Check if any current error
 
         PIDLeadTime:=(Cnt-T1)/80000                '[ms]
  
@@ -362,7 +366,8 @@ PUB BrakeWheels(BrakeValue) | lB
 
 ' ---------------- 'Reset current stuff -------------------------------
 PUB ResetCurrentStatus | i
-  AnyCurrError := false
+  AnyCurrError      := false
+  AnyCurrErrorLoop  := false
   repeat i from 0 to PIDMax
     CurrError[i]:=false
     MaxCurrent[i]:=0
@@ -378,6 +383,11 @@ PUB ClearErrors | i
 PUB SetInPosWindow(i,lInPosWindow)
   i:= 0 #> i <# PIDMax
   InPosWindow[i]:=lInPosWindow
+
+' ---------------------  Reset ConnectionError ---------------------------
+PUB ResetConnectionErrors | i
+  repeat i from 0 to PIDMax
+    ConnectionError[i] := FALSE
 
 ' ---------------------  Get ConnectionError ---------------------------
 PUB GetConnectionError(i)

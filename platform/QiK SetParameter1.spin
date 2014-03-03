@@ -1,4 +1,4 @@
-''=============================================================================
+55''=============================================================================
 '' QiK Parameter setting program nov 2010 H.J. Kiela Opteq R&D BV
 '' Version V1.1
 '' With this program you can test Pololu QiC drives, set their parameters and test motors

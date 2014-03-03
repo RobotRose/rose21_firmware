@@ -121,7 +121,7 @@ CON
 
 'Errors
   current_error_counter_threshold = 2         '1 count per 200ms
-  connection_error_counter_threshold = 5      '1 count per 200ms
+  connection_error_counter_threshold = 12      '1 count per 200ms
   
 'Error logging
   ErrorCnt = 100
@@ -361,6 +361,7 @@ PRI DoSafety | i, ConnectionError
         
     if ConnectionError > 0
       connection_error_counter := connection_error_counter + 1
+      PID.ResetConnectionErrors 'reset errors because we counteted this one
     else
       connection_error_counter := 0  
 
