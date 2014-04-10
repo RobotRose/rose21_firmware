@@ -366,11 +366,16 @@ PRI DoSafety | i, ConnectionError
       connection_error_counter := 0  
 
     if connection_error_counter > connection_error_counter_threshold
-      Disable
+      'Disable
       ResetBit(@PfStatus,NoAlarm)
-      LastAlarm:= 40 + ConnectionError
+      LastAlarm:= 4
       NoAlarm := false
-      
+    else
+      if LastAlarm == 4
+        LastAlarm:= 0
+        NoAlarm := true
+        SetBit(@PfStatus,NoAlarm)
+
     If pMAECntr == MAECntr
       Disable
       ResetBit(@PfStatus,NoAlarmBit)
@@ -420,14 +425,21 @@ PRI Move
       stopstart_a_err := stop_a_err
 
   'Disable wheels if no speed command given to avoid lock up of wheels and battery drainage
-  if (wSpeed[0]==0 and wSpeed[1] ==0 and wSpeed[2] == 0 and wSpeed[3] == 0)
-      DisableWheels    'Disable wheels to save battery
-  else
+  if (wSpeed[0] <> 0 or wSpeed[1] <> 0 or wSpeed[2] <> 0 and wSpeed[3] <> 0)
       if Enabled
          EnableWheels
-  
-' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
-PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
+
+
+' -------------- Enable or disable wheels depending on the requested brake_state
+PRI setBrakeState(brake_state)
+    if brake_state == 1
+        DisableWheels
+    else
+        if Enabled
+            EnableWheels
+
+    ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
+PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_state
   t1:=cnt
   OK:=1
 
@@ -639,6 +651,18 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
              Xbee.dec(stop_a_err)
              Xbee.tx(",")
              Xbee.tx(CR)         
+
+            '=== Release/engage brake 
+        905: brake_state:= sGetPar
+             setBrakeState(brake_state)
+
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(904)
+             Xbee.tx(",")
+             Xbee.dec(brake_state)
+             Xbee.tx(",")
+             Xbee.tx(CR) 
 
         999: ResetPfStatus        'Reset platform status
             'Send a reply (mirroring the received command)
@@ -1060,7 +1084,7 @@ PRI DisableWheels
   PID.SetPIDMode(2,0)                     'Enable vel wheel and
   PID.SetPIDMode(4,0)                     'Enable vel wheel and
   PID.SetPIDMode(6,0)                     'Enable vel wheel and 
-  
+
 ' ----------------  Disable all wheels and steerin ---------------------------------------
 PRI Disable 
   do_enable:=0

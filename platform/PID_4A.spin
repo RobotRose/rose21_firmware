@@ -135,7 +135,7 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
   qik.SetSpeedM1(Drive2, 0)
   qik.SetSpeedM0(Drive3, 0)
   qik.SetSpeedM1(Drive3, 0)
-
+  BrakeWheels(0)
 
   if PIDCog > 0
      cogstop(PIDCog~ - 1)  
