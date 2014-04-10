@@ -120,8 +120,8 @@ CON
  EptromStart = $7000        'Free range for saving
 
 'Errors
-  current_error_counter_threshold = 2         '1 count per 200ms
-  connection_error_counter_threshold = 12      '1 count per 200ms
+  current_error_counter_threshold = 4         '1 count per 200ms
+  connection_error_counter_threshold = 20      '1 count per 200ms
   
 'Error logging
   ErrorCnt = 100
