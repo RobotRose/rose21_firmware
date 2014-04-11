@@ -71,8 +71,8 @@ CON
   TimeOut = 1  'Timeout in ms for response by Qik on request
     
 OBJ
-  qic           : "full_duplex_serial_005"       ' Standard serial communication
-  t             : "timing"
+  serial_interface  : "full_duplex_serial_005"       ' Standard serial communication
+  t                 : "timing"
   
 Var Byte  ActQiK
     Byte  lTxPin, lRxPin
@@ -83,13 +83,13 @@ Var Byte  ActQiK
 PUB Init( RxPin, TxPin)| lCog
   lTxPin:=TxPin
   lRxPin:=RxPin
-  lCog:=qic.start(lRxPin, lTxPin, 0, BaudQ)  'Start serial port   start(rxpin, txpin, mode, baudrate)
+  lCog:=serial_interface.start(lRxPin, lTxPin, 0, BaudQ)  'Start serial port   start(rxpin, txpin, mode, baudrate)
   ActQiK :=0                           '0=Compact protocol 1=Pololu protocol, multi drop daisy chain
   AutoBaud
 Return lCog   
 ' ---------------------  'Auto baud Qik  ------------------
 PUB AutoBaud             'Perform this command first to get baud rate rigth of all QiK drives
-  qic.tx($AA)            'Auto baud character   
+  serial_interface.tx($AA)            'Auto baud character   
 
 ' ---------------------  'Set/Get communication protocol  ------------------
 PUB SetProtocol(lQiK)    '0=Compact protocol 1=Pololu protocol for multi drop daisy chain
@@ -100,7 +100,7 @@ Return ActQiK
 
 ' ---------------------  'Flush receive buffer ------------------
 PUB rxflush   
-  qic.rxflush 
+  serial_interface.rxflush 
 
 ' ----------------  QiC commands motor commands pololu drivers -----
 ' ---------------------  'Set new speed motor 0   ------------------
@@ -113,12 +113,12 @@ PUB SetSpeedM0(Address,Speed) | lS, NewCommand
     lS:= 0 #> Speed <# 127 'Limit range
 
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
 
-  qic.tx(NewCommand) 'Motor speed command
-  qic.tx(lS)                        
+  serial_interface.tx(NewCommand) 'Motor speed command
+  serial_interface.tx(lS)                        
 
 ' ---------------------  'Set new speed motor 1   ------------------
 PUB SetSpeedM1(Address,Speed) | lS, NewCommand 
@@ -130,23 +130,23 @@ PUB SetSpeedM1(Address,Speed) | lS, NewCommand
     lS:= 0 #> Speed <# 127 'Limit range
 
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
 
-  qic.tx(NewCommand) 'Motor speed command
-  qic.tx(lS)                        
+  serial_interface.tx(NewCommand) 'Motor speed command
+  serial_interface.tx(lS)                        
 
 ' ---------------------  'Set Braking motor 0 ---------------------
 PUB SetBrakeM0(Address,Brake) | lS, NewCommand 
   lS:= 0 #> Brake <# 127 'Limit range
   NewCommand:=cM0B  'Motor Brake command
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  qic.tx(lS)
+  serial_interface.tx(NewCommand) 
+  serial_interface.tx(lS)
   MotorBrake[Address-$10]:=Brake  'Store actual brake value             
 
 ' ---------------------  'Set Braking motor 1 ----------------------
@@ -154,12 +154,12 @@ PUB SetBrakeM1(Address,Brake) | lS, NewCommand
   lS:= 0 #> Brake <# 127 'Limit range
   NewCommand:=cM1B  'Motor Brake command
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
 
-  qic.tx(NewCommand) 
-  qic.tx(lS)                        
+  serial_interface.tx(NewCommand) 
+  serial_interface.tx(lS)                        
   MotorBrake[Address-$10+1]:=Brake  'Store actual brake value             
                                     
 ' ---------------------  'Set Parameter  ---------------------------
@@ -167,28 +167,28 @@ PUB SetParameter(Address,Parameter, Value) | lS, NewCommand, R
   lS:= 0 #> Parameter <# 11 'Limit range
   NewCommand:=cSetPar 'Set parameter command
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
 
-  qic.tx(NewCommand) 
-  qic.tx(Parameter) 'Get requested parameter
-  qic.tx(Value)
-  qic.tx($55)      'extra bytes for security
-  qic.tx($2A)
-  R:=qic.rxtime(TimeOut) 'Wait for return charater before continuing max 100 us
+  serial_interface.tx(NewCommand) 
+  serial_interface.tx(Parameter) 'Get requested parameter
+  serial_interface.tx(Value)
+  serial_interface.tx($55)      'extra bytes for security
+  serial_interface.tx($2A)
+  R:=serial_interface.rxtime(TimeOut) 'Wait for return charater before continuing max 100 us
 Return R           'Return result of parameter set     Check with SetParRes2str(Resnr) result
 
 ' --------------------- 'Get Parameter  ----------------------------
 PUB GetParameter(Address, Parameter) | R, NewCommand
   NewCommand:=cGetPar 'Get parameter command
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  qic.tx(Parameter) 'Get requested parameter
-  R:=qic.rxtime(TimeOut) 'Expect response within timeout
+  serial_interface.tx(NewCommand) 
+  serial_interface.tx(Parameter) 'Get requested parameter
+  R:=serial_interface.rxtime(TimeOut) 'Expect response within timeout
 Return  R
 
 
@@ -196,44 +196,44 @@ Return  R
 PUB GetCurrentM0(Address) | R, NewCommand
   NewCommand:=cGetM0Current 'Get current M0
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  R:=qic.rxtime(TimeOut)     'Expect response within timeout 
+  serial_interface.tx(NewCommand) 
+  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout 
 Return R*150            'Scale output to mA
 
 ' ---------------------  'Get  motor 1 current    ------------------
 PUB GetCurrentM1(Address) | R, NewCommand
   NewCommand:=cGetM1Current 'Get current M1
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
+  serial_interface.tx(NewCommand) 
+  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 Return R*150            'Scale output to mA 
 
 ' ---------------------  'Get  motor 0 speed      ------------------
 PUB GetSpeedM0(Address) | R, NewCommand
   NewCommand:=cGetM0Speed 'Get speed M0
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
+  serial_interface.tx(NewCommand) 
+  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
 ' ---------------------  'Get  motor 1 speed      ------------------
 PUB GetSpeedM1(Address) | R, NewCommand
   NewCommand:=cGetM1Speed 'Get speed M1
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
+  serial_interface.tx(NewCommand) 
+  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
 ' ---------------------  'Get  motor 0 Brake      ------------------
@@ -250,11 +250,11 @@ Return R
 PUB GetFirmWare(Address) | R, NewCommand
   NewCommand:=cGetFirmware 'Get firmware
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
+  serial_interface.tx(NewCommand) 
+  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
   't.Pause10us(50)
 Return R
 
@@ -262,11 +262,11 @@ Return R
 PUB GetError(Address) | R, NewCommand
   NewCommand:=cGetError     'Get errors
   if ActQiK==1
-    qic.tx($AA)    
-    qic.tx(Address)
+    serial_interface.tx($AA)    
+    serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
-  qic.tx(NewCommand) 
-  R:=qic.rxtime(TimeOut)     'Expect response within timeout   
+  serial_interface.tx(NewCommand) 
+  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
 ' ---------------------  Return QiC errorstring -----------------------------

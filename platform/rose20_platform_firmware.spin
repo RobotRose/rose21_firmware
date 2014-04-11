@@ -191,7 +191,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long current_error_counter, connection_error_counter
 
     'Received command variables
-    Byte pcCommand, PfStatus
+    Byte pcCommand, PfStatus, connection_error_byte
     Long LastAlarm
     Long pcSpeed, pcDirection, pcCntr
     Long do_enable                  
@@ -312,7 +312,9 @@ PRI DoSafety | i, ConnectionError
   PID.ResetCurrentStatus
   current_error_counter    := 0
   connection_error_counter := 0 
-  
+  repeat i from 0 to MotorCnt-1
+    ResetBit(@connection_error_byte, i)
+
   repeat while PIDCog == 0
     t.Pause1ms(10)
     
@@ -358,7 +360,9 @@ PRI DoSafety | i, ConnectionError
     repeat i from 0 to MotorCnt-1
       if PID.GetConnectionError(i)
         ConnectionError := i + 1
-        
+        SetBit(@connection_error_byte, i)
+
+
     if ConnectionError > 0
       connection_error_counter := connection_error_counter + 1
       PID.ResetConnectionErrors 'reset errors because we counteted this one
@@ -805,6 +809,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                  xBee.dec(0)  
               xBee.tx(",") 
               xBee.dec(LastAlarm)  
+              xBee.tx(",")
+              xBee.dec(connection_error_byte)
               xBee.tx(",")
               Xbee.tx(CR)
 

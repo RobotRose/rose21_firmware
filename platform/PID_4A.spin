@@ -327,6 +327,9 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
         if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION  
             ConnectionError[5] := ConnectionError[6] := TRUE
 
+        if(ConnectionError[0] or ConnectionError[1] or ConnectionError[3] or ConnectionError[5])
+            qik.rxflush
+
         MaxCurrent[i] #>= ActCurrent[i]  'Check for current overload 
         CurrError[i]:= CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])  'Check if any current limit exceeded set alarm if exceeded
         AnyCurrErrorLoop:= AnyCurrErrorLoop or CurrError[i]                  'Check if any current error
