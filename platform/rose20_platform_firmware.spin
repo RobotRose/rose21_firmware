@@ -80,7 +80,7 @@ CON
   MotorCnt = nPIDLoops
   nWheels = 4
   MotorIndex = MotorCnt - 1
-  PIDCTime = 40            ' PID Cycle time ms
+  PIDCTime = 10            ' PID Cycle time ms
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -182,7 +182,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
 
     'Input string handling
     Byte StrBuf[MaxStr], cStrBuf[MaxStr]      'String buffer for receiving chars from serial port
-    Long StrSP, StrCnt, StrP, StrLen  'Instring semaphore, counter, Stringpointer
+    Long StrSP, StrP, StrLen  'Instring semaphore, counter, Stringpointer
     Long SerEnabled, oSel0, CmdDone
     Long MaxWaitTime  'Wait time for new Xbee string
 
@@ -191,7 +191,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long current_error_counter, connection_error_counter
 
     'Received command variables
-    Byte pcCommand, PfStatus, connection_error_byte
+    long pcCommand, PfStatus, connection_error_byte
     Long LastAlarm
     Long pcSpeed, pcDirection, pcCntr
     Long do_enable                  
@@ -231,21 +231,21 @@ PUB main | Up, T1, lch
 
   repeat
     T1:=cnt
-    if DEBUG
-      lch:= ser.RxCheck                     ' Check serial port debug port
-      if lch>0                                            
-        DoCommand(lch)
-    lch:=0
+    'if DEBUG
+    '  lch:= ser.RxCheck                     ' Check serial port debug port
+    '  if lch>0                                            
+    '    DoCommand(lch)
+    
     DoXbeeCmd                              'Linux pc roboto controller runtime com
     
     if Enabled                             'Move! if enabled
         Move           
        
-    if DEBUG                            
-      if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
-        ShowScreen
+    ''if DEBUG                            
+    '  if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
+    '    ShowScreen
 
-    !outa[Led]                           'Toggle I/O Pin for debug
+    '!outa[Led]                           'Toggle I/O Pin for debug
     MainTime:=(cnt-T1)/80000
     MainCntr++
 
@@ -283,7 +283,7 @@ PRI InitMain
 
 '================================ Init Xbee comm ==========================
 PRI InitXbeeCmd
-  MaxWaitTime := 50                   'ms wait time for incoming string  
+  MaxWaitTime := 5                   'ms wait time for incoming string  
   StrSp:=0
   
   ByteFill(@StrBuf,0,MaxStr)
@@ -298,17 +298,15 @@ PRI InitWatchDog
   wd_cnt:=0
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
-
-    StrCnt++
     Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
-    Xbee.rxflush
+    'Xbee.rxflush
     if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
         XBeeStat:=DoXCommand                        'Check input string for new commands
         ProcessCommand                              'Execute new commands
 
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | i, ConnectionError
+PRI DoSafety | i, ConnectionError, bitvalue
   PID.ResetCurrentStatus
   current_error_counter    := 0
   connection_error_counter := 0 
@@ -359,16 +357,18 @@ PRI DoSafety | i, ConnectionError
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
       if PID.GetConnectionError(i)
-        ConnectionError := i + 1
+        ConnectionError := 1
         SetBit(@connection_error_byte, i)
-
-
-    if ConnectionError > 0
+      else
+        ResetBit(@connection_error_byte, i + 1)
+ 
+    if ConnectionError == 1
       connection_error_counter := connection_error_counter + 1
-      PID.ResetConnectionErrors 'reset errors because we counteted this one
+      PID.ResetConnectionErrors 'reset errors because we counted this one
     else
       connection_error_counter := 0  
-
+         
+ 
     if connection_error_counter > connection_error_counter_threshold
       'Disable
       ResetBit(@PfStatus,NoAlarm)
@@ -815,10 +815,10 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
               Xbee.tx(CR)
 
         '=== Get All drive motor positions number
-        1012: if pid.getEncSem
-                Xbee.tx("$")
-                Xbee.dec(1012)
-                xBee.tx(",")
+        1012: Xbee.tx("$")
+              Xbee.dec(1012)
+              xBee.tx(",")
+              if pid.getEncSem
                 xBee.dec(pid.GetActEncPosDiff(0)) 
                 xBee.tx(",")
                 xBee.dec(-pid.GetActEncPosDiff(2))  
@@ -830,12 +830,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 xBee.dec(pid.getEncClkDiff) 
                 xBee.tx(",") 
                 Xbee.tx(CR)
-
                 pid.resetActEncPosSem              
               else
-                Xbee.tx("$")
-                Xbee.dec(1012)
-                xBee.tx(",")
                 xBee.dec(0) 
                 xBee.tx(",")
                 xBee.dec(0)  
@@ -847,6 +843,57 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 xBee.dec(0) 
                 xBee.tx(",") 
                 Xbee.tx(CR)
+
+        '=== Get All status info
+        ' First all drive motor positions and clk difference
+        1013: Xbee.tx("$")
+              Xbee.dec(1013)
+              xBee.tx(",")
+              repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           'timeout in [ms]
+              if pid.getEncSem                
+                xBee.dec(pid.GetActEncPosDiff(0)) 
+                xBee.tx(",")
+                xBee.dec(-pid.GetActEncPosDiff(2))  
+                xBee.tx(",")
+                xBee.dec(pid.GetActEncPosDiff(4)) 
+                xBee.tx(",")
+                xBee.dec(-pid.GetActEncPosDiff(6)) 
+                xBee.tx(",")          
+                xBee.dec(pid.getEncClkDiff) 
+                pid.resetActEncPosSem              
+              else
+                xBee.dec(0) 
+                xBee.tx(",")
+                xBee.dec(0)  
+                xBee.tx(",")
+                xBee.dec(0) 
+                xBee.tx(",")
+                xBee.dec(0) 
+                xBee.tx(",")          
+                xBee.dec(0) 
+                
+              xBee.tx(",") 
+              'Steer motors positions, absolute encoders
+              xBee.dec(pid.GetActPos(1))  
+              xBee.tx(",") 
+              xBee.dec(pid.GetActPos(3)) 
+              xBee.tx(",") 
+              xBee.dec(pid.GetActPos(5)) 
+              xBee.tx(",") 
+              xBee.dec(pid.GetActPos(7)) 
+              xBee.tx(",") 
+ 
+              '=== Get AlarmState and LastAlarm number
+              if not NoAlarm
+                 xBee.dec(1)  
+              else
+                 xBee.dec(0)  
+              xBee.tx(",") 
+              xBee.dec(LastAlarm)  
+              xBee.tx(",")
+              xBee.dec(connection_error_byte)
+              xBee.tx(",")
+              Xbee.tx(CR)
 
         other:Xbee.tx("$")
               Xbee.dec(sender)
@@ -1450,14 +1497,14 @@ PRI ShowScreen | i
 ' ---------------- 'Set bit in 32 bit Long var -------------------------------
 PRI SetBit(VarAddr,Bit) | lBit, lMask
   lBit:= 0 #> Bit <# 31    'Limit range
-  lMask:= |< Bit           'Set Bit mask
+  lMask:= |< lBit           'Set Bit mask
   Long[VarAddr] |= lMask   'Set Bit
     
 
 ' ---------------- 'Reset bit in 32 bit Long var -------------------------------
 PRI ResetBit(VarAddr,Bit) | lBit, lMask
   lBit:= 0 #> Bit <# 31    'Limit range
-  lMask:= |< Bit           'Set Bit mask
+  lMask:= |< lBit           'Set Bit mask
   
   Long[VarAddr] &= !lMask  'Reset bit
     

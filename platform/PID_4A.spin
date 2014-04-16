@@ -118,6 +118,7 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
   SetpAddr := aSetp
   repeat i from 0 to PIDCnt
         EncPos[i]  := 1000
+
   if EncCog > 0
     cogstop(EncCog~ - 1)  
   EncCog:=PosEnc.start(Enc0Pin, EncCnt, 0, @EncPos) 'Start quadrature encoder
@@ -308,27 +309,31 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
 
            7: qik.SetSpeedM1(Drive3, Output[7])
               ActCurrent[7]:=qik.GetCurrentM1(Drive3)    'Get motor 1 current
-   
+
+        if ActCurrent[i] == -1*150
+          ConnectionError[i] := TRUE
+        'if ActCurrent[i] <> -1
+         '   ConnectionError[i] := FALSE
+
         if ActCurrent[i] == -1 or ActCurrent[i] == $FF or LastErr >= $10
             ActCurrent[i] := 0
+            
+      
+            
+        'if qik.GetFirmWare(Drive0) <> FIRMWARE_VERSION 
+        '    ConnectionError[0] := ConnectionError[1] := TRUE
+        't.Pause10us(10)  
+        'if qik.GetFirmWare(Drive1) <> FIRMWARE_VERSION
+        '    ConnectionError[1] := ConnectionError[2] := TRUE
+        't.Pause10us(10) 
+        'if qik.GetFirmWare(Drive2) <> FIRMWARE_VERSION
+        '    ConnectionError[3] := ConnectionError[4] := TRUE
+        't.Pause10us(10) 
+        'if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION  
+        '    ConnectionError[5] := ConnectionError[6] := TRUE
 
-        if ActCurrent[i] <> $FF and LastErr == 0
-            ConnectionError[i] := FALSE
-
-        if qik.GetFirmWare(Drive0) <> FIRMWARE_VERSION 
-            ConnectionError[0] := ConnectionError[1] := TRUE
-        t.Pause10us(10)  
-        if qik.GetFirmWare(Drive1) <> FIRMWARE_VERSION
-            ConnectionError[1] := ConnectionError[2] := TRUE
-        t.Pause10us(10) 
-        if qik.GetFirmWare(Drive2) <> FIRMWARE_VERSION
-            ConnectionError[3] := ConnectionError[4] := TRUE
-        t.Pause10us(10) 
-        if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION  
-            ConnectionError[5] := ConnectionError[6] := TRUE
-
-        if(ConnectionError[0] or ConnectionError[1] or ConnectionError[3] or ConnectionError[5])
-            qik.rxflush
+        'if(ConnectionError[0] or ConnectionError[1] or ConnectionError[3] or ConnectionError[5])
+        '    qik.rxflush
 
         MaxCurrent[i] #>= ActCurrent[i]  'Check for current overload 
         CurrError[i]:= CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])  'Check if any current limit exceeded set alarm if exceeded

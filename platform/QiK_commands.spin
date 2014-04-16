@@ -201,7 +201,8 @@ PUB GetCurrentM0(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout 
-Return R*150            'Scale output to mA
+
+  Return R*150            'Scale output to mA
 
 ' ---------------------  'Get  motor 1 current    ------------------
 PUB GetCurrentM1(Address) | R, NewCommand
@@ -212,7 +213,8 @@ PUB GetCurrentM1(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
-Return R*150            'Scale output to mA 
+
+  Return R*150            'Scale output to mA
 
 ' ---------------------  'Get  motor 0 speed      ------------------
 PUB GetSpeedM0(Address) | R, NewCommand
