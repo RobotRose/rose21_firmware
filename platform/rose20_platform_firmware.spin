@@ -198,6 +198,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long Ki           
     Long K
     Long Kp
+    Long Kd
     Long Ilimit
     Long PosScale
     Long VelScale
@@ -521,10 +522,11 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 'Reset the watchdog counter
                 wd_cnt := 0           
 
-        '=== Set drive PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, FeMax, MaxCurr
+        '=== Set drive PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, FeMax, MaxCurr
         900: Ki:= sGetPar
              K:= sGetPar
              Kp:= sGetPar
+             Kd:= sGetPar
              Ilimit:= sGetPar
              PosScale:= sGetPar
              VelScale:= sGetPar
@@ -541,6 +543,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              Xbee.tx(",")
              Xbee.dec(Kp)
              Xbee.tx(",")
+             Xbee.dec(Kd)
+             Xbee.tx(",")
              Xbee.dec(Ilimit)
              Xbee.tx(",")
              Xbee.dec(PosScale)
@@ -554,11 +558,12 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              Xbee.dec(MaxCurr)
              Xbee.tx(",")
              Xbee.tx(CR)         
-             SetDrivePIDPars(Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
-             '=== Set steering PID parameters: Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr
+             SetDrivePIDPars(Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
+             '=== Set steering PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr
         901: Ki:= sGetPar             
              K:= sGetPar
              Kp:= sGetPar
+             Kd:= sGetPar
              Ilimit:= sGetPar
              PosScale:= sGetPar
              VelScale:= sGetPar
@@ -575,6 +580,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              Xbee.tx(",")
              Xbee.dec(Kp)
              Xbee.tx(",")
+             Xbee.dec(Kd)
+             Xbee.tx(",")
              Xbee.dec(Ilimit)
              Xbee.tx(",")
              Xbee.dec(PosScale)
@@ -588,7 +595,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              Xbee.dec(MaxCurr)
              Xbee.tx(",")
              Xbee.tx(CR)         
-             SetSteerPIDPars(Ki, K, Kp, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
+             SetSteerPIDPars(Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
     
        '=== Enable command from PC 
         902: do_enable:=sGetpar
@@ -1118,25 +1125,27 @@ PRI Disable
   'ShowParameters  
   
 ' Set drive motor control parameters
-PRI SetDrivePIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
+PRI SetDrivePIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
     repeat i from 0 to MotorCnt-1 step 2         
       PID.SetKi(i,lKi)
       PID.SetK(i,lK)
       PID.SetKp(i,lKp)
+      PID.SetKp(i,Kd)
       PID.SetIlimit(i,lIlimit)
       PID.SetPosScale(i,lPosScale)
       PID.SetVelScale(i,lVelScale)
       PID.SetMaxVel(i,lVelMax)
       PID.SetFeMax(i,lFeMax)
-      PID.SetMaxCurr(i,lMaxCurr)      
+      PID.SetMaxCurr(i,lMaxCurr)       
       drive_pid_vals_set:=true
 
 ' Set steer motor control parameters
-PRI SetSteerPIDPars(lKi, lK, lKp, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
+PRI SetSteerPIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
     repeat i from 1 to MotorCnt-1 step 2         
       PID.SetKi(i,lKi)
       PID.SetK(i,lK)
       PID.SetKp(i,lKp)
+      PID.SetKp(i,Kd)
       PID.SetIlimit(i,lIlimit)
       PID.SetPosScale(i,lPosScale)
       PID.SetVelScale(i,lVelScale)

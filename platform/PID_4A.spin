@@ -73,8 +73,8 @@ Var Long PotmValue0
     Long Setp[PIDCnt], SetVel[PIDCnt], preSetVel[PIDCnt]
 
    'PID parameters
-    Long PIDMax, K[PIDCnt], KI[PIDCnt], Kp[PIDCnt], Acc[PIDCnt], MaxVel[PIDCnt]
-    Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt]
+    Long PIDMax, K[PIDCnt], KI[PIDCnt], Kp[PIDCnt], Kd[PIDCnt], Acc[PIDCnt], MaxVel[PIDCnt]
+    Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt]
     Long PrevEncPos[PIDCnt], DVT[PIDCnt], DPT[PIDCnt]
     Long PIDStack[400]
     Long PIDTime, lPeriod, PIDLeadTime, PIDWaitTime
@@ -171,6 +171,7 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
       K[i]:= 1000                        'Loop gain Prop velocity 
       KI[i]:=50                          'Loop gain I- action velocity loop
       Kp[i]:=1000                        'Loop gain Position loop
+      Kd[i]:=0                           'Loop gain D action
       PosScale[i]:=1                     'Pos scale factor. Divides pos encoder input
       VelScale[i]:=1                     'Vel scale factor. Divides vel encoder input
       OutputScale[i]:=1                  'Vel scale factor. Divides vel encoder input
@@ -181,7 +182,9 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
       InPosWindow[i]:=100                'In position window               
       FETrip[i] := FALSE
       MaxSetCurrent[i] := 1000
- 
+      D[i] := 0
+
+
     FEAny := FALSE
 
     ResetCurrentStatus
@@ -271,7 +274,9 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
           lI[i]:= -Ilimit[i] #> (lI[i]+(DVT[i])) <# Ilimit[i] 'Limit I-action
            if FETrip[i]
              PIDMode[i]:=0                                    'Set loop open on FE
-          Output[i]:=-Outlimit #> ((DVT[i])*K[i] + lI[i]*KI[i])/OutputScale[i]  <# Outlimit 'Calculate limited PID Out      
+          D[i]:= DVT[i]/PIDTime                               'Calculate D 
+
+          Output[i]:=-Outlimit #> ((DVT[i])*K[i] + lI[i]*KI[i] + D[i]*KD[i])/OutputScale[i]  <# Outlimit 'Calculate limited PID Out      
 
         case i
            0: qik.SetSpeedM0(Drive0, Output[0])
@@ -312,8 +317,6 @@ PRI PID(Period) | i, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_d
 
         if ActCurrent[i] == -1*150
           ConnectionError[i] := TRUE
-        'if ActCurrent[i] <> -1
-         '   ConnectionError[i] := FALSE
 
         if ActCurrent[i] == -1 or ActCurrent[i] == $FF or LastErr >= $10
             ActCurrent[i] := 0
@@ -474,7 +477,12 @@ Return FEAny
 PUB SetKI(i,lKi)
   i:= 0 #> i <# PIDMax
   KI[i]:=lKi
-  
+
+' ---------------------   Set Kd  -----------------------------
+PUB SetKD(i,lKd)
+  i:= 0 #> i <# PIDMax
+  Kd[i]:=lKd  
+
 ' ---------------------   Get Ki  -----------------------------
 PUB GetKI(i)
   i:= 0 #> i <# PIDMax
