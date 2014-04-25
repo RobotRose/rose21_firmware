@@ -121,8 +121,8 @@ CON
 
 'Errors
   current_error_counter_threshold = 4         '1 count per 200ms
-  connection_error_counter_threshold = 20      '1 count per 200ms
-  
+  connection_error_counter_threshold = 20     '1 count per 200ms
+  wd_cnt_threshold = 20                       'Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
 'Error logging
   ErrorCnt = 100
    
@@ -222,12 +222,8 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     
        
 ' ---------------- Main program CONTROLLER_ID---------------------------------------
-PUB main | Up, T1, lch 
+PUB main | T1, lch 
   InitMain
-  !outa[Led]                             ' Toggle I/O Pin for debug
-  Up:=1
-  PIDMode:=0
-  Disable
 
   repeat
     T1:=cnt
@@ -251,6 +247,10 @@ PUB main | Up, T1, lch
 
 ' ----------------  Init main program ---------------------------------------
 PRI InitMain
+ !outa[Led]                             ' Toggle I/O Pin for debug
+  PIDMode:=0
+  Disable
+
   dira[Led]~~                            'Set I/O pin for LED to output…
   !outa[Led]                             'Toggle I/O Pin for debug
 
@@ -258,7 +258,7 @@ PRI InitMain
   start_a_err := 10
   stop_a_err := 200
   stopstart_a_err := start_a_err
-  
+ 
   current_error_counter := 0
   connection_error_counter := 0
 
@@ -299,7 +299,7 @@ PRI InitWatchDog
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
     Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
-    'Xbee.rxflush
+    
     if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
         XBeeStat:=DoXCommand                        'Check input string for new commands
         ProcessCommand                              'Execute new commands
@@ -308,8 +308,10 @@ PRI DoXbeeCmd
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
   PID.ResetCurrentStatus
+  wd_cnt                   := 0
   current_error_counter    := 0
   connection_error_counter := 0 
+  PfStatus                 := 0
   repeat i from 0 to MotorCnt-1
     ResetBit(@connection_error_byte, i)
 
@@ -347,7 +349,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
     else
         wd_cnt:=0
 
-    if wd_cnt > 20               ' 20 will result in shutdown if no WD communication has taken place for approximatly 4.0 sec (200ms per count)
+    if wd_cnt > wd_cnt_threshold
       Disable
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
@@ -673,7 +675,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              Xbee.tx("$")
              Xbee.dec(999)
              Xbee.tx(CR)
-           
+
         '=== Status commands
         912: DoStatus2PC     'Status and errors
         913: DoPos2Pc        'Position to PC
@@ -922,25 +924,10 @@ PRI DoCurrents2PC | i
 
 ' ---------------- Reset platform -------------------------------
 PRI ResetPfStatus | i
-  if DEBUG
-    ser.Str(string("Pre MAECog    : "))
-    ser.dec(MAECog)
-    ser.Str(string(CR))
-
   if MAECog > 0
     cogstop(MAECog~ - 1)
     t.Pause1ms(1)
   MAECog:=CogNew(MAESense, @MAEStack) + 1                  'Start MAE sensing
-
-  if DEBUG
-    ser.Str(string("After MAECog  : "))
-    ser.dec(MAECog)
-    ser.Str(string(CR))
-
-  if DEBUG
-    ser.Str(string("Pre PIDcog    : "))
-    ser.dec(PIDcog)
-    ser.Str(string(CR))
 
   if PIDcog > 0
     pid.ResetCurrentStatus
@@ -951,26 +938,10 @@ PRI ResetPfStatus | i
   PIDMode := PID.GetPIDMode(0)                            'Set open loop mode
   repeat while PID.GetPIDStatus <> 3                     'Wait while PID initializes
 
-  if DEBUG
-    ser.Str(string("After PIDcog  : "))
-    ser.dec(PIDcog)
-    ser.Str(string(CR))
-
-  if DEBUG
-    ser.Str(string("Pre SafetyCog : "))
-    ser.dec(SafetyCog)
-    ser.Str(string(CR)) 
- 
   if SafetyCog > 0
     cogstop(SafetyCog~ - 1)  
     t.Pause1ms(1)
   SafetyCog:= CogNew(DoSafety, @SafetyStack) + 1
-
-  if DEBUG
-    ser.Str(string("After SafetyCog: "))
-    ser.dec(SafetyCog)
-    ser.Str(string(CR))
-
 
   PfStatus:=0
   ResetBit(@PfStatus,USAlarm)          'Reset error bits in PfStatus
