@@ -1145,7 +1145,7 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, l
       PID.SetKi(i,lKi)
       PID.SetK(i,lK)
       PID.SetKp(i,lKp)
-      PID.SetKp(i,Kd)
+      PID.SetKd(i,Kd)
       PID.SetIlimit(i,lIlimit)
       PID.SetPosScale(i,lPosScale)
       PID.SetVelScale(i,lVelScale)
