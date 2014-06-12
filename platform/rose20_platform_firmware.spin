@@ -745,7 +745,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 Xbee.tx("$")
                 Xbee.dec(1004)
                 xBee.tx(",")
-                xBee.dec(Setp[req_id] - pid.GetActPos(req_id))  
+                xBee.dec(pid.GetSetp(req_id) - pid.GetActPos(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
@@ -755,7 +755,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 Xbee.tx("$")
                 Xbee.dec(1005)
                 xBee.tx(",")
-                xBee.dec(pid.GetDeltaVel(req_id))  
+                xBee.dec(pid.GetSetp(req_id) - pid.GetActVel(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
