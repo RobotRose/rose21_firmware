@@ -76,11 +76,11 @@ CON
   LCDLines = 2
   
 'PID constamts
-  nPIDLoops = PID#PIDCnt  '8
-  MotorCnt = nPIDLoops
-  nWheels = 4
-  MotorIndex = MotorCnt - 1
-  PIDCTime = 10            ' PID Cycle time ms
+  nPIDLoops     = PID#PIDCnt  '8
+  MotorCnt      = nPIDLoops
+  nWheels       = 4
+  MotorIndex    = MotorCnt - 1
+  PIDCTime      = 50            ' PID Cycle time ms
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -149,7 +149,7 @@ OBJ
   xBee          : "full_duplex_serial_005"              ' 
   t             : "timing"
   MAE           : "MAE3"                                ' MAE absolute encoder object
-  PID           : "PID_4A"                      ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
+  PID           : "PID_4A"                              ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
   n             : "simple_numbers"                      ' Number to string conversion
   eprom         : "eeprom"                              ' Routines for saving and reloading settings
   
@@ -755,7 +755,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 Xbee.tx("$")
                 Xbee.dec(1005)
                 xBee.tx(",")
-                xBee.dec(pid.GetSetp(req_id) - pid.GetActVel(req_id))  
+                xBee.dec(pid.GetDeltaVel(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
 

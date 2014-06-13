@@ -6,7 +6,7 @@ full_duplex_serial_005.spin
 timing.spin
 QiK_commands.spin
 timing.spin
-PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_distance, vel_filter_index, vel_filter_sum.spin
+PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, speed_distance, vel_filter_sum.spin
 eeprom.spin
 simple_numbers.spin
 parallax_serial_terminal.spin
