@@ -164,8 +164,9 @@ PRI SetSpeed(Address,Motor) | lSpeed
   lSpeed:=ser.DecIn
 
   Case Motor
-    0: QiK.SetSpeedM0(Address,lSpeed)
-    1: QiK.SetSpeedM1(Address,lSpeed)
+    0: QiK.SetSpeedM0(Address, lSpeed, 0)
+    1: QiK.SetSpeedM1(Address, lSpeed)
+
 
 
 ' ----------------  Set Brake of selected motor ---------------------------------------
