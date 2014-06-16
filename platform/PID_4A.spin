@@ -75,7 +75,7 @@ Var Long PotmValue0
 
     'PID parameters
     Long PIDMax, K[PIDCnt], KI[PIDCnt], Kp[PIDCnt], Kd[PIDCnt], Acc[PIDCnt], MaxVel[PIDCnt]
-    Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt], lIprev[PIDCnt]
+    Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt]
     Long PrevEncPos[PIDCnt], DVT[PIDCnt], DPT[PIDCnt]
     Long PIDStack[400]
     Long PIDTime, lPeriod, PIDLeadTime, PIDWaitTime
@@ -189,7 +189,6 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
       FETrip[i] := FALSE
       MaxSetCurrent[i] := 1000
       lI[i] := 0
-      lIprev[i] := 0
       D[i] := 0
       vel_filter_index[i] := 0
       repeat j from 0 to vel_filter_size
@@ -309,13 +308,11 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
 
 
           'I decay          
-          if lIprev[i] == lI[i]
+          if DVT[i] == 0
             if lI[i] > 0
               lI[i] := lI[i] - 1          
             else
               lI[i] := lI[i] + 1
-
-          lIprev[i] := lI[i]
 
 
         case i
