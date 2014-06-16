@@ -69,7 +69,9 @@ CON
   nMotor = 8    'Max number of motors for brake array. Modify when more needed
 
   TimeOut = 1  'Timeout in ms for response by Qik on request
-    
+  
+  direction_hyst = 50
+      
 OBJ
   serial_interface  : "full_duplex_serial_005"       ' Standard serial communication
   t                 : "timing"
@@ -78,7 +80,7 @@ Var Byte  ActQiK
     Byte  lTxPin, lRxPin
     Byte  s[256]   ' errorstring
     Long  MotorBrake[Nmotor], MotorPWM[Nmotor]
-     
+
 ' ---------------------  Init QiK object  ------------------
 PUB Init( RxPin, TxPin)| lCog
   lTxPin:=TxPin
@@ -104,21 +106,47 @@ PUB rxflush
 
 ' ----------------  QiC commands motor commands pololu drivers -----
 ' ---------------------  'Set new speed motor 0   ------------------
-PUB SetSpeedM0(Address,Speed) | lS, NewCommand 
-  If Speed<0
-    NewCommand:=cM0R
-    lS:= 0 #> -Speed <# 127 'Limit range
+PUB SetSpeedM0(Address, ReqSpeed, measured_speed) | lS, NewCommand, apply_brake_value
+
+  ' Change to reverse or brake?
+  if measured_speed =< 0 and ReqSpeed =< 0 
+    NewCommand        := cM0R                   ' Change direction
+    lS                := 0 #> -ReqSpeed <# 127  ' Limit range
+    apply_brake_value := 0
+  elseif measured_speed > 0 and ReqSpeed == -127
+    NewCommand        := cM0R                   ' Change!
+    lS                := 0 #> -ReqSpeed <# 127            
+    apply_brake_value := 0
+  elseif measured_speed > 0 and ReqSpeed =< 0
+    NewCommand        := cM0R                   ' Wait to brake before change direction
+    lS                := 0            
+    apply_brake_value := 50 #> -ReqSpeed <# 127
+
+  ' Change to forward or brake?
+  elseif measured_speed => 0 and ReqSpeed => 0
+    NewCommand        := cM0F                   ' Change direction
+    lS                := 0 #> ReqSpeed <# 127   ' Limit range
+    apply_brake_value := 0
+  elseif measured_speed < 0 and ReqSpeed == 127
+    NewCommand        := cM0F                   ' Change!
+    lS                := 0 #> ReqSpeed <# 127            
+    apply_brake_value := 0
+  elseif measured_speed < 0 and ReqSpeed => 0
+    NewCommand        := cM0F                   ' Wait to brake before change direction
+    lS                := 0            
+    apply_brake_value := 50 #> ReqSpeed <# 127    
+    
+
+  if apply_brake_value == 0
+      if ActQiK==1
+        serial_interface.tx($AA)    
+        serial_interface.tx(Address)
+        NewCommand := NewCommand - $80
+    
+      serial_interface.tx(NewCommand) 'Motor speed command
+      serial_interface.tx(lS)                        
   else
-    NewCommand:=cM0F
-    lS:= 0 #> Speed <# 127 'Limit range
-
-  if ActQiK==1
-    serial_interface.tx($AA)    
-    serial_interface.tx(Address)
-    NewCommand:=NewCommand - $80
-
-  serial_interface.tx(NewCommand) 'Motor speed command
-  serial_interface.tx(lS)                        
+    SetBrakeM0(Address, apply_brake_value)
 
 ' ---------------------  'Set new speed motor 1   ------------------
 PUB SetSpeedM1(Address,Speed) | lS, NewCommand 

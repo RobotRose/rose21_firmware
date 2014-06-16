@@ -80,7 +80,7 @@ CON
   MotorCnt      = nPIDLoops
   nWheels       = 4
   MotorIndex    = MotorCnt - 1
-  PIDCTime      = 50            ' PID Cycle time ms
+  PIDCTime      = 10            ' PID Cycle time ms
 
 'Safety constants
    _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -607,10 +607,11 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              if do_enable==1 and drive_pid_vals_set and steer_pid_vals_set
                 Xbee.dec(do_enable)        
              elseif do_enable==1
-                Xbee.dec(3)     'Error response meaning not all pid vals were set before enablingZ
+                Xbee.dec(3)     'Error response meaning not all pid vals were set before enabling
                 do_enable:=0    'Force do_enable to zero
              'If disabling return a zero
              if do_enable==0
+                DisableWheels
                 Xbee.dec(0) 
              Xbee.tx(",")
              Xbee.tx(CR)         

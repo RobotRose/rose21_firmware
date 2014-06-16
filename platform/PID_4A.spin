@@ -40,7 +40,7 @@ CON
   cIlimit = 30000          'I- action limiter
   Outlimit = 127           'Output limiter
   nPIDLoops = 8           'Number of PID loops configured
-  vel_filter_size = 3
+  vel_filter_size = 1
   
   MotorCnt = nPIDLoops
 
@@ -75,7 +75,7 @@ Var Long PotmValue0
 
     'PID parameters
     Long PIDMax, K[PIDCnt], KI[PIDCnt], Kp[PIDCnt], Kd[PIDCnt], Acc[PIDCnt], MaxVel[PIDCnt]
-    Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt]
+    Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt], lIprev[PIDCnt]
     Long PrevEncPos[PIDCnt], DVT[PIDCnt], DPT[PIDCnt]
     Long PIDStack[400]
     Long PIDTime, lPeriod, PIDLeadTime, PIDWaitTime
@@ -133,13 +133,13 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
   QikCog:=QiK.Init(RXQ, TXQ)  'Start QiK serial communication
   QiK.SetProtocol(1)          'Enable QiK protocol  
 
-  qik.SetSpeedM0(Drive0, 0)
+  qik.SetSpeedM0(Drive0, 0, 0)
   qik.SetSpeedM1(Drive0, 0)
-  qik.SetSpeedM0(Drive1, 0)
+  qik.SetSpeedM0(Drive1, 0, 0)
   qik.SetSpeedM1(Drive1, 0)
-  qik.SetSpeedM0(Drive2, 0)
+  qik.SetSpeedM0(Drive2, 0, 0)
   qik.SetSpeedM1(Drive2, 0)
-  qik.SetSpeedM0(Drive3, 0)
+  qik.SetSpeedM0(Drive3, 0, 0)
   qik.SetSpeedM1(Drive3, 0)
   BrakeWheels(0)
 
@@ -188,6 +188,8 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
       InPosWindow[i]:=100                'In position window               
       FETrip[i] := FALSE
       MaxSetCurrent[i] := 1000
+      lI[i] := 0
+      lIprev[i] := 0
       D[i] := 0
       vel_filter_index[i] := 0
       repeat j from 0 to vel_filter_size
@@ -204,12 +206,19 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
     !outa[PIDLed]                        'Toggle I/O Pin for debug
                                          
     PIDStatus:=3                         'PID running      
+
+
+    QiK.SetBrakeM0(Drive0,127)                     'Brake wheels test
+    QiK.SetBrakeM0(Drive1,127)                     
+    QiK.SetBrakeM0(Drive2,127)                    
+    QiK.SetBrakeM0(Drive3,127) 
+
     Repeat                               'Main loop     Volgfout!!
       AnyCurrError     := AnyCurrError or AnyCurrErrorLoop
       AnyCurrErrorLoop := false
       'MAF filter index
       vel_filter_index    := vel_filter_index + 1
-      if vel_filter_index >= vel_filter_size
+      if vel_filter_index => vel_filter_size
         vel_filter_index := 0
 
       Repeat i from 0 to PIDMax          'Cycle through the loops
@@ -288,16 +297,29 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
              FE[i]          := 0
              OutputScale[i] := VelScale[i]
 
-        if PIDMode[i]>0                                       'The actual control loop
-          lI[i]:= -Ilimit[i] #> (lI[i]+(DVT[i])) <# Ilimit[i] 'Limit I-action
+        if PIDMode[i]>0                                             'The actual control loop
+
+          lI[i] := -Ilimit[i] #> (lI[i] + DVT[i]) <#  Ilimit[i]    'Limit I-action
+    
           if FETrip[i]
-            PIDMode[i]:=0                                    'Set loop open on FE
+            PIDMode[i]:=0                                     'Set loop open on FE
           D[i]:= DVT[i]/PIDTime                               'Calculate D 
 
           Output[i]:=-Outlimit #> ((DVT[i]*K[i] + lI[i]*KI[i] + D[i]*KD[i]))/OutputScale[i]  <# Outlimit 'Calculate limited PID Out      
 
+
+          'I decay          
+          if lIprev[i] == lI[i]
+            if lI[i] > 0
+              lI[i] := lI[i] - 1          
+            else
+              lI[i] := lI[i] + 1
+
+          lIprev[i] := lI[i]
+
+
         case i
-           0: qik.SetSpeedM0(Drive0, Output[0])
+           0: qik.SetSpeedM0(Drive0, Output[0], lActVel[i])
               LastErr:=qik.GetError(Drive0)           'Get drive errors if any and clear error flag
               if LastErr>0
                 Err[0]:=LastErr
@@ -306,7 +328,7 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
            1: qik.SetSpeedM1(Drive0, Output[1])
               ActCurrent[1]:=qik.GetCurrentM1(Drive0)    'Get motor 1 current
 
-           2: qik.SetSpeedM0(Drive1, Output[2])
+           2: qik.SetSpeedM0(Drive1, Output[2], lActVel[i])
               LastErr:=qik.GetError(Drive1)            'Get drive errors if any  any and clear error flag
               if LastErr>0
                 Err[1]:=LastErr
@@ -315,7 +337,7 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
            3: qik.SetSpeedM1(Drive1, Output[3])
               ActCurrent[3]:=qik.GetCurrentM1(Drive1)    'Get motor current
 
-           4: qik.SetSpeedM0(Drive2, Output[4])
+           4: qik.SetSpeedM0(Drive2, Output[4], lActVel[i])
               LastErr:=qik.GetError(Drive2)           'Get drive errors if any  any and clear error flag
               if LastErr>0
                 Err[2]:=LastErr
@@ -324,7 +346,7 @@ PRI PID(Period) | i, j, T1, T2, ClkCycles, LSetPos, ActRVel, speed_time_ms, spee
            5: qik.SetSpeedM1(Drive2, Output[5])
               ActCurrent[5]:=qik.GetCurrentM1(Drive2)    'Get motor 1 current
 
-           6: qik.SetSpeedM0(Drive3, Output[6])
+           6: qik.SetSpeedM0(Drive3, Output[6], lActVel[i])
               LastErr:=qik.GetError(Drive3)           'Get drive errors if any  any and clear error flag
               if LastErr>0
                 Err[3]:=LastErr
