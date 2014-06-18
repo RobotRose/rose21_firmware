@@ -145,9 +145,9 @@ CON
 
 
 OBJ
-  ser           : "parallax_serial_terminal"            ' Serial communication object
-  xBee          : "full_duplex_serial_005"              ' 
-  t             : "timing"
+  ser           : "parallax_serial_terminal"            ' Serial communication object (for debug)
+  xBee          : "full_duplex_serial_005"              ' Full duplex serial communication 
+  t             : "timing"                              ' Timing functions
   MAE           : "MAE3"                                ' MAE absolute encoder object
   PID           : "PID_4A"                              ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
   n             : "simple_numbers"                      ' Number to string conversion
@@ -211,6 +211,7 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long wSpeed[nWheels], wAngle[nWheels]
     Word MainCntr
     Long drive_pid_vals_set, steer_pid_vals_set        
+    long global_brake_state, set_brake_state
     'Parameters for saving and loading a config
     Long StartVar, sMAEOffs[MAECnt], sK[MotorCnt], sKp[MotorCnt], sKI[MotorCnt], sILim[MotorCnt]
     Long sPosScale[MotorCnt], PlatFormID, Check, EndVar
@@ -290,8 +291,6 @@ PRI InitXbeeCmd
   ByteFill(@StrBuf,0,MaxStr)
   ByteFill(@cStrBuf,0,MaxStr)
   XbeeCog:=xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
-  'Xbee.str(string("Serial started", 13))
-
 
 PRI InitWatchDog
   expected_wd:=0                     'Watchdog Stuff
@@ -397,10 +396,10 @@ PRI DoSafety | i, ConnectionError, bitvalue
 PRI AddError2Log(ErCode)
 ' ---------------- Process Xbee commands into motion commands---------------------------------------
 PRI ProcessCommand   
-    if do_enable == 1 and not Enabled    'Enable Disable platform 1 = enabled 0 = disabled
+    if do_enable == 1 and not Enabled         ' Enable Disable platform 1 = enabled 0 = disabled
        EnableWheelUnits
     elseif do_enable == 0 and Enabled 
-       Disable
+       setBrakeState(global_brake_state)      ' Set to global brake mode
 
 '------------------ Move all wheels individually --------------------------------
 PRI Move
@@ -431,22 +430,32 @@ PRI Move
       'Set rotation error stop driving value
       stopstart_a_err := stop_a_err
 
-  'Disable wheels if no speed command given to avoid lock up of wheels and battery drainage
-  if (wSpeed[0] <> 0 or wSpeed[1] <> 0 or wSpeed[2] <> 0 and wSpeed[3] <> 0)
-      if Enabled
-         EnableWheels
-
-
+  'Active brake wheels if no speed command given to avoid lock up of wheels and battery drainage
+  if (Setp[0] <> 0 or Setp[1] <> 0 or Setp[2] <> 0 and Setp[3] <> 0)
+    setBrakeState(0)                  ' Enable drive mode
+  else
+    setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
+   
+   
 ' -------------- Enable or disable wheels depending on the requested brake_state
 PRI setBrakeState(brake_state)
-    if brake_state == 1
-        DisableWheels
-    else
-        if Enabled
-            EnableWheels
 
-    ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
-PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_state
+    if set_brake_state <> brake_state
+      set_brake_state := brake_state
+
+      if brake_state == 0                 ' Drive mode
+        if Enabled
+          EnableWheels          
+      elseif brake_state == 1             ' Active brake mode
+        if Enabled          
+          EnableWheelsActiveBrake
+      elseif brake_state == 2             ' No brake mode
+        DisableWheels
+        pid.BrakeWheels(1)
+
+
+' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
+PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
   t1:=cnt
   OK:=1
 
@@ -611,7 +620,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 do_enable:=0    'Force do_enable to zero
              'If disabling return a zero
              if do_enable==0
-                DisableWheels
+                setBrakeState(global_brake_state)
                 Xbee.dec(0) 
              Xbee.tx(",")
              Xbee.tx(CR)         
@@ -666,15 +675,18 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
              Xbee.tx(",")
              Xbee.tx(CR)         
 
-            '=== Release/engage brake 
-        905: brake_state:= sGetPar
-             setBrakeState(brake_state)
+            '=== Set active or no brake mode, 2 is default
+        905: global_brake_state:= sGetPar               '1 Active brake mode or 2 no brake mode
+             if global_brake_state < 1 or global_brake_state > 2
+               global_brake_state := 2
+
+             setBrakeState(global_brake_state)
 
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
-             Xbee.dec(904)
+             Xbee.dec(905)
              Xbee.tx(",")
-             Xbee.dec(brake_state)
+             Xbee.dec(global_brake_state)
              Xbee.tx(",")
              Xbee.tx(CR) 
 
@@ -696,10 +708,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 Xbee.tx("$")
                 Xbee.dec(1000)
                 xBee.tx(",")
-                if req_id == 2 or req_id == 6
-                    xBee.dec(-pid.GetActVel(req_id))  
-                else
-                    xBee.dec(pid.GetActVel(req_id))  
+                xBee.dec(pid.GetActVel(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
@@ -710,10 +719,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
                 Xbee.dec(1001)
                 xBee.tx(",")
                 if req_id == 0 or req_id == 2 or req_id == 4 or req_id == 6         'Drive motor, normal encoders
-                    if req_id == 2 or req_id == 6
-                        xBee.dec(-pid.GetActEncPos(req_id))  
-                    else
-                        xBee.dec(pid.GetActEncPos(req_id))   
+                    xBee.dec(pid.GetActEncPos(req_id))     
                 else                                                                'Steer motors, absolute encoders
                     xBee.dec(pid.GetActPos(req_id))  
                 
@@ -831,11 +837,11 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
               if pid.getEncSem
                 xBee.dec(pid.GetActEncPosDiff(0)) 
                 xBee.tx(",")
-                xBee.dec(-pid.GetActEncPosDiff(2))  
+                xBee.dec(pid.GetActEncPosDiff(2))  
                 xBee.tx(",")
                 xBee.dec(pid.GetActEncPosDiff(4)) 
                 xBee.tx(",")
-                xBee.dec(-pid.GetActEncPosDiff(6)) 
+                xBee.dec(pid.GetActEncPosDiff(6)) 
                 xBee.tx(",")          
                 xBee.dec(pid.getEncClkDiff) 
                 xBee.tx(",") 
@@ -863,11 +869,11 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, brake_s
               if pid.getEncSem                
                 xBee.dec(pid.GetActEncPosDiff(0)) 
                 xBee.tx(",")
-                xBee.dec(-pid.GetActEncPosDiff(2))  
+                xBee.dec(pid.GetActEncPosDiff(2))  
                 xBee.tx(",")
                 xBee.dec(pid.GetActEncPosDiff(4)) 
                 xBee.tx(",")
-                xBee.dec(-pid.GetActEncPosDiff(6)) 
+                xBee.dec(pid.GetActEncPosDiff(6)) 
                 xBee.tx(",")          
                 xBee.dec(pid.getEncClkDiff) 
                 pid.resetActEncPosSem              
@@ -977,6 +983,9 @@ PRI ResetPfStatus | i
   steer_pid_vals_set:=false  
 
   InitWatchDog  
+
+  global_brake_state := 2               ' Default to no brake mode
+  setBrakeState(global_brake_state)  
 
 ' ---------------- Get next parameter from string ---------------------------------------
 PRI sGetPar | j, jj, lPar, lch
@@ -1093,29 +1102,45 @@ PRI ToggleReport
 ' ----------------  Enable wheeluntis  ---------------------------------------
 PRI EnableWheelUnits
     Enabled:=true
-    EnableSteer    
-    EnableWheels      
+    EnableSteerActiveBrake    
+    setBrakeState(0)                ' Drive, non braking, mode      
     SetBit(@PfStatus,EnableBit)
 
 ' ----------------  Enable steer  ---------------------------------------
 PRI EnableSteer
+  PID.SetPIDMode(1,2)                     'Pos loop steering delayed direction change mode
+  PID.SetPIDMode(3,2)                     'Pos loop steering delayed direction change mode
+  PID.SetPIDMode(5,2)                     'Pos loop steering delayed direction change mode
+  PID.SetPIDMode(7,2)                     'Pos loop steering delayed direction change mode
+' ----------------  Enable steer Active brake ---------------------------------------
+PRI EnableSteerActiveBrake
   PID.SetPIDMode(1,3)                     'Pos loop steering
   PID.SetPIDMode(3,3)                     'Pos loop steering
   PID.SetPIDMode(5,3)                     'Pos loop steering
   PID.SetPIDMode(7,3)                     'Pos loop steering
-' ----------------  Enable wheels  ---------------------------------------
+
+' ----------------  Enable wheels 2 ---------------------------------------
 PRI EnableWheels
-  PID.SetPIDMode(0,1)                     'Enable vel wheel and
-  PID.SetPIDMode(2,1)                     'Enable vel wheel and
-  PID.SetPIDMode(4,1)                     'Enable vel wheel and
-  PID.SetPIDMode(6,1)                     'Enable vel wheel and
+  pid.BrakeWheels(0)
+  PID.SetPIDMode(0,2)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(2,2)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(4,2)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(6,2)                     'Enable vel wheel delayed direction change mode
+
+' ----------------  Enable wheels Active brake mode 1 ---------------------------------------
+PRI EnableWheelsActiveBrake
+  pid.BrakeWheels(0)
+  PID.SetPIDMode(0,1)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(2,1)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(4,1)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(6,1)                     'Enable vel wheel delayed direction change mode
 
 ' ----------------  Disable wheels  ---------------------------------------
 PRI DisableWheels
-  PID.SetPIDMode(0,0)                     'Enable vel wheel and
-  PID.SetPIDMode(2,0)                     'Enable vel wheel and
-  PID.SetPIDMode(4,0)                     'Enable vel wheel and
-  PID.SetPIDMode(6,0)                     'Enable vel wheel and 
+  PID.SetPIDMode(0,0)                     'Disable, open loop
+  PID.SetPIDMode(2,0)                     'Disable, open loop
+  PID.SetPIDMode(4,0)                     'Disable, open loop
+  PID.SetPIDMode(6,0)                     'Disable, open loop
 
 ' ----------------  Disable all wheels and steerin ---------------------------------------
 PRI Disable 
@@ -1123,7 +1148,6 @@ PRI Disable
   PID.KillAll
   Enabled:=false
   ResetBit(@PfStatus,EnableBit)
-  'ShowParameters  
   
 ' Set drive motor control parameters
 PRI SetDrivePIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
