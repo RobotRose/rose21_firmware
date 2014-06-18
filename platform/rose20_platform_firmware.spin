@@ -251,7 +251,7 @@ PUB main | T1, lch
 PRI InitMain
  !outa[Led]                             ' Toggle I/O Pin for debug
   PIDMode:=0
-  Disable
+  DisableWheelUnits
 
   dira[Led]~~                            'Set I/O pin for LED to output…
   !outa[Led]                             'Toggle I/O Pin for debug
@@ -322,7 +322,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
     ConnectionError := false
     SafetyCntr++
     if PID.GetFEAnyTrip
-      Disable
+      DisableWheelUnits
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,FeBit)
       LastAlarm:=1
@@ -336,7 +336,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
       current_error_counter := 0  
 
     if current_error_counter > current_error_counter_threshold      
-      Disable
+      DisableWheelUnits
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,CurrBit)
       LastAlarm:=2
@@ -350,7 +350,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
         wd_cnt:=0
 
     if wd_cnt > wd_cnt_threshold
-      Disable
+      DisableWheelUnits
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
       LastAlarm:=3
@@ -383,7 +383,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
         SetBit(@PfStatus,NoAlarm)
 
     If pMAECntr == MAECntr
-      Disable
+      DisableWheelUnits
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,MAEBit)
       LastAlarm:=5
@@ -398,8 +398,9 @@ PRI AddError2Log(ErCode)
 PRI ProcessCommand   
     if do_enable == 1 and not Enabled         ' Enable Disable platform 1 = enabled 0 = disabled
        EnableWheelUnits
-    elseif do_enable == 0 and Enabled 
-       setBrakeState(global_brake_state)      ' Set to global brake mode
+    elseif do_enable == 0 and Enabled  
+       DisableWheelUnits
+
 
 '------------------ Move all wheels individually --------------------------------
 PRI Move
@@ -491,7 +492,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
              received_wd := sGetPar
              ' Check value
              if received_wd <> expected_wd
-                Disable
+                DisableWheelUnits
                 Xbee.tx("$")
                 Xbee.dec(111)
                 Xbee.tx(",")
@@ -620,7 +621,6 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 do_enable:=0    'Force do_enable to zero
              'If disabling return a zero
              if do_enable==0
-                setBrakeState(global_brake_state)
                 Xbee.dec(0) 
              Xbee.tx(",")
              Xbee.tx(CR)         
@@ -1076,7 +1076,7 @@ PRI DoPos2PC | i
 ' ---------------- Command loop main program ---------------------------------------
 PRI DoCommand(lCmd) | lPIDMode, lSetp
   case lCmd    
-    "d","D": Disable
+    "d","D": DisableWheelUnits
     "p","P": DoPIDSettings
     "c","C": pid.ClearErrors
              ResetPfStatus
@@ -1106,6 +1106,16 @@ PRI EnableWheelUnits
     setBrakeState(0)                ' Drive, non braking, mode      
     SetBit(@PfStatus,EnableBit)
 
+' ----------------  Disable all wheels and steering ---------------------------------------
+PRI DisableWheelUnits 
+  do_enable:=0
+  global_brake_state := 2                
+  setBrakeState(global_brake_state)      ' Set to no brake mode
+  DisableSteer
+  Enabled:=false
+  ResetBit(@PfStatus,EnableBit)
+
+
 ' ----------------  Enable steer  ---------------------------------------
 PRI EnableSteer
   PID.SetPIDMode(1,2)                     'Pos loop steering delayed direction change mode
@@ -1118,6 +1128,13 @@ PRI EnableSteerActiveBrake
   PID.SetPIDMode(3,3)                     'Pos loop steering
   PID.SetPIDMode(5,3)                     'Pos loop steering
   PID.SetPIDMode(7,3)                     'Pos loop steering
+
+' ----------------  Disable steer  ---------------------------------------
+PRI DisableSteer
+  PID.SetPIDMode(1,0)                     'Disable, open loop
+  PID.SetPIDMode(3,0)                     'Disable, open loop
+  PID.SetPIDMode(5,0)                     'Disable, open loop
+  PID.SetPIDMode(7,0)                     'Disable, open loop
 
 ' ----------------  Enable wheels 2 ---------------------------------------
 PRI EnableWheels
@@ -1142,12 +1159,7 @@ PRI DisableWheels
   PID.SetPIDMode(4,0)                     'Disable, open loop
   PID.SetPIDMode(6,0)                     'Disable, open loop
 
-' ----------------  Disable all wheels and steerin ---------------------------------------
-PRI Disable 
-  do_enable:=0
-  PID.KillAll
-  Enabled:=false
-  ResetBit(@PfStatus,EnableBit)
+
   
 ' Set drive motor control parameters
 PRI SetDrivePIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
