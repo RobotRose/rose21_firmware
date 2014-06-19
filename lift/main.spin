@@ -116,6 +116,11 @@
 }
 
 CON
+   ' Version
+   major_version    = 2
+   minor_version    = 0 
+   CONTROLLER_ID    = 2
+
   _clkmode = xtal1 + pll16x
   _xinfreq = 5_000_000
   _stack   = 500
@@ -125,29 +130,24 @@ CON
   POS_MID       = 3
   POS_HIGH      = 4
 
-'PC - Serial communication
-  cxTXD = 31 
-  cxRXD = 30 
-  cxBaud = 115200                    
-  MaxStr = 257             ' Stringlength is 256 + 1 for 0 termination
-  LineLen = 100           ' Buffer size for incoming line
-  SenderLen= 10
-  Cmdlen = 10
-   CR = 13
-   LF = 10
-   CS = 0
-   CE = 11                 'CE: Clear to End of line
-   EOT = 4                 'End of trainsmission
+  ' PC - Serial communication
+  cxTXD     = 31 
+  cxRXD     = 30 
+  cxBaud    = 115200                    
+  MaxStr    = 257           ' Stringlength is 256 + 1 for 0 termination
+  LineLen   = 100           ' Buffer size for incoming line
+  SenderLen = 10
+  Cmdlen    = 10
+  CR        = 13
+  LF        = 10
+  CS        = 0
+  CE        = 11            ' CE: Clear to End of line
+  EOT       = 4             ' End of trainsmission
 
-'EEPROM
+  ' EEPROM
   i2cSCL        = 28
   'i2cSDA        = 29
   EEPROMAddr    = $A0
-
-
-DAT
-  version BYTE "1.30",0 ' Software version
-  CONTROLLER_ID LONG 2
 
 OBJ
   PC        : "FullDuplexSerial_rr005"
@@ -165,6 +165,7 @@ VAR
   long ser_req_pos
   BYTE pos_reached_send
   long enabled
+
   'Serial communication
   Long PC_COG
   Byte StrBuf[MaxStr]                               'String buffer for receiving chars from serial port
@@ -296,7 +297,12 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
         100:  PC.str(string("$100,"))
               PC.dec(CONTROLLER_ID)
               PC.str(string(",",13))
-
+        '--- Communicate software version ---
+        101 : PC.str(string("$101,"))
+              PC.dec(major_version)
+              PC.tx(",")  
+              PC.dec(minor_version)
+              PC.str(string(",",13)) 
         '--- WATCHDOG ---
         111: received_wd := sGetPar
              ' Check value
