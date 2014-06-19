@@ -29,7 +29,7 @@
  
 =============================================================================
 }
-{ Platform control commands:
+{{ Platform control commands:
  Uses string handling for xbee command line handling
 
  Xbee remote control
@@ -45,104 +45,103 @@
   Query currents   :  $914  Query actual and max currents: Return $914,actual current 0..7, max current [0..7]  
   Query PID pars   :  $916  Report PID parameters  
         
-}
+}}
 CON
-' Version
-   Version = 36
-   SubVersion = "a" 
-   CONTROLLER_ID = 1
+   ' Version
+   major_version    = 37
+   minor_version    = 0 
+   CONTROLLER_ID    = 1
 
-   'Set 80Mhz
+   ' Set 80Mhz
    _clkmode = xtal1+pll16x
    _xinfreq = 5000000      'MRS1
 
-'  Led
+   ' Led
    Led = 27
   
-'  Serial port 
-'  DebugUSB = true    'DebugUSB true: Debug via pin 30 and 31 and Commands via Xbee on 22 and 23. False: reversed  
-   cTXD = 30 '20 '30
-   cRXD = 31 '21 '31
-   cBaud = 115200 '230400 
-   CR = 13
-   LF = 10
-   CS = 0
-   CE = 11                 'CE: Clear to End of line
-   EOT = 4                 'End of trainsmission
+   ' Serial port 
+   ' DebugUSB = true    'DebugUSB true: Debug via pin 30 and 31 and Commands via Xbee on 22 and 23. False: reversed  
+   cTXD     = 30 '20 '30
+   cRXD     = 31 '21 '31
+   cBaud    = 115200 '230400 
+   CR       = 13
+   LF       = 10
+   CS       = 0
+   CE       = 11                 ' CE: Clear to End of line
+   EOT      = 4                  ' End of trainsmission
 
-'' LCD
-  LcdPin = 24
-  LCDBaud = 19200
-  LCDLines = 2
+  ' LCD
+  LcdPin    = 24
+  LCDBaud   = 19200
+  LCDLines  = 2
   
-'PID constamts
+  ' PID constamts
   nPIDLoops     = PID#PIDCnt  '8
   MotorCnt      = nPIDLoops
   nWheels       = 4
   MotorIndex    = MotorCnt - 1
   PIDCTime      = 10            ' PID Cycle time ms
 
-'Safety constants
-   _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
+  ' Safety constants
+   _1ms  = 1_000_000 / 1_000    ' Divisor for 1 ms
 
-'MAE3 PWM absolute encoder
-  MAE0Pin  = 16            'First pin of MAE encoder
-  MAECnt   = 4             'Number of encoders 
+  ' MAE3 PWM absolute encoder
+  MAE0Pin  = 16                 ' First pin of MAE encoder
+  MAECnt   = 4                  ' Number of encoders 
 
-'Xbee
-   cxTXD = 20 '30 '26 '23
-   cxRXD = 21 '31 '25 '22
-   cxBaud = 115200         ' 115200 seems reliable max
-   XBID  = 400             ' Xbee Id of this Robot platform         
+  ' Xbee
+   cxTXD    = 20 '30 '26 '23
+   cxRXD    = 21 '31 '25 '22
+   cxBaud   = 115200            ' 115200 seems reliable max
+   XBID     = 400               ' Xbee Id of this Robot platform         
 
 
-'Command interface and control 
-   LineLen = 100           ' Buffer size for incoming line
-   SenderLen= 10
-   Cmdlen = 10     
-   AliveTime = 100         ' Time in ms before shutdown 
+  ' Command interface and control 
+   LineLen      = 100           ' Buffer size for incoming line
+   SenderLen    = 10
+   Cmdlen       = 10     
+   AliveTime    = 100           ' Time in ms before shutdown 
    
-'String buffer
-  MaxStr = 257             ' Stringlength is 256 + 1 for 0 termination
+  ' String buffer
+  MaxStr    = 257               ' Stringlength is 256 + 1 for 0 termination
 
-'Potmeter
-  Pot0  = 9
-  Pcenter = 500
+  ' Potmeter
+  Pot0      = 9
+  Pcenter   = 500
 
-'Terminal screen positions
-  pControlPars = 1
-  pActualPars = pControlPars + 13
-  pMenu       = pActualPars + 26
-  pInput      = pMenu + 12
+  ' Terminal screen positions
+  pControlPars  = 1
+  pActualPars   = pControlPars + 13
+  pMenu         = pActualPars + 26
+  pInput        = pMenu + 12
 
-'Eeprom
- cCheck = 12345             'Check value for correct restore of values.
- EptromStart = $7000        'Free range for saving
+  ' Eeprom
+  cCheck      = 12345        ' Check value for correct restore of values.
+  EptromStart = $7000        ' Free range for saving
 
-'Errors
-  current_error_counter_threshold = 4         '1 count per 200ms
-  connection_error_counter_threshold = 20     '1 count per 200ms
-  wd_cnt_threshold = 20                       'Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
-'Error logging
+  ' Errors
+  following_error_counter_treshold   = 4      ' 1 count per 200ms
+  current_error_counter_threshold    = 4      ' 1 count per 200ms
+  connection_error_counter_threshold = 20     ' 1 count per 200ms
+  wd_cnt_threshold                   = 20     ' Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
+  ' Error logging
   ErrorCnt = 100
    
 
-'Debugging
+  ' Debugging
   DEBUG = FALSE
 
-'Platform status bits
-   Serialbit     = 0              '0= Serial Debug of 1= Serial pdebug port on
-   USAlarm       = 1              'US alarm bit: 1= object detected in range
-   PingBit       = 2              '0= Ping off 1= Ping on
-   EnableBit     = 3              '0= Motion DisablePfd 1= Motion enabled
-   CommCntrBit   = 6              'Xbee Timout error
-   MotionBit     = 7              'Platform moving
-   FeBit         = 8              'FE error on any axis
-   CurrBit       = 9              'Current error on any axis
-   MAEBit        = 10             'MAE encoder alarm
-   NoAlarmBit    = 15             'No alarm present   
-
-
+  ' Platform status bits
+  Serialbit     = 0              ' 0= Serial Debug of 1= Serial pdebug port on
+  USAlarm       = 1              ' US alarm bit: 1= object detected in range
+  PingBit       = 2              ' 0= Ping off 1= Ping on
+  EnableBit     = 3              ' 0= Motion DisablePfd 1= Motion enabled
+  CommCntrBit   = 6              ' Xbee Timout error
+  MotionBit     = 7              ' Platform moving
+  FeBit         = 8              ' FE error on any axis
+  CurrBit       = 9              ' Current error on any axis
+  MAEBit        = 10             ' MAE encoder alarm
+  NoAlarmBit    = 15             ' No alarm present   
 
 OBJ
   ser           : "parallax_serial_terminal"            ' Serial communication object (for debug)
@@ -153,47 +152,46 @@ OBJ
   n             : "simple_numbers"                      ' Number to string conversion
   eprom         : "eeprom"                              ' Routines for saving and reloading settings
   
-Var Long PotmValue0, SpeedCom, DoShowParameters
-    Long s, ms, us
-    'Motors
-    Long PIDCog, PIDMode
+Var Long DoShowParameters
+
+    ' Motors
+    Long PIDCog
     Long Setp[MotorCnt] 'Actual position and velocity, Setpoint
-    Long EngU[MotorCnt] 'The user units for readout and commanding a servo motor
     Byte ActPID, SerCog
-    Long FeError
     
-    'PID Connect vars                    
+    ' PID Connect vars                    
     Byte PIDCCog, MAECog
     Long ActCurr[MotorCnt]
     Long PIDConnTime
     Word ConnCntr
     
-    'MAE encoder
+    ' MAE encoder
     Long MAEPos[MAECnt], MAEState, MAETime, MainTime
     Long MAEOffs[MAECnt]  'Offset position for 0
     Word MAECntr, pMAECntr
     Long MAEStack[100]
 
-    'Xbee input
+    ' Xbee input
     Long XbeeCmdCntr  
     Long Sender, CMDi, myID, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
     Byte Cmd[LineLen] ,LastPar1[CmdLen]
     Byte XbeeTimeout
 
-    'Input string handling
-    Byte StrBuf[MaxStr], cStrBuf[MaxStr]      'String buffer for receiving chars from serial port
-    Long StrSP, StrP, StrLen  'Instring semaphore, counter, Stringpointer
+    ' Input string handling
+    Byte StrBuf[MaxStr], cStrBuf[MaxStr]        ' String buffer for receiving chars from serial port
+    Long StrSP, StrP, StrLen                    ' Instring semaphore, counter, Stringpointer
     Long SerEnabled, oSel0, CmdDone
-    Long MaxWaitTime  'Wait time for new Xbee string
+    Long MaxWaitTime                            ' Wait time for new Xbee string
 
-    'Safety
+    ' Safety
     Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
-    Long current_error_counter, connection_error_counter
-
-    'Received command variables
-    long pcCommand, PfStatus, connection_error_byte
+    Long following_error_counter
+    Long current_error_counter 
+    Long connection_error_counter
+ 
+    ' Received command variables
+    long PfStatus, connection_error_byte
     Long LastAlarm
-    Long pcSpeed, pcDirection, pcCntr
     Long do_enable                  
     Long Ki           
     Long K
@@ -206,20 +204,21 @@ Var Long PotmValue0, SpeedCom, DoShowParameters
     Long FeMax
     Long MaxCurr 
     long FR_a_err, FL_a_err, BR_a_err, BL_a_err
-    'Platform vars
-    Long MoveSpeed, MoveDir, lMoveSpeed, lMoveDir, MoveMode, A1, A2, Rv
+
+    ' Platform vars
     Long wSpeed[nWheels], wAngle[nWheels]
     Word MainCntr
     Long drive_pid_vals_set, steer_pid_vals_set        
     long global_brake_state, set_brake_state
-    'Parameters for saving and loading a config
+
+    ' Parameters for saving and loading a config
     Long StartVar, sMAEOffs[MAECnt], sK[MotorCnt], sKp[MotorCnt], sKI[MotorCnt], sILim[MotorCnt]
     Long sPosScale[MotorCnt], PlatFormID, Check, EndVar
 
-    'Parameters for saving logdata
+    ' Parameters for saving logdata
     Long StartlVar, MaxCurrent[MotorCnt], ErrorLog[ErrorCnt], ActErrNr, EndLVar
 
-    'Movement 
+    ' Movement/turning hysteresis
     Long start_a_err, stop_a_err, stopstart_a_err  
     
        
@@ -244,26 +243,26 @@ PUB main | T1, lch
     '    ShowScreen
 
     '!outa[Led]                           'Toggle I/O Pin for debug
-    MainTime:=(cnt-T1)/80000
+    MainTime := (cnt-T1)/80000
     MainCntr++
 
 ' ----------------  Init main program ---------------------------------------
 PRI InitMain
  !outa[Led]                             ' Toggle I/O Pin for debug
-  PIDMode:=0
   DisableWheelUnits
 
   dira[Led]~~                            'Set I/O pin for LED to output…
   !outa[Led]                             'Toggle I/O Pin for debug
 
   ' Load movement schmitt start stop default values
-  start_a_err := 10
-  stop_a_err := 200
-  stopstart_a_err := start_a_err
- 
-  current_error_counter := 0
-  connection_error_counter := 0
+  start_a_err       := 10
+  stop_a_err        := 200
+  stopstart_a_err   := start_a_err
 
+  following_error_counter   := 0   
+  current_error_counter     := 0
+  connection_error_counter  := 0
+  
   if DEBUG
     if SerCog > 0
       ser.Stop
@@ -281,53 +280,69 @@ PRI InitMain
 
   ResetPfStatus
 
-  !outa[Led]                                            'Toggle I/O Pin for debug
+  !outa[Led]                                'Toggle I/O Pin for debug
 
 '================================ Init Xbee comm ==========================
 PRI InitXbeeCmd
-  MaxWaitTime := 5                   'ms wait time for incoming string  
-  StrSp:=0
+  MaxWaitTime   := 5                   'ms wait time for incoming string  
+  StrSp         := 0
   
   ByteFill(@StrBuf,0,MaxStr)
   ByteFill(@cStrBuf,0,MaxStr)
-  XbeeCog:=xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
+  XbeeCog := xBee.start(cxRXD, cxTXD, 0, cxBaud)     'Start xbee:  start(pin, baud, lines)
 
+'=== Init Watchdog Stuff ===
 PRI InitWatchDog
-  expected_wd:=0                     'Watchdog Stuff
-  wd:=0
-  wd_cnt:=0
+  expected_wd   := 0                     
+  wd            := 0
+  wd_cnt        := 0
+
 '================================ Do Xbee command input and execution ==========================
 PRI DoXbeeCmd
-    Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
+  Xbee.StrInMaxTime(@StrBuf,MaxStr,MaxWaitTime)   'Non blocking max wait time
     
-    if Strsize(@StrBuf)>3                           'Received string must be larger than 3 char's skip rest
-        XBeeStat:=DoXCommand                        'Check input string for new commands
-        ProcessCommand                              'Execute new commands
+  if Strsize(@StrBuf) > 3                         'Received string must be larger than 3 char's skip rest
+    XBeeStat := DoXCommand                          'Check input string for new commands
+    ProcessCommand                                  'Execute new commands
 
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
   PID.ResetCurrentStatus
   wd_cnt                   := 0
+  following_error_counter  := 0
   current_error_counter    := 0
-  connection_error_counter := 0 
+  connection_error_counter := 0   
   PfStatus                 := 0
+  NoAlarm                  := true                'Reset global alarm var
+  LastAlarm                := 0                   'Reset last alarm message
+
+  ResetBit(@PfStatus, USAlarm)         'Reset error bits in PfStatus
+  ResetBit(@PfStatus, CommCntrBit)
+  SetBit(@PfStatus, NoAlarmBit)
   repeat i from 0 to MotorCnt-1
     ResetBit(@connection_error_byte, i)
 
   repeat while PIDCog == 0
     t.Pause1ms(10)
-    
+
+  ' Main safety loop    
   repeat
     ConnectionError := false
     SafetyCntr++
-    if PID.GetFEAnyTrip
+
+    if PID.GetFEAnyTrip == true
+      following_error_counter := following_error_counter + 1
+      pid.ResetAllFETrip
+    else
+      following_error_counter := 0
+
+    if following_error_counter > following_error_counter_treshold         
       DisableWheelUnits
-      ResetBit(@PfStatus,NoAlarmBit)
-      SetBit(@PfStatus,FeBit)
-      LastAlarm:=1
-      FEError:=1
-      NoAlarm := false
+      ResetBit(@PfStatus, NoAlarmBit)
+      SetBit(@PfStatus, FeBit)
+      LastAlarm := 1
+      NoAlarm   := false
 
     if PID.GetAnyCurrError == true
       current_error_counter := current_error_counter + 1
@@ -337,13 +352,13 @@ PRI DoSafety | i, ConnectionError, bitvalue
 
     if current_error_counter > current_error_counter_threshold      
       DisableWheelUnits
-      ResetBit(@PfStatus,NoAlarmBit)
-      SetBit(@PfStatus,CurrBit)
-      LastAlarm:=2
-      CurrError:=1
-      NoAlarm := false
+      ResetBit(@PfStatus, NoAlarmBit)
+      SetBit(@PfStatus, CurrBit)
+      LastAlarm := 2
+      CurrError := 1
+      NoAlarm   := false
 
-    '-- watchdog --
+    '-- Watchdog --
     if Enabled 
         wd_cnt++
     else
@@ -353,8 +368,8 @@ PRI DoSafety | i, ConnectionError, bitvalue
       DisableWheelUnits
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
-      LastAlarm:=3
-      NoAlarm := false
+      LastAlarm :=3
+      NoAlarm   := false
 
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
@@ -370,24 +385,25 @@ PRI DoSafety | i, ConnectionError, bitvalue
     else
       connection_error_counter := 0  
          
- 
     if connection_error_counter > connection_error_counter_threshold
       'Disable
-      ResetBit(@PfStatus,NoAlarm)
-      LastAlarm:= 4
-      NoAlarm := false
+      DisableWheelUnits     ' Probably does nothing due to connection error
+      ResetBit(@PfStatus, NoAlarm)
+      LastAlarm := 4
+      NoAlarm   := false
     else
+      ' Reset error if again able to communicate
       if LastAlarm == 4
-        LastAlarm:= 0
-        NoAlarm := true
-        SetBit(@PfStatus,NoAlarm)
+        LastAlarm := 0
+        NoAlarm   := true
+        SetBit(@PfStatus, NoAlarm)
 
     If pMAECntr == MAECntr
       DisableWheelUnits
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,MAEBit)
-      LastAlarm:=5
-    pMAECntr := MAECntr  
+      LastAlarm := 5
+    pMAECntr    := MAECntr  
 
 
     t.Pause1ms(200)
@@ -452,7 +468,7 @@ PRI setBrakeState(brake_state)
           EnableWheelsActiveBrake
       elseif brake_state == 2             ' No brake mode
         DisableWheels
-        pid.BrakeWheels(1)
+        pid.BrakeWheels(1)                ' Zero does not work..
 
 
 ' -------------- DoXCommand: Get command parameters from Xbee input string -robot controller rose-------------
@@ -485,6 +501,13 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         '--- Communicate controller id ---
         100 : Xbee.str(string("$100,"))
               Xbee.dec(CONTROLLER_ID)
+              Xbee.tx(",")  
+              Xbee.tx(CR) 
+        '--- Communicate software version ---
+        101 : Xbee.str(string("$101,"))
+              Xbee.dec(major_version)
+              Xbee.tx(",")  
+              Xbee.dec(minor_version)
               Xbee.tx(",")  
               Xbee.tx(CR) 
         '--- WATCHDOG ---
@@ -796,28 +819,39 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
-        '=== Get MAE of motor with ID
+        '=== Get D of motor with ID
         1009: req_id:=sgetPar         
               if req_id > -1 and req_id < 8
                 Xbee.tx("$")
                 Xbee.dec(1009)
+                xBee.tx(",")
+                xBee.dec(pid.GetD(req_id))  
+                xBee.tx(",") 
+                Xbee.tx(CR)
+
+        '=== Get MAE of motor with ID
+        1010: req_id:=sgetPar         
+              if req_id > -1 and req_id < 8
+                Xbee.tx("$")
+                Xbee.dec(1010)
                 xBee.tx(",")
                 xBee.dec(pid.GetMAEpos(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
 
         '=== Get FE of motor with ID
-        1010: req_id:=sgetPar         
+        1011: req_id := sgetPar         
               if req_id > -1 and req_id < 8
                 Xbee.tx("$")
-                Xbee.dec(1010)
+                Xbee.dec(1011)
                 xBee.tx(",")
                 xBee.dec(pid.GetFE(req_id))  
                 xBee.tx(",") 
                 Xbee.tx(CR)
+
         '=== Get AlarmState and LastAlarm number
-        1011: Xbee.tx("$")
-              Xbee.dec(1011)
+        1012: Xbee.tx("$")
+              Xbee.dec(1012)
               xBee.tx(",")
               if not NoAlarm
                  xBee.dec(1)  
@@ -831,8 +865,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
               Xbee.tx(CR)
 
         '=== Get All drive motor positions number
-        1012: Xbee.tx("$")
-              Xbee.dec(1012)
+        1013: Xbee.tx("$")
+              Xbee.dec(1013)
               xBee.tx(",")
               if pid.getEncSem
                 xBee.dec(pid.GetActEncPosDiff(0)) 
@@ -862,8 +896,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
 
         '=== Get All status info
         ' First all drive motor positions and clk difference
-        1013: Xbee.tx("$")
-              Xbee.dec(1013)
+        1014: Xbee.tx("$")
+              Xbee.dec(1014)
               xBee.tx(",")
               repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           'timeout in [ms]
               if pid.getEncSem                
@@ -941,7 +975,7 @@ PRI ResetPfStatus | i
   if MAECog > 0
     cogstop(MAECog~ - 1)
     t.Pause1ms(1)
-  MAECog:=CogNew(MAESense, @MAEStack) + 1                  'Start MAE sensing
+  MAECog := CogNew(MAESense, @MAEStack) + 1                  'Start MAE sensing
 
   if PIDcog > 0
     pid.ResetCurrentStatus
@@ -949,38 +983,28 @@ PRI ResetPfStatus | i
     PID.Stop
     t.Pause1ms(1)
   PIDCog  := PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
-  PIDMode := PID.GetPIDMode(0)                            'Set open loop mode
-  repeat while PID.GetPIDStatus <> 3                     'Wait while PID initializes
+
+  repeat while PID.GetPIDStatus <> 3                     ' Wait while PID initializes
 
   if SafetyCog > 0
     cogstop(SafetyCog~ - 1)  
     t.Pause1ms(1)
-  SafetyCog:= CogNew(DoSafety, @SafetyStack) + 1
-
-  PfStatus:=0
-  ResetBit(@PfStatus,USAlarm)          'Reset error bits in PfStatus
-  ResetBit(@PfStatus,CommCntrBit)
-  SetBit(@PfStatus,NoAlarmBit)
-  NoAlarm:=true                        'Reset global alarm var
-  LastAlarm:=0                         'Reset last alarm message
-  PcSpeed:=0                           'Reset setpoints
-  MoveSpeed:=0
-  MoveDir:=0
+  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
 
   repeat i from 0 to MotorCnt-1
     Setp[i] := 0
 
-  wSpeed[0]:=0
-  wSpeed[1]:=0
-  wSpeed[2]:=0
-  wSpeed[3]:=0
-  wAngle[0]:=0
-  wAngle[1]:=0
-  wAngle[2]:=0
-  wAngle[3]:=0
+  wSpeed[0] := 0
+  wSpeed[1] := 0
+  wSpeed[2] := 0
+  wSpeed[3] := 0
+  wAngle[0] := 0
+  wAngle[1] := 0
+  wAngle[2] := 0
+  wAngle[3] := 0
 
-  drive_pid_vals_set:=false
-  steer_pid_vals_set:=false  
+  drive_pid_vals_set := false
+  steer_pid_vals_set := false  
 
   InitWatchDog  
 
@@ -1011,8 +1035,6 @@ PRI DoStatus2PC
   Xbee.tx("$")
   Xbee.dec(Sender)        'Last Sender
   Xbee.tx(",")
-  Xbee.dec(MoveMode)      'Mode mode 0 = manual 1= US sensor control
-  Xbee.tx(",")
   Xbee.dec(LastAlarm)     'Last error
   Xbee.tx(",")
   Xbee.dec(XbeeTime/80000)      'Time of Xbee comm in ms
@@ -1027,7 +1049,9 @@ PRI DoStatus2PC
   Xbee.tx(",")
   Xbee.dec(SafetyCntr)   'Safety loop counter
   Xbee.tx(",")
-  Xbee.dec(Version)      'Software version
+  Xbee.dec(major_version)      'Software version
+  Xbee.tx(",")
+  Xbee.dec(minor_version)      'Software version
   Xbee.tx(CR)
 
   
@@ -1074,7 +1098,7 @@ PRI DoPos2PC | i
 
 
 ' ---------------- Command loop main program ---------------------------------------
-PRI DoCommand(lCmd) | lPIDMode, lSetp
+PRI DoCommand(lCmd)
   case lCmd    
     "d","D": DisableWheelUnits
     "p","P": DoPIDSettings
@@ -1087,12 +1111,6 @@ PRI DoCommand(lCmd) | lPIDMode, lSetp
 PRI ResetFE | i 
   PID.ResetAllFETrip
   ResetBit(@PfStatus,FEbit)
-
-' ----------------  Move Toggle ---------------------------------------
-PRI MoveToggle | i 
-  MoveMode++
-  If MoveMode>2
-    MoveMode:=0
 
 ' ----------------  Toggle reporting ---------------------------------------
 PRI ToggleReport  
@@ -1233,8 +1251,9 @@ PRI ShowParameters | i
    if SerCog > -1
       ser.Position(0,0)
       ser.str(string("Rose 2.0 Drive Firmware - Rose B.V. - 2014"))
-      ser.dec(Version)
-      ser.tx(SubVersion)
+      ser.dec(major_version)
+      ser.Str(string("."))
+      ser.tx(minor_version)
       ser.str(string(" Max Cog : "))
       ser.dec(pid.GetQIKCog)
     
