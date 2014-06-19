@@ -86,21 +86,21 @@ CON
    _1ms  = 1_000_000 / 1_000    ' Divisor for 1 ms
 
   ' MAE3 PWM absolute encoder
-  MAE0Pin  = 16                 ' First pin of MAE encoder
-  MAECnt   = 4                  ' Number of encoders 
-
+  MAE0Pin   = 16                ' First pin of MAE encoder
+  MAECnt    = 4                 ' Number of encoders 
+  MAEOffset = 2048              ' MAE range/2 (4095/2)
   ' Xbee
-   cxTXD    = 20 '30 '26 '23
-   cxRXD    = 21 '31 '25 '22
-   cxBaud   = 115200            ' 115200 seems reliable max
-   XBID     = 400               ' Xbee Id of this Robot platform         
+  cxTXD    = 20 '30 '26 '23
+  cxRXD    = 21 '31 '25 '22
+  cxBaud   = 115200            ' 115200 seems reliable max
+  XBID     = 400               ' Xbee Id of this Robot platform         
 
 
   ' Command interface and control 
-   LineLen      = 100           ' Buffer size for incoming line
-   SenderLen    = 10
-   Cmdlen       = 10     
-   AliveTime    = 100           ' Time in ms before shutdown 
+  LineLen      = 100           ' Buffer size for incoming line
+  SenderLen    = 10
+  Cmdlen       = 10     
+  AliveTime    = 100           ' Time in ms before shutdown 
    
   ' String buffer
   MaxStr    = 257               ' Stringlength is 256 + 1 for 0 termination
@@ -653,14 +653,14 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         'Front left is  2
         'Back right is  4
         'Back left is   6
-        903: wSpeed[0]:=-PID.GetMaxVel(0) #> sGetPar  <# PID.GetMaxVel(0)        
-             wAngle[0]:=PID.GetSetpMaxMin(1) #> -sGetPar <# PID.GetSetpMaxPlus(1)
-             wSpeed[1]:=-PID.GetMaxVel(2) #> sGetPar  <# PID.GetMaxVel(2)         
-             wAngle[1]:=PID.GetSetpMaxMin(3) #> -sGetPar <# PID.GetSetpMaxPlus(3)     
-             wSpeed[2]:=-PID.GetMaxVel(4) #> sGetPar  <# PID.GetMaxVel(4)          
-             wAngle[2]:=PID.GetSetpMaxMin(5) #> -sGetPar <# PID.GetSetpMaxPlus(5)     
-             wSpeed[3]:=-PID.GetMaxVel(6) #> sGetPar  <# PID.GetMaxVel(6)
-             wAngle[3]:=PID.GetSetpMaxMin(7) #> -sGetPar <# PID.GetSetpMaxPlus(7)                        
+        903: wSpeed[0] := -PID.GetMaxVel(0)     #> sGetPar  <# PID.GetMaxVel(0)        
+             wAngle[0] := PID.GetSetpMaxMin(1)  #> -sGetPar <# PID.GetSetpMaxPlus(1)
+             wSpeed[1] := -PID.GetMaxVel(2)     #> sGetPar  <# PID.GetMaxVel(2)         
+             wAngle[1] := PID.GetSetpMaxMin(3)  #> -sGetPar <# PID.GetSetpMaxPlus(3)     
+             wSpeed[2] := -PID.GetMaxVel(4)     #> sGetPar  <# PID.GetMaxVel(4)          
+             wAngle[2] := PID.GetSetpMaxMin(5)  #> -sGetPar <# PID.GetSetpMaxPlus(5)     
+             wSpeed[3] := -PID.GetMaxVel(6)     #> sGetPar  <# PID.GetMaxVel(6)
+             wAngle[3] := PID.GetSetpMaxMin(7)  #> -sGetPar <# PID.GetSetpMaxPlus(7)                        
              
              'Send a reply (mirroring the received command)
              Xbee.tx("$")
@@ -1209,11 +1209,11 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, l
       PID.SetMaxCurr(i,lMaxCurr)  
 
       setRotationLimits
-      MAEOffs[0]:=2000
-      MAEOffs[1]:=2000
-      MAEOffs[2]:=2000
-      MAEOffs[3]:=2000  
-      steer_pid_vals_set:=true
+      MAEOffs[0] := MAEOffset
+      MAEOffs[1] := MAEOffset
+      MAEOffs[2] := MAEOffset
+      MAEOffs[3] := MAEOffset  
+      steer_pid_vals_set := true
 
 '=============================================================================
 
@@ -1221,8 +1221,8 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, l
 '---------------- 'Set rotation limits to steer motors to about +-(3/4)*pi --------
 PRI setRotationLimits | i
   repeat i from 1 to MotorCnt-1 step 2                  
-    PID.SetSetpMaxMin(i,-1000)
-    PID.SetSetpMaxPlus(i,1000)                         
+    PID.SetSetpMaxMin(i, -MAEOffset/2)
+    PID.SetSetpMaxPlus(i, MAEOffset/2)                         
          
 
 ' ----------------  MAE absolute encoder sense ---------------------------------------
