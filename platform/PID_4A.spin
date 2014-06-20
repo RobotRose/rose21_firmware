@@ -377,7 +377,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         CurrError[i]        := CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])   'Check if any current limit exceeded set alarm if exceeded
         AnyCurrError        := AnyCurrError or CurrError[i]                         'Check if any current error
 
-        PIDLeadTime:=(Cnt-T1)/80000                '[ms]
+        PIDLeadTime         := (Cnt-T1)/80000                '[ms]
  
       if enc_semaphore == FALSE
         bytemove(@EncPosSemCopy_prev, @EncPosSemCopy, 32)   ' 32 = PIDCntr * 4
@@ -385,16 +385,14 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         enc_clk_prev    := enc_clk
         enc_clk         := cnt
         enc_semaphore   := TRUE
-          
+        !outa[PIDLed]                    'Toggle I/O Pin for debug      
+
       PIDCntr++                                         'Update PIDCounter               
       PIDTime       := (Cnt-T1)/80000                   'Measure actual loop time in [ms] 
       PIDWaitTime   := Period - (PIDTime)     
       if(PIDWaitTime*1000 > 10)
         t.Pause10us(PIDWaitTime*100)        
        
-      if (PIDCntr//4) == 0
-        !outa[PIDLed]                    'Toggle I/O Pin for debug
-
       T1 := Cnt
 
 ' ----------------  Brake wheels  ---------------------------------------

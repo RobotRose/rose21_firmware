@@ -80,7 +80,7 @@ CON
   MotorCnt      = nPIDLoops
   nWheels       = 4
   MotorIndex    = MotorCnt - 1
-  PIDCTime      = 10            ' PID Cycle time ms
+  PIDCTime      = 20            ' PID Cycle time ms
 
   ' Safety constants
    _1ms  = 1_000_000 / 1_000    ' Divisor for 1 ms
@@ -88,7 +88,7 @@ CON
   ' MAE3 PWM absolute encoder
   MAE0Pin   = 16                ' First pin of MAE encoder
   MAECnt    = 4                 ' Number of encoders 
-  MAEOffset = 2048              ' MAE range/2 (4095/2)
+  MAEOffset = 2048              ' MAE range/2 (4096/2)
   ' Xbee
   cxTXD    = 20 '30 '26 '23
   cxRXD    = 21 '31 '25 '22
@@ -419,33 +419,42 @@ PRI ProcessCommand
 
 
 '------------------ Move all wheels individually --------------------------------
-PRI Move
-  
-  Setp[1]:=wAngle[0]
-  Setp[3]:=wAngle[1]
-  Setp[5]:=wAngle[2]
-  Setp[7]:=wAngle[3]  
+PRI Move | speed_margin
+   
  
-  FR_a_err := Setp[1] - pid.GetActPos(1)
-  FL_a_err := Setp[3] - pid.GetActPos(3)
-  BR_a_err := Setp[5] - pid.GetActPos(5)
-  BL_a_err := Setp[7] - pid.GetActPos(7)
+  FR_a_err := wAngle[0] - pid.GetActPos(1)
+  FL_a_err := wAngle[1] - pid.GetActPos(3)
+  BR_a_err := wAngle[2] - pid.GetActPos(5)
+  BL_a_err := wAngle[3] - pid.GetActPos(7)
 
   'Set speed to zero if a wheelunit is still turning
   if (FR_a_err > stopstart_a_err or FR_a_err < -stopstart_a_err) or (FL_a_err > stopstart_a_err or FL_a_err < -stopstart_a_err) or (BR_a_err > stopstart_a_err or BR_a_err < -stopstart_a_err) or (BL_a_err > stopstart_a_err or BL_a_err < -stopstart_a_err)
-      Setp[0]:=0    
-      Setp[2]:=0   
-      Setp[4]:=0   
-      Setp[6]:=0   
-      'Wait for totally rotated
-      stopstart_a_err := start_a_err
+    Setp[0] := 0    
+    Setp[2] := 0   
+    Setp[4] := 0   
+    Setp[6] := 0   
+    'Wait for totally rotated
+    stopstart_a_err := start_a_err
   else
-      Setp[0]:=wSpeed[0]    'Front right is 0
-      Setp[2]:=-wSpeed[1]   'Front left is  2
-      Setp[4]:=wSpeed[2]    'Back right is  4
-      Setp[6]:=-wSpeed[3]   'Back left is   6
-      'Set rotation error stop driving value
-      stopstart_a_err := stop_a_err
+    Setp[0] := wSpeed[0]    'Front right is 0
+    Setp[2] := -wSpeed[1]   'Front left is  2
+    Setp[4] := wSpeed[2]    'Back right is  4
+    Setp[6] := -wSpeed[3]   'Back left is   6
+    'Set rotation error stop driving value
+    stopstart_a_err := stop_a_err
+
+  'Set turn speed to zero if still some speed and speed set point is zero 
+  speed_margin := 15
+  if (||pid.getActVel(0) > speed_margin or ||pid.getActVel(2) > speed_margin or ||pid.getActVel(4) > speed_margin or ||pid.getActVel(6) > speed_margin) and (Setp[0] == 0 and Setp[2] == 0 and Setp[4] == 0 and Setp[6] == 0)
+    Setp[1] := pid.GetActPos(1)
+    Setp[3] := pid.GetActPos(3)
+    Setp[5] := pid.GetActPos(5)
+    Setp[7] := pid.GetActPos(7)  
+  else  
+    Setp[1] := wAngle[0]
+    Setp[3] := wAngle[1]
+    Setp[5] := wAngle[2]
+    Setp[7] := wAngle[3] 
 
   'Active brake wheels if no speed command given to avoid lock up of wheels and battery drainage
   if (Setp[0] <> 0 or Setp[1] <> 0 or Setp[2] <> 0 and Setp[3] <> 0)
@@ -899,7 +908,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         1014: Xbee.tx("$")
               Xbee.dec(1014)
               xBee.tx(",")
-              repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           'timeout in [ms]
+              
+              repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           ' Timeout in [ms]
               if pid.getEncSem                
                 xBee.dec(pid.GetActEncPosDiff(0)) 
                 xBee.tx(",")
@@ -909,8 +919,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 xBee.tx(",")
                 xBee.dec(pid.GetActEncPosDiff(6)) 
                 xBee.tx(",")          
-                xBee.dec(pid.getEncClkDiff) 
-                pid.resetActEncPosSem              
+                xBee.dec(pid.getEncClkDiff)               
               else
                 xBee.dec(0) 
                 xBee.tx(",")
@@ -921,7 +930,8 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
                 xBee.dec(0) 
                 xBee.tx(",")          
                 xBee.dec(0) 
-                
+              pid.resetActEncPosSem  
+
               xBee.tx(",") 
               'Steer motors positions, absolute encoders
               xBee.dec(pid.GetActPos(1))  
