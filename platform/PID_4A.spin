@@ -68,7 +68,7 @@ Var Long PotmValue0
     Long SetpAddr
     Long lActPos[PIDCnt], lActVelPos[PIDCnt], lActVel[PIDCnt], EncPos[PIDCnt]   'Actual position and velocity
     Long PosScale[PIDCnt], VelScale[PIDCnt], OutputScale[PIDCnt]
-    Long PIDMode[PIDCnt]                 'PID loop mode: 0= open 1 = Vel loop 2 = Pos loop
+    Long PIDMode[PIDCnt]             
     Long Setp[PIDCnt], SetVel[PIDCnt], preSetVel[PIDCnt]
 
     'PID parameters
@@ -82,6 +82,7 @@ Var Long PotmValue0
     Long Pos[MotorCnt], Vel[MotorCnt], Input[MotorCnt], Output[MotorCnt]
     Long ActCurrent[PIDCnt], MaxCurrent[PIDCnt], MaxSetCurrent[PIDCnt], CurrError[PIDCnt], AnyCurrError
     Long ConnectionError[PIDCnt]
+
     'Velocity filter
     Long ActVelFilter[PIDCnt*vel_filter_size]
     Long vel_filter_index[PIDCnt]
@@ -94,7 +95,7 @@ Var Long PotmValue0
     Long Err[PIDCnt]                     'Last error in drive
 
     'Limits
-    Long SetpMaxPlus[PIDCnt], SetpMaxMin[PIDCnt], FE[PIDCnt], FEMax[PIDCnt], FETrip[PIDCnt], FEAny
+    Long SetpMaxPlus[PIDCnt], SetpMaxMin[PIDCnt], FE[PIDCnt], FEMax[PIDCnt], FETrip[PIDCnt], FEprev[PIDCnt] FEAny
     Long Tspeed[PIDCnt]
 
     Long MAEState, mMAEPos, mMAEOffset
@@ -184,6 +185,8 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
       OutputScale[i]        := 1                            ' Vel scale factor. Divides vel encoder input
       Acc[i]                := 3                            ' Default acc value
       MaxVel[i]             := 250                          ' Default Max vel
+      FE[i]                 := 0                            ' Following error
+      FEprev[i]             := 0                            ' Previous following error
       FEMax[i]              := 1100                         ' Following error limit            
       MaxSetCurrent[i]      := 1000                         ' Max allowable current
       lI[i]                 := 0                            ' Integrator value
@@ -292,8 +295,9 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
              OutputScale[i] := VelScale[i]
 
         ' Check following error
-        FETrip[i] := ||FE[i] > FEMax[i]
+        FETrip[i] := ||FE[i] > FEMax[i] and ||FE[i] => ||FEprev[i] 
         FEAny     := FETrip[0] or FETrip[1] or FETrip[2] or FETrip[3] or FETrip[4] or FETrip[5] or FETrip[6] or FETrip[7] 
+        FEprev[i] := FE[i]
 
         if PIDMode[i] > 0                               
           'When in 'no active brake' mode, prevent I windup 

@@ -120,7 +120,7 @@ CON
   EptromStart = $7000        ' Free range for saving
 
   ' Errors
-  following_error_counter_treshold   = 4      ' 1 count per 200ms
+  following_error_counter_treshold   = 15      ' 1 count per 200ms
   current_error_counter_threshold    = 4      ' 1 count per 200ms
   connection_error_counter_threshold = 20     ' 1 count per 200ms
   wd_cnt_threshold                   = 20     ' Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
@@ -332,17 +332,23 @@ PRI DoSafety | i, ConnectionError, bitvalue
     SafetyCntr++
 
     if PID.GetFEAnyTrip == true
+      'Indicate for which motor had the error
+      repeat i from 0 to MotorCnt-1
+        if PID.GetFETrip(i)
+          SetBit(@connection_error_byte, i)
+        else
+          ResetBit(@connection_error_byte, i + 1)
       following_error_counter := following_error_counter + 1
       pid.ResetAllFETrip
     else
       following_error_counter := 0
 
-    if following_error_counter > following_error_counter_treshold         
-      DisableWheelUnits
+    if following_error_counter > following_error_counter_treshold              
       ResetBit(@PfStatus, NoAlarmBit)
       SetBit(@PfStatus, FeBit)
       LastAlarm := 1
       NoAlarm   := false
+      DisableWheelUnits
 
     if PID.GetAnyCurrError == true
       current_error_counter := current_error_counter + 1
@@ -351,25 +357,32 @@ PRI DoSafety | i, ConnectionError, bitvalue
       current_error_counter := 0  
 
     if current_error_counter > current_error_counter_threshold      
-      DisableWheelUnits
       ResetBit(@PfStatus, NoAlarmBit)
       SetBit(@PfStatus, CurrBit)
       LastAlarm := 2
       CurrError := 1
       NoAlarm   := false
-
-    '-- Watchdog --
-    if Enabled 
-        wd_cnt++
-    else
-        wd_cnt:=0
-
-    if wd_cnt > wd_cnt_threshold
+      'Indicate for which motor had the error
+      repeat i from 0 to MotorCnt-1
+        if PID.GetCurrError(i)
+          SetBit(@connection_error_byte, i)
+        else
+          ResetBit(@connection_error_byte, i + 1)   
       DisableWheelUnits
+
+    '-- Watchdog -- 
+    if Enabled 
+      wd_cnt++
+    else
+      wd_cnt:=0
+
+    if wd_cnt > wd_cnt_threshold    
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
-      LastAlarm :=3
+      LastAlarm := 3
       NoAlarm   := false
+      connection_error_byte := 0
+      DisableWheelUnits
 
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
@@ -398,13 +411,14 @@ PRI DoSafety | i, ConnectionError, bitvalue
         NoAlarm   := true
         SetBit(@PfStatus, NoAlarm)
 
-    If pMAECntr == MAECntr
-      DisableWheelUnits
+    ' Check for MAE error
+    if pMAECntr == MAECntr
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,MAEBit)
       LastAlarm := 5
+      DisableWheelUnits
     pMAECntr    := MAECntr  
-
+      
 
     t.Pause1ms(200)
     
