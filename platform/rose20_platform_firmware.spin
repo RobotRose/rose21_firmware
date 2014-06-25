@@ -120,10 +120,10 @@ CON
   EptromStart = $7000        ' Free range for saving
 
   ' Errors
-  following_error_counter_treshold   = 10      ' 1 count per 200ms
+  following_error_counter_treshold   = 10     ' 1 count per 200ms
   current_error_counter_threshold    = 4      ' 1 count per 200ms
   connection_error_counter_threshold = 20     ' 1 count per 200ms
-  wd_cnt_threshold                   = 20     ' Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
+  wd_cnt_threshold                   = 5      ' Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
   ' Error logging
   ErrorCnt = 100
    
@@ -236,7 +236,7 @@ PUB main | T1, lch
     DoXbeeCmd                              'Linux pc roboto controller runtime com
     
     if Enabled                             'Move! if enabled
-        Move           
+      Move           
        
     ''if DEBUG                            
     '  if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
@@ -374,7 +374,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
     if Enabled 
       wd_cnt++
     else
-      wd_cnt:=0
+      wd_cnt := 0
 
     if wd_cnt > wd_cnt_threshold    
       ResetBit(@PfStatus,NoAlarm)
@@ -1154,12 +1154,13 @@ PRI DisableWheelUnits
   global_brake_state := 2                
   setBrakeState(global_brake_state)      ' Set to no brake mode
   DisableSteer
-  Enabled:=false
   ResetBit(@PfStatus,EnableBit)
   wSpeed[0] := 0
   wSpeed[1] := 0
   wSpeed[2] := 0
   wSpeed[3] := 0
+  Move
+  Enabled:=false
 
 ' ----------------  Enable steer  ---------------------------------------
 PRI EnableSteer
