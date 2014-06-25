@@ -120,7 +120,7 @@ CON
   EptromStart = $7000        ' Free range for saving
 
   ' Errors
-  following_error_counter_treshold   = 15      ' 1 count per 200ms
+  following_error_counter_treshold   = 10      ' 1 count per 200ms
   current_error_counter_threshold    = 4      ' 1 count per 200ms
   connection_error_counter_threshold = 20     ' 1 count per 200ms
   wd_cnt_threshold                   = 20     ' Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
@@ -1022,10 +1022,10 @@ PRI ResetPfStatus | i
   wSpeed[1] := 0
   wSpeed[2] := 0
   wSpeed[3] := 0
-  wAngle[0] := 0
-  wAngle[1] := 0
-  wAngle[2] := 0
-  wAngle[3] := 0
+  wAngle[0] := pid.GetActPos(1)
+  wAngle[1] := pid.GetActPos(3)
+  wAngle[2] := pid.GetActPos(5)
+  wAngle[3] := pid.GetActPos(7)
 
   drive_pid_vals_set := false
   steer_pid_vals_set := false  
@@ -1156,7 +1156,10 @@ PRI DisableWheelUnits
   DisableSteer
   Enabled:=false
   ResetBit(@PfStatus,EnableBit)
-
+  wSpeed[0] := 0
+  wSpeed[1] := 0
+  wSpeed[2] := 0
+  wSpeed[3] := 0
 
 ' ----------------  Enable steer  ---------------------------------------
 PRI EnableSteer
