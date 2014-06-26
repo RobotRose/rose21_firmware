@@ -119,11 +119,6 @@ CON
   cCheck      = 12345        ' Check value for correct restore of values.
   EptromStart = $7000        ' Free range for saving
 
-  ' Errors
-  following_error_counter_treshold   = 10     ' 1 count per 200ms
-  current_error_counter_threshold    = 4      ' 1 count per 200ms
-  connection_error_counter_threshold = 20     ' 1 count per 200ms
-  wd_cnt_threshold                   = 5      ' Will result in shutdown if no WD communication has taken place wd_cnt_threshold*200ms
   ' Error logging
   ErrorCnt = 100
    
@@ -220,8 +215,13 @@ Var Long DoShowParameters
 
     ' Movement/turning hysteresis
     Long start_a_err, stop_a_err, stopstart_a_err  
+ 
+    ' Errors
+    long following_error_counter_treshold
+    long current_error_counter_threshold
+    long connection_error_counter_threshold
+    long wd_cnt_threshold
     
-       
 ' ---------------- Main program CONTROLLER_ID---------------------------------------
 PUB main | T1, lch 
   InitMain
@@ -259,6 +259,12 @@ PRI InitMain
   stop_a_err        := 200
   stopstart_a_err   := start_a_err
 
+  ' Error tresholds (timing 1 count is 200ms) default values
+  following_error_counter_treshold   := 15    
+  current_error_counter_threshold    := 4     
+  connection_error_counter_threshold := 20     
+  wd_cnt_threshold                   := 5    
+    
   following_error_counter   := 0   
   current_error_counter     := 0
   connection_error_counter  := 0
@@ -736,6 +742,26 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
              Xbee.tx(",")
              Xbee.tx(CR) 
 
+            '=== Set error tresholds
+        906: following_error_counter_treshold   := sGetPar                  
+             current_error_counter_threshold    := sGetPar     
+             connection_error_counter_threshold := sGetPar     
+             wd_cnt_threshold                   := sGetPar    
+
+             'Send a reply (mirroring the received command)
+             Xbee.tx("$")
+             Xbee.dec(906)
+             Xbee.tx(",")
+             Xbee.dec(following_error_counter_treshold)
+             Xbee.tx(",")
+             Xbee.dec(current_error_counter_threshold)
+             Xbee.tx(",")
+             Xbee.dec(connection_error_counter_threshold)
+             Xbee.tx(",")
+             Xbee.dec(wd_cnt_threshold)
+             Xbee.tx(",")
+             Xbee.tx(CR) 
+ 
         999: ResetPfStatus        'Reset platform status
             'Send a reply (mirroring the received command)
              Xbee.tx("$")
