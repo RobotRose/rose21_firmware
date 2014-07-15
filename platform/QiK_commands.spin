@@ -136,9 +136,9 @@ PUB SetSpeedM0DelayedReverse(Address, ReqSpeed, measured_speed) | lS, NewCommand
     lS                := 0 #> -ReqSpeed <# 127            
     apply_brake_value := 0
   elseif measured_speed > 0 and ReqSpeed =< 0
-    NewCommand        := cM0R                   ' Wait to brake before change direction
+    NewCommand        := cM0F                   ' Wait to brake before change direction
     lS                := 0            
-    apply_brake_value := 50 #> -ReqSpeed <# 127
+    apply_brake_value := 10 #> -ReqSpeed <# 127
 
   ' Change to forward or brake?
   elseif measured_speed => 0 and ReqSpeed => 0
@@ -150,9 +150,9 @@ PUB SetSpeedM0DelayedReverse(Address, ReqSpeed, measured_speed) | lS, NewCommand
     lS                := 0 #> ReqSpeed <# 127            
     apply_brake_value := 0
   elseif measured_speed < 0 and ReqSpeed => 0
-    NewCommand        := cM0F                   ' Wait to brake before change direction
+    NewCommand        := cM0R                   ' Wait to brake before change direction
     lS                := 0            
-    apply_brake_value := 50 #> ReqSpeed <# 127    
+    apply_brake_value := 10 #> ReqSpeed <# 127    
 
   if apply_brake_value == 0
       if ActQiK==1

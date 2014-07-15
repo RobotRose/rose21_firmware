@@ -49,7 +49,7 @@
 CON
    ' Version
    major_version    = 37
-   minor_version    = 0 
+   minor_version    = 1 
    CONTROLLER_ID    = 1
 
    ' Set 80Mhz
