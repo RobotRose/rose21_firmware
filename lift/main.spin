@@ -284,10 +284,10 @@ PUB DoCommand | Sender, OK, lCh, enable, received_wd
     if OK == 1
       Sender:=sGetPar
 
-      'Force sender to zero if not enabled and not enabling or asking for controller id
+      'Force sender to -1 if not enabled and not enabling or asking for controller id
       if enabled == FALSE
-        if Sender <> 100 AND Sender <>400
-          Sender := -1        
+        if !(Sender == 100 or Sender == 101 or Sender == 400)
+          Sender := -1         
 
       Case Sender
         '--- Communicate enabled first ---
