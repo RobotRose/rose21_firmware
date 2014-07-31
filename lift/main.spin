@@ -118,7 +118,7 @@
 CON
    ' Version
    major_version    = 2
-   minor_version    = 0 
+   minor_version    = 1 
    CONTROLLER_ID    = 2
 
   _clkmode = xtal1 + pll16x
