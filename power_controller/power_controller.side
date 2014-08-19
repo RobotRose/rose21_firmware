@@ -1,0 +1,8 @@
+power_controller.spin
+MCP3208_fast_multi.spin
+STRINGS2hk.spin
+FloatMath1_1.spin
+simple_numbers.spin
+Parallax Serial Terminal.spin
+Timing.spin
+>compiler=SPIN
