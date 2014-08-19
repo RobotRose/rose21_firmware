@@ -1,0 +1,9 @@
+lift_and_bumpers_controller.spin
+MCP3208_fast.spin
+PWMx8.spin
+STRINGS2hk.spin
+FloatMath1_1.spin
+simple_numbers.spin
+Parallax Serial Terminal.spin
+Timing.spin
+>compiler=SPIN
