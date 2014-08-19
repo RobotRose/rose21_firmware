@@ -1,0 +1,61 @@
+Lift and bumpers controller driver-firmware specification
+
+ADC's:
+   V5V = 0
+   NTC = 1
+   V3V3 = 2
+   Current140 = 3
+   Vin = 4
+   FBPM = 5
+   POTM1 = 6
+   POTM2 = 7
+
+Device commands:
+	- Get controlller ID 			: $100 -> int 									(controlller id)
+	- Software version 				: $101 -> int, int 								(major version, minor version) 
+	- Watchdog 						: $111, int	(wd_value) -> int, int, int, int 	(wd_value, wd_counter, received_wd, expected_wd)
+
+Read commands:
+	- Get bumper states				: $200 -> bool, bool, bool, bool, bool, bool, bool, bool ( bumper states )
+	- Get lift position				: $201 -> integer 						(lift position 0-4095)
+	- Get safety relay input  		: $202 -> bool 							(safety input value)
+	- Get extra relay input 		: $203 -> bool 							(extra input value)
+	- Get alarm state				: $204 -> bool, bool, bool, bool, bool	(safety input, 3v3 OK, 5v OK, Vin OK, home button pressed)
+	- Get ADC raw values			: $205 -> 8x int, int, int, int 		(actual, average, min, max)
+	- Get ADC voltage values		: $206 -> 8x int, int, int, int 		(actual, average, min, max)
+	- Get ADC engineering values	: $207 -> 8x int, int, int 				(average, min, max)
+	- Get integrated current 		: $208 -> 8x int, int  					(integration time, integrated current mA)				// Maybe later?
+
+Set variables commands:
+	- Set default speed 			: $300, int (speed 0-4095) 					-> int (set value)
+	- Set predefined pos 			: $301, int, int (pos#, position value) 	-> int, int (set position, set value)
+	- Set minimal 3.3v voltage 		: $302, int 								-> int (set value)
+	- Set minimal 5v voltage		: $303, int 								-> int (set value)
+	- Set minimal Vin voltage		: $304, int 								-> int (set value)
+	- Set safety relay output 		: $305, bool 								-> bool (set value)
+	- Set extra relay output 		: $306, bool 								-> bool (set value)
+
+
+Other commands:
+	- Enable/Disable controller			: $400, bool (enabled/disabled)					-> bool (enabled/disabled)
+	- Force motor stop					: $401											-> bool (ok/not ok)
+	- Serial debug mode 				: $402, bool (on/off)							-> bool (on/off)
+	- Select control type				: $403, int (0 potmeter1 / 1 potmeter2 / 2 PC)	-> int 	(0 potmeter1 / 1 potmeter2 / 2 PC)
+	- Move to position blocking 		: $404, int, int (speed 0-256, position 0-4095)	-> bool, int, int (command acceptance, received speed, received position) // blocking
+	- Move to predefined pos blocking	: $405, int (position# 0-4)						-> int (reached position# 0-4)		// blocking
+	- Move to position interrupt		: $406, int, int (speed 0-256, position 0-4095)	-> bool, int, int (command acceptance, received speed, received position) // interrupt, need timeout timer?
+	- Move to predefined pos interrupt	: $407, int (position# 0-4)						-> int (reached position# 0-4)											  // interrupt, need timeout timer?
+	- Reset ADC min/max vals			: $408, int (adc# 0-7)							-> int (received adc#0-7)
+	- Reset all ADC min/max vals		: $409											-> bool (succes)
+	- Reset alarm state					: $410											-> bool (succes)
+
+Interrupts:		// Possible??
+	- Position reached 			: $500
+	- End pos reached 			: $501
+	- Alarm state changed		: $502
+
+Knopje is move to predfined position 0
+
+$1, speed (pwm 0-256), pos (0-4095) 2x 100 ohm weerstand op potmeter van 5k
+Range checking inbouwen!
+Als optocoupler naar nul gaat -> alarm
