@@ -1,0 +1,70 @@
+Power controller driver-firmware specification
+
+Output 1: PLATFORM_CONTROLLER
+Output 2: PC1
+Output 3: PC2
+Output 4: DR1
+Output 5: DR2
+Output 6: LIFT_CONTROLLER
+
+ADC's:
+	// ADC1   
+	cNTC       = 0
+	NC1        = 1  // not used
+	V24VContr  = 2
+	IAUX       = 3
+	IDR2       = 4
+	IDR1       = 5
+	IPC2       = 6
+	IPC1       = 7
+
+	// ADC2
+	cIControl  = 8
+	cIBAT2     = 9
+	cIBAT1     = 10
+	cV24VBus   = 11
+	cVBAT1     = 12
+	cVBAT2     = 13
+	cV3V3      = 14
+	cV5V       = 15
+
+Device commands:
+	- Get controlller ID 			: $100 -> int 									(controlller id)
+	- Software version 				: $101 -> int, int 								(major version, minor version) 
+	- Watchdog 						: $111, int	(wd_value) -> int, int, int, int 	(wd_value, wd_counter, received_wd, expected_wd)
+
+Read commands:
+	- Get output states				: $201 -> bool, bool, bool, bool, bool, bool 	(output 1, 2, 3, 4, 5, 6)
+	- Get selected battery 			: $202 -> int							(selected battery 0,1,2)
+	- Get switch voltage			: $203 -> int							(switch voltage)
+	- Get switch voltage			: $204 -> int							(warning voltage)
+	- Get cutoff voltage 			: $205 -> int 							(cutoff voltage)
+	- Get minimal 3.3v voltage 		: $206 -> int 							(set minimal 3.3v value)
+	- Get minimal 5v voltage		: $207 -> int 							(set minimal 5v value)
+	- Get safety input  			: $208 -> bool 							(safety input value)
+	- Get extra input 				: $209 -> bool 							(extra input value)
+	- Get ADC raw values			: $210, 16x int, int, int, int 			(actual, average, min, max)
+	- Get ADC voltage values		: $211, 16x int, int, int, int 			(actual, average, min, max)
+	- Get ADC engineering values	: $212, 16x int, int, int 				(average, min, max)
+	- Get integrated current 		: $213, 16x int, int  					(integration time, integrated current mA)				// Maybe later?
+
+Set commands:
+	- Set auto switch voltage 		: $300, int -> int (set switch voltage)
+	- Set warning voltage			: $301, int -> int (set warning voltage)
+	- Set cutoff voltage			: $302, int -> int (set cutoff voltage)
+	- Set minimal 3.3v voltage 		: $303, int -> int (set value)
+	- Set minimal 5v voltage		: $304, int -> int (set value)
+	- Set safety relay output 		: $305, bool -> bool (set value)
+	- Set extra relay output 		: $306, bool -> bool (set value)
+
+Other commands:
+	- Shutdown 					: $400, integer (timeout)				-> integer, bool (received timeout, ok/not ok)
+	- Serial debug mode 		: $401, bool (on/off)					-> bool (on/off)
+	- Reset min/max vals		: $402, int (adc 0-15)					-> bool (succes)
+	- Reset all min/max vals	: $403									-> bool (succes)
+	- Select fullest battery	: $404, int (0 none, 1 bat1, 2 bat2) 	-> int (selected battery 0,1,2)		// Selects highest voltage battery
+	- Select battery force 		: $405, int								-> int (selected battery 0,1,2)		// Turn off auto switch mode and force switcht to selected battery
+	- Set battery auto mode		: $406, bool (auto/man)					-> bool (selected mode) 
+	- Set output state 			: $407, int, bool (ouput 1-5, on/off) 	-> int, bool (output, 0 -> error, on/off)		
+
+Bij opstarten een PC aan die de controle neemt over de power controller.
