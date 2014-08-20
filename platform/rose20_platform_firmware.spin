@@ -168,7 +168,7 @@ Var Long DoShowParameters
 
     ' Xbee input
     Long XbeeCmdCntr  
-    Long Sender, CMDi, myID, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
+    Long command, CMDi, myID, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
     Byte Cmd[LineLen] ,LastPar1[CmdLen]
     Byte XbeeTimeout
 
@@ -178,12 +178,6 @@ Var Long DoShowParameters
     Long SerEnabled, oSel0, CmdDone
     Long MaxWaitTime                            ' Wait time for new Xbee string
 
-    ' Safety
-    Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
-    Long following_error_counter
-    Long current_error_counter 
-    Long connection_error_counter
- 
     ' Received command variables
     long PfStatus, connection_error_byte
     Long LastAlarm
@@ -216,6 +210,12 @@ Var Long DoShowParameters
     ' Movement/turning hysteresis
     Long start_a_err, stop_a_err, stopstart_a_err  
  
+    ' Safety
+    Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
+    Long following_error_counter
+    Long current_error_counter 
+    Long connection_error_counter
+    
     ' Errors
     long following_error_counter_treshold
     long current_error_counter_threshold
@@ -506,7 +506,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
   OK:=1
 
   StrP:=0  'Reset line pointer
-  Sender:=0
+  command:=0
   StrLen:=strsize(@StrBuf)  
 
   if StrLen > (MaxStr-1)        'Check max len
@@ -524,9 +524,9 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         Quit                    'Exit loop
 
     if OK == 1
-      Sender:=sGetPar
+      command:=sGetPar
 
-      Case Sender
+      Case command
         '--- Communicate controller id ---
         100 : Xbee.str(string("$100,"))
               Xbee.dec(CONTROLLER_ID)
@@ -996,7 +996,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
               Xbee.tx(CR)
 
         other:Xbee.tx("$")
-              Xbee.dec(sender)
+              Xbee.dec(command)
               xBee.tx(",")
               xBee.str(string("Unkown command", 13)) 
 
@@ -1007,7 +1007,7 @@ Return OK
 ' ---------------- Send actual and max currents to PC -------------------------------
 PRI DoCurrents2PC | i
   Xbee.tx("$")
-  Xbee.dec(Sender)        'Last Sender
+  Xbee.dec(command)        'Last command
 
   repeat i from 0 to MotorCnt-1       'Send actual currents
     xBee.tx(",")
@@ -1083,7 +1083,7 @@ Return lch
 ' ---------------- Print program status to PC ---------------------------------------
 PRI DoStatus2PC
   Xbee.tx("$")
-  Xbee.dec(Sender)        'Last Sender
+  Xbee.dec(command)        'Last command
   Xbee.tx(",")
   Xbee.dec(LastAlarm)     'Last error
   Xbee.tx(",")
@@ -1109,7 +1109,7 @@ PRI DoStatus2PC
 PRI DoPos2PC | i
   i:=0
   Xbee.tx("$")
-  Xbee.dec(Sender)
+  Xbee.dec(command)
   Xbee.tx(",")
 
   i:=0
@@ -1390,7 +1390,7 @@ PRI ShowParameters | i
 ' ---------------- Dump PID settigns to Xbee ---------------------------------------
 PRI DoPIDSettings | i
   Xbee.tx("$")
-  Xbee.dec(Sender)        'Last Sender
+  Xbee.dec(command)        'Last command
   Xbee.tx(",")
   xBee.str(string(CR,"MAEOffs: $0"))
   repeat i from 0 to MAECnt-1   'Copy working values to buffer
@@ -1581,8 +1581,8 @@ PRI ShowScreen | i
     ser.str(string(" PfStatus: "))
     ser.str(n.ibin(PfStatus,16))
        
-    ser.str(string(CE,CR," Sender: "))
-    ser.str(n.decf(Sender,4))
+    ser.str(string(CE,CR," command: "))
+    ser.str(n.decf(command,4))
 
 ' ---------------- 'Set bit in 32 bit Long var -------------------------------
 PRI SetBit(VarAddr,Bit) | lBit, lMask

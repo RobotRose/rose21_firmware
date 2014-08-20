@@ -55,11 +55,7 @@
 ''                    Engineering units (mW, mOhm, mA)
 '' 
 
-DAT Product BYTE "900087 Robot Power Board",0
-    Version BYTE "1",0
-    SubVersion BYTE "2",0
-    
-    
+DAT   
     NOTE_B0  WORD 31
     NOTE_C1  WORD 33
     NOTE_CS1 WORD 35
@@ -151,6 +147,10 @@ DAT Product BYTE "900087 Robot Power Board",0
     NOTE_DS8 WORD 4978
 
 CON
+   ' Version
+   major_version    = 0
+   minor_version    = 1 
+   CONTROLLER_ID    = 3
 
 'Set 80Mhz
    _clkmode = xtal1+pll16x
@@ -172,7 +172,7 @@ CON
   lMaxStr = 257        'Stringlength is 256 + 1 for 0 termination
   StringSize = lMaxStr-1
   bytebuffersize = 2048
-  Cmdlen = 10
+  Cmdlen = 20
   LineLen = bytebuffersize ' Buffer size for incoming line   
      
 'ADC
@@ -248,7 +248,7 @@ CON
 ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
-  cVin = 22000               ' Minimal Vin supply
+
    
 OBJ
   ADC           : "MCP3208_fast_multi"                  ' ADC
@@ -271,69 +271,284 @@ VAR
 
   Long Scale[Nch]   '' array with scaling factors
   
-  'Battery management
-  Long AutoBatterySwitch  '1: enables local auto battery switch
-  Long BatteryActive      '0: all batteries off, 1: Battery 1 on 2: battery 2 on
+  ' Battery management
+  Long auto_battery_switch  '1: enables local auto battery switch
+  Long active_battery       '0: all batteries off, 1: Battery 1 on 2: battery 2 on
+  long battery_switch_sound
 
-  'Vars for command handling and processing
+  ' Vars for command handling and processing
   Long ConnectCnt, ConnectTime    
   byte data[bytebuffersize]     'Receive buffer
   long DataLen                  'Buffer len
   Byte StrMiscReport[lMaxStr]   'Report string various other data
   Long CommandTime, ConnectionTime
-  Long Sender, LastPar1[CmdLen]
+  Long command 
   
- 'Input string handling
+  byte last_parameter[CmdLen]
+  
+  ' Input string handling
   Byte StrBuf[lMaxStr]  'String buffer for receiving chars from serial port
   Long StrSP, StrP, StrLen        'Instring semaphore, counter, Stringpointer, String length
   Byte Ch
+  long MaxWaitTime
 
-' Debug
+  ' Debug
   LONG Debug
-       
+
+  ' Watchdog
+  long expected_wd, wd, wd_cnt
+  
+  ' Safety
+  long SafetyCog, SafetyStack[40], SafetyCntr, no_alarm, last_alarm
+  
+  ' Debug
+  long DebugCog, DebugStack[40]
+  
+  ' Errors
+  long wd_cnt_threshold
+  
+  ' Voltage tresholds
+  long minimal_Vin               ' Minimal Vin supply
+  long warning_Vin               ' Warning supply voltage    
+  long switch_Vin                ' Switch supply voltage
+
 PUB Main
   Init
 
-  Beep 
-
+  'Beep
+  
+  BeepHz(NOTE_A4, 1000000/16)
+  BeepHz(NOTE_A5, 1000000/16)
+  BeepHz(NOTE_A6, 1000000/16)
+  BeepHz(NOTE_A7, 1000000/16)
+  BeepHz(NOTE_F7, 1000000/20)
+  BeepHz(NOTE_G7, 1000000/16)
+  
   ' Main loop
   repeat
     MainCnt++
 
     handleCommunication      
 
-    If Debug
-      'ser.position(0,2)
-      DoDisplay
-
-    t.Pause1ms(50)
+    't.Pause1ms(50)
     !OUTA[Led]
 
-PRI handleCommunication | NewCh, T1
-    ' Next section handles command char input
-    NewCh:=Ser.RxCheck
-    if NewCh>0
-      If Debug
-        Ser.Str(string("New Cmd received"))
-        T1:=cnt
-        Ser.Str(num.decf(ConnectCnt,4))
-        Ser.Str(string(" ",Ser#NL, Ser#LF))
+PRI handleCommunication
+  ser.StrInMaxTime(@StrBuf, lMaxStr, MaxWaitTime)   'Non blocking max wait time
+  
+  if Strsize(@StrBuf) > 3                         'Received string must be larger than 3 char's skip rest (noise)
+    DoCommand   'Execute command in received string
 
-      'Initialize the buffers and bring the data over
-      bytefill(@data, 0, bytebuffersize)
-      ser.StrIn(@Data)
-      bytemove(@data+1,@data,bytebuffersize-1)
-      data[0]:=NewCh      
-      DataLen:=strsize(@data)        'store string length for use by parsers
+
+'***************************************  Handle command string received from client
+PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, temp, temp2
+  t1:=cnt
+  commandOK:=1
+
+  StrP:=0                       'Reset line pointer
+  command:=0                     'Reset received command
+  StrLen:=strsize(@StrBuf)      'Determine length of string in the buffer
+  temp:=0
+  temp2:=0
+
+  if StrLen > (lMaxStr-1)       'Check max len
+    commandOK:=-1                 'Error: String too long
+  elseif StrLen == 0            'Check zero length
+    commandOK:=-2                 'Error: Null string
+  else
+    'Get command
+    command:=sGetPar  
+    
+    if Debug
+      ser.str(string("Received command: ")) 
+      ser.dec(command)
+      ser.str(CR)   
+
+    Case command
+        '--- Communicate controller id ---
+        100 : ser.str(string("$100,"))
+              ser.dec(CONTROLLER_ID)
+              ser.tx(",")  
+              ser.tx(CR) 
+        '--- Communicate software version ---
+        101 : ser.str(string("$101,"))
+              ser.dec(major_version)
+              ser.tx(",")  
+              ser.dec(minor_version)
+              ser.tx(",")  
+              ser.tx(CR) 
+        '--- WATCHDOG ---
+        111:      
+             received_wd := sGetPar
+             ' Check value
+             if received_wd <> expected_wd
+                ' DO DISABLEING STUFF? TODO
+                ser.tx("$")
+                ser.dec(111)
+                ser.tx(",")
+                ser.dec(-1)
+                ser.tx(",")  
+                ser.dec(wd_cnt)
+                ser.tx(",")            
+                ser.dec(received_wd)
+                ser.tx(",")   
+                ser.dec(expected_wd)
+                ser.tx(",")   
+                ser.tx(CR)  
+             else    
+                ser.tx("$")
+                ser.dec(111)
+                ser.tx(",")
+                ser.dec(wd)
+                ser.tx(",")  
+                ser.dec(wd_cnt)
+                ser.tx(",")                
+                ser.dec(received_wd)
+                ser.tx(",")   
+                ser.dec(expected_wd)
+                ser.tx(",")   
+                ser.tx(CR)  
+
+                if expected_wd == 1
+                   expected_wd := 0             
+                else
+                   expected_wd := 1
+
+                if wd == 1
+                   wd := 0             
+                else
+                   wd := 1                                 
+ 
+                'Reset the watchdog counter
+                wd_cnt := 0 
+                
+        ' Initiate shutdown   
+        400: ser.str(string("$400,", CR))
+             shutdown
+        
+        'Enable/disable serial debug mode    
+        401: temp := sGetPar        
+             if temp == 1
+               Debug := true
+             elseif temp == 0
+               Debug := false
+             
+             ser.str(string("$401,"))
+             ser.dec(temp)
+             ser.str(string(",", CR))
+     
+        'Reset specified ADC min/max values
+        402: temp := sGetPar   
+             
+             resetADCVals(temp)
+                          
+             ser.str(string("$402,"))
+             ser.dec(temp)
+             ser.str(string(",", CR))
+             
+        'Reset ALL ADC min/max values
+        403: resetAllADCVals
+                          
+             ser.str(string("$403,", CR))
+             
+        'Select fullest battery
+        404: ser.str(string("$404,"))
+             ser.dec(selectFullestBattery)
+             ser.str(string(",", CR))
+             
+        ' Force select battery
+        405: temp := sGetPar        ' Which battery to select
+             
+             ' Turn off auto battery selecting mode   
+             setAutoBatterySelect(false) 
+                                                 ' 
+             ser.str(string("$405,"))
+             ser.dec(selectBattery(temp))
+             ser.str(string(",", CR))     
+       
+        ' Turn on/off auto battery selecting mode
+        406: temp := sGetPar        ' Which battery to select
+             
+             ' Turn off or on the auto battery selecting mode  (default on) 
+             if temp == 0
+                setAutoBatterySelect(false)
+             else
+                setAutoBatterySelect(true)    
+             
+             ser.str(string("$406,"))
+             if auto_battery_switch == true
+                ser.dec(1)
+             else
+                ser.dec(0)
+             ser.str(string(",", CR))  
+             
+        ' Turn on/off a specified output
+        407: temp  := sGetPar        ' Which output 
+             temp2 := sGetPar        ' On or off
+                 
+             ' Check output number
+             if temp => 0 and temp =< 5   
+                 ' Turn on or off the specified ouput
+                 if temp2 == 1     
+                    setSwitch(temp, true)
+                 else
+                    setSwitch(temp, false)    
+                    
+                 ser.str(string("$407,"))
+                 ser.dec(temp)
+                 ser.str(string(","))
+                 ser.dec(temp2)
+                 ser.str(string(",", CR))  
+             else 'Error unkown output number
+                 ser.str(string("$407,"))
+                 ser.dec(-1)
+                 ser.str(string(","))
+                 ser.dec(0)
+                 ser.str(string(",", CR))  
+             
+        
+        ' On/off battery change sound
+        408: temp := sGetPar        ' Sound on or off
+             
+             ser.str(string("$408,"))
+             ' Turn on or off auto battery selecting mode   
+             if temp == 1
+               battery_switch_sound := true
+               ser.dec(1)
+             else 
+               battery_switch_sound := false
+               ser.dec(0)                                                ' 
+             ser.str(string(",", CR))     
+                  
+        other:ser.tx("$")
+              ser.dec(command)
+              ser.tx(",")
+              ser.str(string("Unkown command", CR)) 
+              commandOK:=-3
+              
+Return commandOK
+
+' ---------------- Check safety of platform and put in safe condition when needed ---------
+PRI DoSafety | i, ConnectionError, bitvalue
+  wd_cnt                   := 0
+  no_alarm                 := true                'Reset global alarm var
+  last_alarm               := 0                   'Reset last alarm message
+
+  ' Main safety loop    
+  repeat
+    SafetyCntr++
+
+    '-- Watchdog -- 
+    wd_cnt++
+
+    if wd_cnt > wd_cnt_threshold    
+      last_alarm := 1
+      no_alarm   := false
+      ' TAKE ACTION! TODO
+
+    t.Pause1ms(200)
       
-      If debug
-        Ser.Str(string(CR, "Packet from client: "))
-        Ser.Str(@Data)
-        Ser.char(CR)
-
-      DoCommand   'Execute command in received string
-
-'Do switches
+{{'Do switches
 PRI DOSwitches
 '0 = off 1 = on
 
@@ -381,70 +596,144 @@ PRI DOSwitches
          OUTA[PWRPC2]:=0  
          OUTA[PWRDR1]:=0
          OUTA[PWRDR2]:=0
-         OUTA[PWRAUX]:=0
+         OUTA[PWRAUX]:=0}
+  }}
   
+PRI setAutoBatterySelect(state)
+    auto_battery_switch := state
+  
+PRI selectFullestBattery | fullest_battery
+    fullest_battery := getFullestBattery
+    
+    ' Select none of the batteries if the fullest is below the minimal voltage
+    if isBatteryVoltageOK(fullest_battery) == false
+        fullest_battery := 0
+
+    selectBattery(fullest_battery)
+    
+PRI getFullestBattery
+    if getBatteryVoltage(1) <= getBatteryVoltage(2)
+      return 1
+    else
+      return 2
+      
+PRI getBatteryVoltage(i)
+    case i
+        1: return engADCchAVG[cVBAT1]
+        2: return engADCchAVG[cVBAT2]
+        other: return 0
+        
+' === Check if battery voltage is above minimal voltage === 
+PRI isBatteryVoltageOK(i)
+    return (getBatteryVoltage(i) => minimal_Vin) 
+
+' === Check if battery warning is required (both batteryies below warning_Vin) ===
+PRI checkBelowWarningVoltage
+    return (getBatteryVoltage(1) =< warning_Vin AND getBatteryVoltage(2) =< warning_Vin)
+   
+
+' === Produce battery warning signal ===
+PRI lowVoltageWarning
+    BeepHz(1000, 1000000/4)
+    BeepHz(500, 1000000/2)
+    BeepHz(1000, 1000000/4)
+    BeepHz(500, 1000000/2)
+    BeepHz(1000, 1000000/4)
+    BeepHz(500, 1000000/2)
+    
 'Switch battery 1 or 2. Disable outputs to cut all output current off from darlington
 'Otherwise the Fet won't switch off properly
-PRI SwitchBat(N)
+'Check for minimal voltage here?
+'Ensures that all ouputs are off when swithcing from no battery to A battery
+PRI selectBattery(N)
+
+  if active_battery == 0 OR N == 0
+    SwitchAllOff         ' Switch off all outputs
+
   case N
-    0: OUTA[PWRBAT1]:=0   '
+    0: OUTA[PWRBAT1]:=0   
        OUTA[PWRBAT2]:=0
        DIRA[PWRBAT1]:=0
        DIRA[PWRBAT2]:=0
+       active_battery := N 
+       
+       if battery_switch_sound == true
+         BeepHz(NOTE_E7, 1000000/16) 
+         BeepHz(0, 1000000/32) 
+         BeepHz(NOTE_E3, 1000000/8)    
        
     1: DIRA[PWRBAT1]:=1
-       OUTA[PWRBAT1]:=1 '
+       OUTA[PWRBAT1]:=1 
        DIRA[PWRBAT2]:=0
        OUTA[PWRBAT2]:=0
+       active_battery := N
+       
+       if battery_switch_sound == true
+         BeepHz(NOTE_E7, 1000000/16)  
+         BeepHz(0, 1000000/32)
+         BeepHz(NOTE_E5, 1000000/32)
 
     2: DIRA[PWRBAT1]:=0
-       OUTA[PWRBAT1]:=0 '
+       OUTA[PWRBAT1]:=0 
        DIRA[PWRBAT2]:=1
        OUTA[PWRBAT2]:=1
+       active_battery := N
+       
+       if battery_switch_sound == true
+         BeepHz(NOTE_E7, 1000000/16) 
+         BeepHz(0, 1000000/32) 
+         BeepHz(NOTE_E5, 1000000/32)
+         BeepHz(0, 1000000/32)
+         BeepHz(NOTE_E5, 1000000/32)
+    
+  return N
 
-' Switch output 1 to 6. 0= all off
+' Switch output 0 to 5. 0= all off
 PRI SwitchAllOff
-    DIRA[PWRCONTR]:=0
-    DIRA[PWRPC1]:=0
-    DIRA[PWRPC2]:=0  
-    DIRA[PWRDR1]:=0
-    DIRA[PWRDR2]:=0
-    DIRA[PWRAUX]:=0     
-    OUTA[PWRCONTR]:=0
-    OUTA[PWRPC1]:=0
-    OUTA[PWRPC2]:=0  
-    OUTA[PWRDR1]:=0
-    OUTA[PWRDR2]:=0
-    OUTA[PWRAUX]:=0
+    setSwitch(0, false)
+    setSwitch(1, false)
+    setSwitch(2, false)
+    setSwitch(3, false)
+    setSwitch(4, false) 
+    setSwitch(5, false) 
 
+PRI setSwitch(N, state)
+  if state == true
+    SwitchOn(N)
+  elseif state == false
+    SwitchOff(N)
+    
 PRI SwitchOn(N)
   Case N
-    1: DIRA[PWRCONTR]:=1
+    0: DIRA[PWRCONTR]:=1
        OUTA[PWRCONTR]:=1
-    2: DIRA[PWRPC1]:=1
+    1: DIRA[PWRPC1]:=1
        OUTA[PWRPC1]:=1
-    3: DIRA[PWRPC2]:=1
+    2: DIRA[PWRPC2]:=1
        OUTA[PWRPC2]:=1
-    4: DIRA[PWRDR1]:=1
+    3: DIRA[PWRDR1]:=1
        OUTA[PWRDR1]:=1
-    5: DIRA[PWRDR2]:=1
+    4: DIRA[PWRDR2]:=1
        OUTA[PWRDR2]:=1
-    6: DIRA[PWRAUX]:=1
+    5: DIRA[PWRAUX]:=1
        OUTA[PWRAUX]:=1
+  
+  'Ensure that not all outputs can be turned on at the same time (to limit peak currents)
+  t.Pause1ms(100)
 
 PRI SwitchOff(N)
   Case N
-    1: DIRA[PWRCONTR]:=0
+    0: DIRA[PWRCONTR]:=0
        OUTA[PWRCONTR]:=0
-    2: DIRA[PWRPC1]:=0
+    1: DIRA[PWRPC1]:=0
        OUTA[PWRPC1]:=0
-    3: DIRA[PWRPC2]:=0
+    2: DIRA[PWRPC2]:=0
        OUTA[PWRPC2]:=0
-    4: DIRA[PWRDR1]:=0
+    3: DIRA[PWRDR1]:=0
        OUTA[PWRDR1]:=0
-    5: DIRA[PWRDR2]:=0
+    4: DIRA[PWRDR2]:=0
        OUTA[PWRDR2]:=0
-    6: DIRA[PWRAUX]:=0
+    5: DIRA[PWRAUX]:=0
        OUTA[PWRAUX]:=0
 
 ' ------------------------ Send AVG parameters to PC
@@ -524,196 +813,203 @@ PRI ReportLabels
 
 ' ------------------------ Show debug output -----------------------------
 PRI DoDisplay  | i
-'     ser.tx(CE)
-    ser.position(0,0)
+    repeat 
+      t.Pause1ms(1000)
+      If Debug      
+        ser.position(0,0)
 
-    ser.str(@Product)
-    ser.str(@Version)
-    ser.str(@SubVersion)
-    ser.str(string(" ADCmeetCog: "))
-    ser.dec(ADCMCog)
-    ser.str(string("  ADCConvCog: "))
-    ser.dec(ADCConvCog)
-    ser.str(string(" PLCCog: "))
-    ser.dec(LinMotCog)
+        ser.str(CONTROLLER_ID)
+        ser.str(string(" "))
+        ser.str(major_version)
+        ser.str(string("."))
+        ser.str(minor_version)
+        ser.str(string(" ADCMeasurementCog: "))
+        ser.dec(ADCMCog)
+        ser.str(string("  ADCConvCog: "))
+        ser.dec(ADCConvCog)
+        ser.str(string(" PLCCog: "))
+        ser.dec(LinMotCog)
+        
+        ser.str(string(" Selected Battery: "))
+        ser.dec(active_battery)
      
-    ser.tx(CR)
-    ser.tx(CR)
-    ser.str(string("       "))
-    ser.str(@s_NTC)
-    ser.str(@s_NC)
-    ser.str(@s_Vcontrol)
-    ser.str(@s_iAux)
-    ser.str(@s_iDrive2)
-    ser.str(@s_iDrive1)
-    ser.str(@s_ipc2)
-    ser.str(@s_ipc1)
-    ser.str(@s_iControl)
-    ser.str(@s_ibat2)
-    ser.str(@s_ibat1)
-    ser.str(@s_V24b)     
-    ser.str(@s_vbat1)
-    ser.str(@s_vbat2)
-    ser.str(@s_3V3)             
-    ser.str(@s_5V)             
+        ser.tx(CR)
+        ser.tx(CR)
+        ser.str(string("       "))
+        ser.str(@s_NTC)
+        ser.str(@s_NC)
+        ser.str(@s_Vcontrol)
+        ser.str(@s_iAux)
+        ser.str(@s_iDrive2)
+        ser.str(@s_iDrive1)
+        ser.str(@s_ipc2)
+        ser.str(@s_ipc1)
+        ser.str(@s_iControl)
+        ser.str(@s_ibat2)
+        ser.str(@s_ibat1)
+        ser.str(@s_V24b)     
+        ser.str(@s_vbat1)
+        ser.str(@s_vbat2)
+        ser.str(@s_3V3)             
+        ser.str(@s_5V)             
 
-    ser.tx(CR)
-    i:=0
-    ser.str(string("      #: "))
-    repeat NCh               'Actual adc
-      ser.str(num.decf(i,NumWidth))
-      i++
-      ser.tx(" ")
+        ser.tx(CR)
+        i:=0
+        ser.str(string("      #: "))
+        repeat NCh               'Actual adc
+          ser.str(num.decf(i,NumWidth))
+          i++
+          ser.tx(" ")
 
-    ser.tx(CE)
-    ser.tx(CR)
+        ser.tx(CE)
+        ser.tx(CR)
 
-    i:=0
-    ser.str(string("    ADCr:"))
-    repeat NCh               'Actual adc
-      ser.str(num.decf(ADCRaw[i],NumWidth))
-      i++
-      ser.tx(" ")
+        i:=0
+        ser.str(string("    ADCr:"))
+        repeat NCh               'Actual adc
+          ser.str(num.decf(ADCRaw[i],NumWidth))
+          i++
+          ser.tx(" ")
 
-    ser.tx(CE)
-    ser.tx(CR)
+        ser.tx(CE)
+        ser.tx(CR)
 
-    i:=0
-    ser.str(string("    Avgr:"))
-    repeat NCh
-      ser.str(num.decf(ADCRawAVG[i],NumWidth)) 'AVG adc value
-      i++
-      ser.tx(" ")      
+        i:=0
+        ser.str(string("    Avgr:"))
+        repeat NCh
+          ser.str(num.decf(ADCRawAVG[i],NumWidth)) 'AVG adc value
+          i++
+          ser.tx(" ")      
 
-    ser.tx(CE)
+        ser.tx(CE)
 
-    ser.tx(CR)
-    i:=0
-    ser.str(string("    Minr:"))
-    repeat NCh
-      ser.str(num.decf(ADCRawMIN[i],NumWidth)) 'Min adc value
-      i++
-      ser.tx(" ")
+        ser.tx(CR)
+        i:=0
+        ser.str(string("    Minr:"))
+        repeat NCh
+          ser.str(num.decf(ADCRawMIN[i],NumWidth)) 'Min adc value
+          i++
+          ser.tx(" ")
 
-    ser.tx(CE)
+        ser.tx(CE)
 
-    ser.tx(CR)
-    i:=0
-    ser.str(string("    Maxr:"))
-    repeat NCh
-      ser.str(num.decf(ADCRawMAX[i],NumWidth)) 'Max adc value
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
+        ser.tx(CR)
+        i:=0
+        ser.str(string("    Maxr:"))
+        repeat NCh
+          ser.str(num.decf(ADCRawMAX[i],NumWidth)) 'Max adc value
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
 
-    ser.tx(CR)
-    ser.tx(CR)
-    i:=0
-    ser.str(string("    ADCv:"))
-    repeat NCh
-      ser.str(num.decf(ADCch[i],NumWidth))     'Converted
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
+        ser.tx(CR)
+        ser.tx(CR)
+        i:=0
+        ser.str(string("    ADCv:"))
+        repeat NCh
+          ser.str(num.decf(ADCch[i],NumWidth))     'Converted
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
 
-    ser.tx(CR)
-    i:=0
-    ser.str(string(" ADCvAvg:"))
-    repeat NCh
-      ser.str(num.decf(ADCchAVG[i],NumWidth))  'Converted avg
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
+        ser.tx(CR)
+        i:=0
+        ser.str(string(" ADCvAvg:"))
+        repeat NCh
+          ser.str(num.decf(ADCchAVG[i],NumWidth))  'Converted avg
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
 
-    ser.tx(CR)
-    i:=0
-    ser.str(string(" ADCvMin:"))
-    repeat NCh
-      ser.str(num.decf(ADCchMIN[i],NumWidth))  'Converted min
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
+        ser.tx(CR)
+        i:=0
+        ser.str(string(" ADCvMin:"))
+        repeat NCh
+          ser.str(num.decf(ADCchMIN[i],NumWidth))  'Converted min
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
 
-    ser.tx(CR)
-    i:=0
-    ser.str(string(" ADCvMax:"))
-    repeat NCh
-      ser.str(num.decf(ADCchMAX[i],NumWidth))  'Converted max
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
-
-    ser.tx(CR)
-    ser.tx(CR)
-    i:=0
-    ser.str(string("eADCvAVG:"))
-    repeat NCh
-      ser.str(num.decf(engADCchAVG[i],NumWidth)) 'Engineering avg
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
-
-    ser.tx(CR)
-    i:=0
-    ser.str(string("eADCvMax:"))
-    repeat NCh
-      ser.str(num.decf(engADCchMax[i],NumWidth)) 'Engineering Max
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
-
-    ser.tx(CR)
-    i:=0
-    ser.str(string("eADCvMin:"))
-    repeat NCh
-      ser.str(num.decf(engADCchMin[i],NumWidth)) 'Engineering Min
-      i++
-      ser.tx(" ")
-    ser.tx(CE)
-
-    ser.tx(CR)
-    ser.tx(CR)
-    ser.str(string("ADC time: "))
-    ser.dec(ADCTime)  
-    ser.tx(" ")
-    ser.str(string(" ADC cnt: "))
-    ser.dec(ADCCnt)
-    ser.str(string(" Scaling time: "))
-    ser.dec(ScalingTime)
-    ser.tx(" ")
-    ser.str(string(" Scaling cnt: "))
-    ser.dec(ScalingCnt)
-    ser.tx(" ")
-    ser.str(string(" PLC cnt: "))
-    ser.dec(PLCCnt)
-    ser.tx(" ")
-    ser.str(string("MainCnt: "))
-    ser.dec(MainCnt)   
-
-    ser.tx(cr)
-    ser.tx(ce)
-
-    ser.str(string("EMER: "))
-    ser.dec(GetEMERin)
-    ser.str(string(" OK: "))
-    ser.dec(GetOK)
-    ser.str(string(" IN0: "))
-    ser.dec(GetIN0)
-    ser.str(string(" OUT0: "))
-    ser.dec(GetOUT0)
-    ser.tx(cr)
-    ser.tx(ce)
-    ser.str(string("sV5OK: "))
-    ser.dec(s5VOK)
-    ser.str(string(" sV3V3OK: "))
-    ser.dec(s3V3OK)
-    ser.str(string(" sVinOK: "))
-    ser.dec(sVinOK)
-    ser.str(string(" AllOK: "))
-    ser.dec(AllOK)
-    ser.tx(cr)
+        ser.tx(CR)
+        i:=0
+        ser.str(string(" ADCvMax:"))
+        repeat NCh
+          ser.str(num.decf(ADCchMAX[i],NumWidth))  'Converted max
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
     
-    DisplayIO
+        ser.tx(CR)
+        ser.tx(CR)
+        i:=0
+        ser.str(string("eADCvAVG:"))
+        repeat NCh
+          ser.str(num.decf(engADCchAVG[i],NumWidth)) 'Engineering avg
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
+
+        ser.tx(CR)
+        i:=0
+        ser.str(string("eADCvMax:"))
+        repeat NCh
+          ser.str(num.decf(engADCchMax[i],NumWidth)) 'Engineering Max
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
+
+        ser.tx(CR)
+        i:=0
+        ser.str(string("eADCvMin:"))
+        repeat NCh
+          ser.str(num.decf(engADCchMin[i],NumWidth)) 'Engineering Min
+          i++
+          ser.tx(" ")
+        ser.tx(CE)
+
+        ser.tx(CR)
+        ser.tx(CR)
+        ser.str(string("ADC time: "))
+        ser.dec(ADCTime)  
+        ser.tx(" ")
+        ser.str(string(" ADC cnt: "))
+        ser.dec(ADCCnt)
+        ser.str(string(" Scaling time: "))
+        ser.dec(ScalingTime)
+        ser.tx(" ")
+        ser.str(string(" Scaling cnt: "))
+        ser.dec(ScalingCnt)
+        ser.tx(" ")
+        ser.str(string(" PLC cnt: "))
+        ser.dec(PLCCnt)
+        ser.tx(" ")
+        ser.str(string("MainCnt: "))
+        ser.dec(MainCnt)   
+    
+        ser.tx(cr)
+        ser.tx(ce)
+    
+        ser.str(string("EMER: "))
+        ser.dec(GetEMERin)
+        ser.str(string(" OK: "))
+        ser.dec(GetOK)
+        ser.str(string(" IN0: "))
+        ser.dec(GetIN0)
+        ser.str(string(" OUT0: "))
+        ser.dec(GetOUT0)
+        ser.tx(cr)
+        ser.tx(ce)
+        ser.str(string("sV5OK: "))
+        ser.dec(s5VOK)
+        ser.str(string(" sV3V3OK: "))
+        ser.dec(s3V3OK)
+        ser.str(string(" sVinOK: "))
+        ser.dec(sVinOK)
+        ser.str(string(" AllOK: "))
+        ser.dec(AllOK)
+        ser.tx(cr)
+        
+        DisplayIO
 
 
 ' Display IO status on screen
@@ -761,12 +1057,15 @@ PRI DoPLC
     if engADCchAVG[cV3V3] < c3V3                                                               
       s3V3OK :=0
 
-    if engADCchAVG[cV24VBus] < cVin
+    if engADCchAVG[cV24VBus] < minimal_Vin
       sVinOK :=0
+      
+    if checkBelowWarningVoltage
+       lowVoltageWarning 
 
    ' Battery management and automatic switch from Bat1 to Bat 2
    ' WARNING!  Can only work if battery properties of both batteries are properly set!!
- '   if engADCchAVG[cVBAT1] < cVin
+ '   if engADCchAVG[cVBAT1] < minimal_Vin
  '     sVinOK :=0
 
     if sVinOK==1 and s3V3OK==1 and  s5VOK==1  '' Check power supplies 
@@ -911,38 +1210,86 @@ PRI DoADCScaling | T1, i
     ScalingCnt++
     ScalingTime:=(CNT-T1)/80
 
+' === Main initialization === 
 PRI Init
-
-'  SerCog:=ser.start(Baud)                 'Start serial port start(rxpin, txpin, mode, baudrate)
-  SerCog:=ser.start(rxd, txd, 0, baud)     'serial port on prop plug
-  ser.Clear
-  t.Pause1ms(200)
-
   Debug:=false 
+  battery_switch_sound:=true
+  
+  ' Set default Vin voltage tresholds
+  minimal_Vin := 22000
+  warning_Vin := 22600
+  switch_Vin  := 22500
 
+  ' Error tresholds (timing 1 count is 200ms) default values
+  wd_cnt_threshold                   := 5  
+  
+  InitWatchDog
+  
+  'Initialize serial communication 
+  InitSer
+
+  if ADC1Cog > 0
+    ADC.stop
   ADC1Cog:= ADC.Start(dpin1, cpin1, spin1, dpin2, cpin2, spin2, dpin3, cpin3, spin3)
-'  ADC1Cog:= ADC1.Start(dpin1, cpin1, spin1, Mode1) ' Start ADC low level
-'  ADC2Cog:= ADC2.Start(dpin2, cpin2, spin2, Mode1) ' ADC2
   MaxCh:= NCh-1
 
-'  OUTA[Switch]:=1
-'  DIRA[Switch] ~~  'set as output
-
   OUTA[Led]:=1
-  DirA[Led] ~~
-
+  DirA[Led] ~~     'Set indicator led as output
   DirA[BUZZ] ~~    'Set Buzzer as output
-
-  ' Battery and output init
-'   SwitchBat(0)
- '  SwitchAllOff 
 
   SwitchState:=0
 
-  ADCMCog:=cognew(DoADC,@ADCMStack)
-  ADCConvCog:=cognew(DoADCScaling,@ADCConvStack)
-  PlcCog:=cognew(DoPLC,@PLCStack)            'Start PLC cog
+  if ADCMCog > 0
+    cogstop(ADCMCog~ - 1)
+  ADCMCog:=cognew(DoADC,@ADCMStack) + 1
+  
+  ser.str(string("Started ADCMCog", CR))
+  
+  if ADCConvCog > 0
+    cogstop(ADCConvCog~ - 1)
+  ADCConvCog:=cognew(DoADCScaling,@ADCConvStack) + 1
+  
+  ser.str(string("Started ADCConvCog", CR))
+  
+  if PlcCog > 0
+    cogstop(PlcCog~ - 1) 
+  PlcCog:=cognew(DoPLC,@PLCStack) + 1            'Start PLC cog
 
+  ser.str(string("Started PlcCog", CR))
+  
+  if SafetyCog > 0
+    cogstop(SafetyCog~ - 1)  
+  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
+  
+  ser.str(string("Started SafetyCog", CR))
+  
+  if DebugCog > 0
+    cogstop(DebugCog~ - 1)  
+  DebugCog := CogNew(DoDisplay, @DebugStack) + 1
+  
+  ser.str(string("Started Debug", CR))
+  
+PRI shutdown
+    ser.str(string("Should really shutdown now!", CR))
+  
+' === Init serial communication ===
+PRI InitSer
+  MaxWaitTime   := 5000                   'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
+  
+  ByteFill(@StrBuf,0, lMaxStr)
+
+  if SerCog > 0
+    ser.Stop
+  SerCog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
+ 
+  ser.str(string("Started SerCog", CR))
+
+'=== Init Watchdog ===
+PRI InitWatchDog
+  expected_wd   := 0                     
+  wd            := 0
+  wd_cnt        := 0
+  
 ' ---------------- Set OK output on or off (1 or 0) ---------------------------------------
 PUB SetOK(Value)
   if Value==0
@@ -1098,141 +1445,46 @@ PRI MarioUnderworldTune
   BeepHz(0, 1000000/3)
   BeepHz(0, 1000000/3)        
         
+' === Reset AllMin Max values of specific ADC channel === 
+PRI resetAllADCVals | ii
+    ii:=0
+    repeat NCh 
+        resetADCVals(ii++)
+    
+' === Reset Min Max values of specific ADC channel === 
+PRI resetADCVals(i)
+    if i => 0 and i =< NCh
+        ADCRawMIN[i]:=999999
+        ADCRawMAX[i]:=0
+        ADCRawAVG[i]:=0
+        return i
+    else 
+        return -1
 
-' ------------------------------------ Reset Min Max values ADC conversion
-PRI ResetMinMax  | ii
-  ii:=0
-  repeat NCh
-    ADCRawMIN[ii]:=999999
-    ADCRawMAX[ii]:=0
-    ADCRawAVG[ii]:=0
-    ii++
     
 ' ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]
 
 ' -----------------Command handling section ---------------------------------------------
 ' ---------------- Get next parameter from string ---------------------------------------
-PRI sGetPar | j, ii, lPar
+PRI sGetPar | i, j, lch
   j:=0
-  Bytefill(@LastPar1,0,CmdLen)   'Clear buffer
-
-'  ser.str(string(" In GetPar : " ))
-'  ser.tx(Ch)
-  repeat until Ch => "0" and Ch =< "9"  or Ch == "-" or Ch == 0    
-'    ser.tx("{")
-    Getch
-'    ser.tx(Ch)
-
-  if Ch == 0
-'    ser.tx(">")
-'    ser.str(string(" 1: Unexpected end of str! " ))
-    Return -99  'error unexpected end of string
+  i:=0
+  Bytefill(@last_parameter,0,CmdLen)   'Clear buffer
     
-  If debug
-    ser.str(string(" GetPar : " ))
-  repeat while  Ch => "0" and Ch =< "9"  or Ch == "-"
-    if Ch == 0
-      If debug
-        ser.tx(">")
-        ser.str(string(" 2: Unexpected end of str! " ))
-      Return -98  'error unexpected end of string
-    if ch<>"," and j<CmdLen
-'      ser.tx("|")
-'      ser.dec(j)
-'      ser.tx(">")
-'      ser.tx(Ch)
-      byte[@LastPar1][j]:=ch
-      j++
-'       ser.str(@LastPar1)
-     Getch           'skip next
- 
-  ser.str(@LastPar1)
-  LPar:=ser.strtodec(@LastPar1)
-  ser.tx("=")
-  ser.dec(lPar)
-  ser.tx(" ")
-Return Lpar
+  lch:=sGetch                    'Get comma and point to first numeric char
+  repeat while lch <> "," and lch <> 0 'Get parameter until comma or unexpected end
+    if lch <> "$" and lch <> "," and j<CmdLen
+      last_parameter[j++]:=lch
+    lch:=sGetch           'get next
+
+Return ser.strtodec(@last_parameter)
 
 ' ---------------- Get next character from string ---------------------------------------
-Pri GetCh  'Get next character from commandstring
-   If Ch > 0
-     Ch:=Byte[@Data][StrP++]
-'   ser.tx("\")          
-'   ser.tx(ch)
-'***************************************  Handle command string received from client
-PRI DoCommand | CmdDone, lCmd, ParNr, Servonr, Value 'Process command string
-  If Debug
-    Ser.Str(string("Do command: "))
+Pri sGetCh | lch 'Get next character from commandstring
+   lch:=Byte[@StrBuf][StrP++]
+Return lch
 
-  CMDDone:=false
-    Ch:=" "
- '   Ser.char(">")
- '   Ser.char(Data[StrP])
-    StrP:=0
-    
-    repeat until Ch == "$" or StrP => DataLen          'Skip leading chars until $
- '    StrP++
-      GetCh
-      
-    if Ch=="$"
- '    Ser.Str(string(" Cmd Begin "))
-      lCmd:=sGetPar
-      Ser.char(CR)
-      case lCmd 'ch
-        8:   DoReset       ' Reset errors 
-        9:   ResetMinMax
-        
-        10:  ' All Batteries off
-             SwitchBat(0)
-             AutoBatterySwitch:=0
-        11:  ' Switch Bat 1
-             SwitchBat(1)
-             AutoBatterySwitch:=0
-        12:  ' Switch Bat 2
-             SwitchBat(2)
-             AutoBatterySwitch:=0
-'       19:  AutoBatterySwitch:=1     ' Enable auto battery switching
-
-        21: SwitchOn(1)
-        22: SwitchOn(2)
-        23: SwitchOn(3)
-        24: SwitchOn(4)
-        25: SwitchOn(5)
-        26: SwitchOn(6)
-
-        30: SwitchAllOff
-        31: SwitchOff(1)
-        32: SwitchOff(2)
-        33: SwitchOff(3)
-        34: SwitchOff(4)
-        35: SwitchOff(5)
-        36: SwitchOff(6)
-
-        40: ReportAVG
-            Ser.str(string("$41,"))
-        41: ReportMAX
-            Ser.str(string("$42,"))
-        42: ReportMIN
-            Ser.str(string("$43,"))  
-        49: ReportLabels
-            Ser.str(string("$49,"))
-        
-        90: Debug:=true
-        91: Debug:=False
-           
-        other:
-          if Debug
-            Ser.Str(string(" No valid command "))
-          else
-            Ser.STR(string("$-99,"))
-            Ser.dec(lCMD)
-            Ser.tx(",")
-            Ser.TX(CR)
-    else
-      if debug
-        Ser.Str(string(" No command "))
-
-      
+' Symbols      
 DAT
    s_NTC      Byte "   NTC",0      '0  
    s_NC       Byte "    NC",0      '1
