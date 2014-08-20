@@ -339,7 +339,90 @@ PRI handleCommunication
   if Strsize(@StrBuf) > 3                         'Received string must be larger than 3 char's skip rest (noise)
     DoCommand   'Execute command in received string
 
+' === Main initialization === 
+PRI Init
+  Debug:=false 
+  battery_switch_sound:=true
+  
+  'Reset all min/max values
+  resetAllADCVals
+  
+  ' Set default Vin voltage tresholds
+  minimal_Vin := 22000
+  warning_Vin := 22600
+  switch_Vin  := 22500
 
+  ' Error tresholds (timing 1 count is 200ms) default values
+  wd_cnt_threshold                   := 5  
+  
+  InitWatchDog
+  
+  'Initialize serial communication 
+  InitSer
+
+  if ADC1Cog > 0
+    ADC.stop
+  ADC1Cog:= ADC.Start(dpin1, cpin1, spin1, dpin2, cpin2, spin2, dpin3, cpin3, spin3)
+  MaxCh:= NCh-1
+
+  OUTA[Led]:=1
+  DirA[Led] ~~     'Set indicator led as output
+  DirA[BUZZ] ~~    'Set Buzzer as output
+
+  SwitchState:=0
+
+  if ADCMCog > 0
+    cogstop(ADCMCog~ - 1)
+  ADCMCog:=cognew(DoADC,@ADCMStack) + 1
+  
+  ser.str(string("Started ADCMCog", CR))
+  
+  if ADCConvCog > 0
+    cogstop(ADCConvCog~ - 1)
+  ADCConvCog:=cognew(DoADCScaling,@ADCConvStack) + 1
+  
+  ser.str(string("Started ADCConvCog", CR))
+  
+  if PlcCog > 0
+    cogstop(PlcCog~ - 1) 
+  PlcCog:=cognew(DoPLC,@PLCStack) + 1            'Start PLC cog
+
+  ser.str(string("Started PlcCog", CR))
+  
+  if SafetyCog > 0
+    cogstop(SafetyCog~ - 1)  
+  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
+  
+  ser.str(string("Started SafetyCog", CR))
+  
+  if DebugCog > 0
+    cogstop(DebugCog~ - 1)  
+  DebugCog := CogNew(DoDisplay, @DebugStack) + 1
+  
+  ser.str(string("Started Debug", CR))
+  
+PRI shutdown
+    ser.str(string("Should really shutdown now!", CR))
+  
+' === Init serial communication ===
+PRI InitSer
+  MaxWaitTime   := 5000                   'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
+  
+  ByteFill(@StrBuf,0, lMaxStr)
+
+  if SerCog > 0
+    ser.Stop
+  SerCog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
+ 
+  ser.str(string("Started SerCog", CR))
+
+'=== Init Watchdog ===
+PRI InitWatchDog
+  expected_wd   := 0                     
+  wd            := 0
+  wd_cnt        := 0
+  
+  
 '***************************************  Handle command string received from client
 PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, temp, temp2
   t1:=cnt
@@ -609,10 +692,10 @@ PRI selectFullestBattery | fullest_battery
     if isBatteryVoltageOK(fullest_battery) == false
         fullest_battery := 0
 
-    selectBattery(fullest_battery)
+    return selectBattery(fullest_battery)
     
 PRI getFullestBattery
-    if getBatteryVoltage(1) <= getBatteryVoltage(2)
+    if getBatteryVoltage(1) => getBatteryVoltage(2)
       return 1
     else
       return 2
@@ -621,7 +704,7 @@ PRI getBatteryVoltage(i)
     case i
         1: return engADCchAVG[cVBAT1]
         2: return engADCchAVG[cVBAT2]
-        other: return 0
+    return 0
         
 ' === Check if battery voltage is above minimal voltage === 
 PRI isBatteryVoltageOK(i)
@@ -736,6 +819,25 @@ PRI SwitchOff(N)
     5: DIRA[PWRAUX]:=0
        OUTA[PWRAUX]:=0
 
+' === Reset AllMin Max values of specific ADC channel === 
+PRI resetAllADCVals | ii
+    ii:=0
+    repeat NCh 
+        resetADCVals(ii++)
+    
+' === Reset Min Max values of specific ADC channel === 
+PRI resetADCVals(i)
+    if i => 0 and i =< NCh
+        ADCRawMIN[i]:=999999
+        ADCRawMAX[i]:=0
+        ADCRawAVG[i]:=0
+        return i
+    else 
+        return -1
+
+    
+' ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]
+' 
 ' ------------------------ Send AVG parameters to PC
 PRI ReportAVG | i
     i:=0
@@ -1210,86 +1312,7 @@ PRI DoADCScaling | T1, i
     ScalingCnt++
     ScalingTime:=(CNT-T1)/80
 
-' === Main initialization === 
-PRI Init
-  Debug:=false 
-  battery_switch_sound:=true
-  
-  ' Set default Vin voltage tresholds
-  minimal_Vin := 22000
-  warning_Vin := 22600
-  switch_Vin  := 22500
 
-  ' Error tresholds (timing 1 count is 200ms) default values
-  wd_cnt_threshold                   := 5  
-  
-  InitWatchDog
-  
-  'Initialize serial communication 
-  InitSer
-
-  if ADC1Cog > 0
-    ADC.stop
-  ADC1Cog:= ADC.Start(dpin1, cpin1, spin1, dpin2, cpin2, spin2, dpin3, cpin3, spin3)
-  MaxCh:= NCh-1
-
-  OUTA[Led]:=1
-  DirA[Led] ~~     'Set indicator led as output
-  DirA[BUZZ] ~~    'Set Buzzer as output
-
-  SwitchState:=0
-
-  if ADCMCog > 0
-    cogstop(ADCMCog~ - 1)
-  ADCMCog:=cognew(DoADC,@ADCMStack) + 1
-  
-  ser.str(string("Started ADCMCog", CR))
-  
-  if ADCConvCog > 0
-    cogstop(ADCConvCog~ - 1)
-  ADCConvCog:=cognew(DoADCScaling,@ADCConvStack) + 1
-  
-  ser.str(string("Started ADCConvCog", CR))
-  
-  if PlcCog > 0
-    cogstop(PlcCog~ - 1) 
-  PlcCog:=cognew(DoPLC,@PLCStack) + 1            'Start PLC cog
-
-  ser.str(string("Started PlcCog", CR))
-  
-  if SafetyCog > 0
-    cogstop(SafetyCog~ - 1)  
-  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
-  
-  ser.str(string("Started SafetyCog", CR))
-  
-  if DebugCog > 0
-    cogstop(DebugCog~ - 1)  
-  DebugCog := CogNew(DoDisplay, @DebugStack) + 1
-  
-  ser.str(string("Started Debug", CR))
-  
-PRI shutdown
-    ser.str(string("Should really shutdown now!", CR))
-  
-' === Init serial communication ===
-PRI InitSer
-  MaxWaitTime   := 5000                   'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
-  
-  ByteFill(@StrBuf,0, lMaxStr)
-
-  if SerCog > 0
-    ser.Stop
-  SerCog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
- 
-  ser.str(string("Started SerCog", CR))
-
-'=== Init Watchdog ===
-PRI InitWatchDog
-  expected_wd   := 0                     
-  wd            := 0
-  wd_cnt        := 0
-  
 ' ---------------- Set OK output on or off (1 or 0) ---------------------------------------
 PUB SetOK(Value)
   if Value==0
@@ -1445,24 +1468,6 @@ PRI MarioUnderworldTune
   BeepHz(0, 1000000/3)
   BeepHz(0, 1000000/3)        
         
-' === Reset AllMin Max values of specific ADC channel === 
-PRI resetAllADCVals | ii
-    ii:=0
-    repeat NCh 
-        resetADCVals(ii++)
-    
-' === Reset Min Max values of specific ADC channel === 
-PRI resetADCVals(i)
-    if i => 0 and i =< NCh
-        ADCRawMIN[i]:=999999
-        ADCRawMAX[i]:=0
-        ADCRawAVG[i]:=0
-        return i
-    else 
-        return -1
-
-    
-' ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]
 
 ' -----------------Command handling section ---------------------------------------------
 ' ---------------- Get next parameter from string ---------------------------------------
