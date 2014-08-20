@@ -3,6 +3,6 @@ MCP3208_fast_multi.spin
 STRINGS2hk.spin
 FloatMath1_1.spin
 simple_numbers.spin
-Parallax Serial Terminal.spin
+full_duplex_serial_005.spin
 Timing.spin
 >compiler=SPIN
