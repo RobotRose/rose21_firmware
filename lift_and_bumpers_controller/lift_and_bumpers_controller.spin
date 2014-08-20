@@ -133,7 +133,7 @@ CON
 
 OBJ
   ADC           : "MCP3208_fast"                       ' ADC
-  ser           : "Parallax Serial Terminal"           ' Serial communication object
+  ser           : "full_duplex_serial_005"              ' Full duplex serial communication 
   t             : "Timing"
   PWM           : "PWMx8"                              ' PWM module motor drive
   STRs          : "STRINGS2hk"
@@ -619,7 +619,7 @@ PRI Init
   OUTA[Led]:=1                                 ' Led
   DirA[Led] ~~
   
-  SerCog:=ser.StartRxTx(rxd, txd, 0, baud)      'serial port on prop plug #2
+  SerCog:=ser.start(rxd, txd, 0, baud)      'serial port on prop plug #2
   ser.Clear
   t.Pause1ms(200)
 
