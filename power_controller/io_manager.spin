@@ -35,8 +35,8 @@ OBJ
 VAR
   ' Cog variables
   long cog
-  long cog_stack[40]
-  long output_manager_counter
+  long cog_stack[100]
+  long io_manager_counter
 
   long oneMScounter
 
@@ -47,8 +47,14 @@ VAR
   long battery_switch_sound
   long battery_switch_time
   long auto_battery_switch_timeout
-  long v_bat1
-  long v_bat2
+  long v_bat1_raw
+  long v_bat2_raw
+  long v_bat1_avg
+  long v_bat2_avg
+  byte new_request
+  byte batteries_low
+  long battery_shutdown_voltage[3]
+  long battery_shutdown_hysteresis_voltage[3]
 
   ' Voltage tresholds
   long minimal_Vin               ' Minimal Vin supply
@@ -68,42 +74,67 @@ PUB start
   stop                          ' stop cog if running from before
   
   cog := cognew(manage, @cog_stack) + 1 
-  t.Pause1ms(1)                 ' wait  for cog to start (300us on 80Mhz)
-                                
-  initialize
-  
+  t.Pause10us(50)                 ' wait  for cog to start (300us on 80Mhz)
+                             
   return cog
 
 PUB stop
-'' Stop driver - frees a cog
+  '' Stop driver - frees a cog
   if cog
     cogstop(cog~ - 1)
 
 PRI initialize | i  
-  output_manager_counter := 0
+  new_request := false
+  io_manager_counter := 0
+  
+  ' Default values
+  batteries_low               := false
+  battery_switch_sound        := true
+  auto_battery_switch         := false
+  auto_battery_switch_timeout := 2000
+  battery_switch_time         := -auto_battery_switch_timeout 
+  active_battery              := 0
+  requested_battery           := 0
+  battery_shutdown_voltage[0] := 9999999             '[mV]
+  battery_shutdown_voltage[1] := 9999999             '[mV]
+  battery_shutdown_voltage[2] := 9999999             '[mV]
+  battery_shutdown_hysteresis_voltage[0] := 1000     '[mV]
+  battery_shutdown_hysteresis_voltage[1] := 1000     '[mV]
+  battery_shutdown_hysteresis_voltage[2] := 1000     '[mV]
   
   ' Set default auto_battery_switch_timeout
   auto_battery_switch_timeout := default_auto_battery_switch_timeout
   
   ' Set default Vin voltage tresholds
   minimal_Vin := 22000
-  warning_Vin := 22600
+  warning_Vin := 23000
   switch_Vin  := 24000
   
   ' Reset switch states
   i := 0
   repeat n_switches
     switch_state[i++] := false
+    
+  sound.init(BUZZ)
+    
 
-PUB updateBatteryVoltages(v1, v2)
-  v_bat1 := v1
-  v_bat2 := v2
+PUB updateBatteryVoltages(v1_raw, v2_raw, v1_avg, v2_avg)
+  v_bat1_raw := v1_raw
+  v_bat2_raw := v2_raw
+  v_bat1_avg := v1_avg
+  v_bat2_avg := v2_avg
 
 PUB requestBattery(N)
   requested_battery := N
+  new_request := true
+  
+  ' If this function is called from the IO_manager cog itself we need to call this function: checkBatterySwitch 
+  ' This to prevent a deadlock
+  if cogid == cog - 1
+    checkBatterySwitch
 
-  ' Provide some time for the battery switch
-  t.Pause1ms(10)  
+  ' Wait for the request to be handled
+  repeat while new_request 
 
   ' Return the currently active battery
   return active_battery
@@ -119,87 +150,118 @@ PRI manage | t1
     managePowerOutputs
     manageBatteries
     
-    if (||t1) - (||cnt) => (clkfreq/1000)
+    if ||(cnt - t1) => (clkfreq/1000)
       oneMScounter++
+      t1 := cnt
     
-    ' Wrap!! TODO nicer way to do this 1ms timer
+    ' Wrap!! TODO nicer way to do this 1ms timer?
     if oneMScounter < 0 
       oneMScounter := 0
       
-    output_manager_counter++
+    io_manager_counter++
     
-    sound.BeepHz(output_manager_counter, 1000000,64)
-  
+
 PRI managePowerOutputs
   updateSwitches
-
-PRI manageBatteries | switch_time_diff
+  
+PRI checkBatterySwitch
   ' Switch batteries if requested
   if requested_battery <> active_battery
     selectBattery(requested_battery)
+ 
+  new_request := false
 
-  ' Check voltage levels
-  if checkBelowWarningVoltage
-     lowVoltageWarning 
-
+PRI manageBatteries | switch_time_diff
   ' Battery management and automatic switch from Bat1 to Bat 2
   ' WARNING!  Can only work if battery properties of both batteries are properly set!!
-  if auto_battery_switch == true AND getBatteryVoltage(active_battery) < switch_Vin
+  if auto_battery_switch == true AND getBatteryVoltageRaw(active_battery) < switch_Vin
     ' Prevent fast back and forth switching by checking if the difference of the voltages is larger than a certain hysteresis value
     switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
     if switch_time_diff => auto_battery_switch_timeout
       selectFullestBattery
   
-PUB selectFullestBattery | fullest_battery
-
+  checkBatterySwitch
+      
+  ' Check voltage levels
+  batteries_low := checkWarningVoltage
+  
+PUB selectFullestBattery | fullest_battery, emptiest_battery, selected_battery
     fullest_battery := getFullestBattery
+    emptiest_battery := getEmptiestBattery
     
     ' Select none of the batteries if the fullest is below the minimal voltage
-    if isBatteryVoltageOK(fullest_battery) == false
-        fullest_battery := 0
-
-    return requestBattery(fullest_battery)
+    ' Check the if the voltage is higher than the shutdown hysteresis
+    if isBatteryVoltageOK(fullest_battery) AND isBatteryVoltageHysteresisOK(fullest_battery) 
+      selected_battery := fullest_battery
+    else
+      if isBatteryVoltageOK(emptiest_battery) AND isBatteryVoltageHysteresisOK(emptiest_battery)
+        selected_battery := emptiest_battery  
+      else
+        selected_battery := 0
+   
+    return requestBattery(selected_battery)
 
 ' === Return the index of the fullest battery ===
 PUB getFullestBattery
-    if getBatteryVoltage(1) => getBatteryVoltage(2)
+    if getBatteryVoltageRaw(1) => getBatteryVoltageRaw(2)
       return 1
     else
       return 2
+
+' === Return the index of the empties battery ===
+PUB getEmptiestBattery
+    if getBatteryVoltageRaw(1) => getBatteryVoltageRaw(2)
+      return 2
+    else
+      return 1
   
-' === Returns the voltage of the specified battery ===      
-PUB getBatteryVoltage(i)
+' === Returns the raw unfiltered voltage of the specified battery ===      
+PUB getBatteryVoltageRaw(i)
     case i
-        1: return v_bat1
-        2: return v_bat2
+        1: return v_bat1_raw
+        2: return v_bat2_raw
     return 0
+    
+' === Returns the average voltage of the specified battery ===      
+PUB getBatteryVoltageAvg(i)
+    case i
+        1: return v_bat1_avg
+        2: return v_bat2_avg
+    return 0
+    
+PUB getBatteryShutdownVoltage(i)
+  return battery_shutdown_voltage[i]
         
 ' === Check if battery voltage is above minimal voltage === 
 PUB isBatteryVoltageOK(i)
-    return (getBatteryVoltage(i) => minimal_Vin) 
+    return (getBatteryVoltageAvg(i) => minimal_Vin) 
 
 ' === Check if battery warning is required (both batteries below warning_Vin) ===
-PRI checkBelowWarningVoltage
-    return (getBatteryVoltage(1) =< warning_Vin AND getBatteryVoltage(2) =< warning_Vin)
-   
+PRI checkWarningVoltage 
+    return (isBatteryWarningVoltageOK(1) AND isBatteryWarningVoltageOK(2))
 
-' === Produce battery warning signal ===
-PRI lowVoltageWarning
-    sound.BeepHz(BUZZ, 1000, 1000000/4)
-    sound.BeepHz(BUZZ, 500, 1000000/2)
-    sound.BeepHz(BUZZ, 1000, 1000000/4)
-    sound.BeepHz(BUZZ, 500, 1000000/2)
-    sound.BeepHz(BUZZ, 1000, 1000000/4)
-    sound.BeepHz(BUZZ, 500, 1000000/2)
-    
+PUB isBatteryWarningVoltageOK(i)
+  return getBatteryVoltageAvg(i) =< warning_Vin
+  
+' === Check if the shutdown voltage is minimally larger that the minimal voltage plus the treshold voltage ===
+' To account for voltage drop with load
+PRI isBatteryVoltageHysteresisOK(i)   
+  return (getBatteryShutdownVoltage(i) => (minimal_vin + battery_shutdown_hysteresis_voltage[i])) OR (getBatteryVoltageAvg(i) => minimal_vin + battery_shutdown_hysteresis_voltage[i])
+  
 'Switch battery 1 or 2. Disable outputs to cut all output current off from darlington
 'Otherwise the Fet won't switch off properly
 'Check for minimal voltage here?
 'Ensures that all ouputs are off when switching from no battery to A battery
 PRI selectBattery(N)
-  if active_battery == 0 OR N == 0 
+  ' If the selected battery is below the minimal voltage switch off the outputs
+  ' This also ensures that the outputs are not being left in an on state
+  if not isBatteryVoltageOK(N) 'active_battery == 0 OR N == 0 
     SwitchAllOff         ' Switch off all outputs
-
+  
+  ' Store the voltage a battery had before toggeling it off
+  if N <> active_battery
+    battery_shutdown_voltage[active_battery] := getBatteryVoltageRaw(active_battery)
+   
   case N
     0: OUTA[PWRBAT1]:=0   
        OUTA[PWRBAT2]:=0
@@ -242,7 +304,7 @@ PRI selectBattery(N)
   
   
   
-' ====== OUTPUTS ======
+' ====== POWER OUTPUTS ======
 ' Switch output 0 to 5. 0= all off
 PRI SwitchAllOff
   setSwitch(0, false)
@@ -296,7 +358,7 @@ PRI SwitchOn(N)
        OUTA[PWRAUX]:=1
   
   'Ensure that not all outputs can be turned on at the same time (to limit peak currents)
-  t.Pause1ms(10)
+  t.Pause10us(10)
 
 PRI SwitchOff(N)
   Case N
@@ -412,9 +474,18 @@ PUB GetAUX
 
 ' ====== getters and setters ======
 
+PUB getBatteriesLow
+  return batteries_low
+  
+PUB getIOManagerCounter
+  return io_manager_counter
+
 PUB getActiveBattery
   return active_battery
-  
+
+PUB setBatterySwitchTime(time)
+  battery_switch_time := time
+    
 PUB getBatterySwitchTime
   return battery_switch_time
   
@@ -456,6 +527,13 @@ PUB setBatterySwitchTimeout(timeout)
 
 PUB getBatterySwitchTimeout
   return auto_battery_switch_timeout 
+  
+PUB setBatteryShutdownHysteresisVoltage(voltage)
+  battery_shutdown_hysteresis_voltage := voltage
+
+PUB getBatteryShutdownHysteresisVoltage
+  return battery_shutdown_hysteresis_voltage   
+  
   
 DAT   
     NOTE_B0  WORD 31

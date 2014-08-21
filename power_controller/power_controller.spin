@@ -162,7 +162,7 @@ VAR
   LONG PLCCog, PLCStack[50], LinMotCog
   Long ADCRaw[NCh], ADCRawMin[NCh], ADCRawMax[NCh], ADCRawAvg[NCh]  ' Raw bit values
   Long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]      ' Volt
-  Long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
+  Long engADCch[NCh], engADCchRAW[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
   LONG Switchstate, MainCnt, MaxCh, ADCTime, ADCCnt, DoMotorCnt, ScalingCnt, ScalingTime
 
   ' Safety related vars
@@ -196,7 +196,6 @@ VAR
   
   ' Safety
   long SafetyCog, SafetyStack[40], SafetyCntr, no_alarm, last_alarm
-  long oneMScounter
   
   ' Debug
   long DebugCog, DebugStack[40]
@@ -221,10 +220,18 @@ PUB Main
   repeat
     MainCnt++
 
-    handleCommunication  
-   
-    io_manager.updateBatteryVoltages(engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
+    handleCommunication 
+    
+    if io_manager.getBatteriesLow 
+      sound.lowVoltageWarning(BUZZ)
+      
+    ser.str(string("Bat 1 shutdown voltage: "))
+    ser.dec(io_manager.getBatteryShutdownVoltage(1))
+    ser.str(string(" | Bat 2 shutdown voltage: "))
+    ser.dec(io_manager.getBatteryShutdownVoltage(2))   
+    ser.char(CR) 
 
+   
     't.Pause1ms(50)
     '!OUTA[Led]
 
@@ -268,7 +275,8 @@ PRI Init
 
   OUTA[Led]:=1
   DirA[Led] ~~     'Set indicator led as output
-  DirA[BUZZ] ~~    'Set Buzzer as output
+
+  sound.init(BUZZ)  
 
   SwitchState:=0
 
@@ -325,8 +333,7 @@ PRI Init
     ser.str(string("Unable to start io_managerCog", CR))
     
   io_manager.setBatterySwitchSound(true)
-  io_manager.setBatterySwitchTimeout(-io_manager.getBatterySwitchTimeout)
-  io_manager.setAutoBatterySelect(false)
+  io_manager.setAutoBatterySelect(true)
   
 PRI shutdown
     ser.str(string("Should really shutdown now!", CR))
@@ -548,7 +555,6 @@ Return commandOK
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
   wd_cnt                   := 0
-  oneMScounter             := 0
   no_alarm                 := true                'Reset global alarm var
   last_alarm               := 0                   'Reset last alarm message
 
@@ -565,14 +571,12 @@ PRI DoSafety | i, ConnectionError, bitvalue
       ' TAKE ACTION! TODO
 
     t.Pause1ms(1)
-        
-
-
+   
        
 ' === Do logic tasks and safety tasks ===
-PRI DoPLC | switch_time_diff
+PRI DoPLC 
   Repeat
-  ' Check safetay related values
+    ' Check safety related values
 
     if engADCchAVG[cV5V] < c5V
       s5VOK :=0
@@ -591,10 +595,15 @@ PRI DoPLC | switch_time_diff
     If io_manager.GetEMERin==1 ' and sVinOK==1 and AllOK==1 ' Process emergency alarms to OK output
       io_manager.requestOkOutputState(1)
     else
-      io_manager.requestOkOutputState(0)
+      io_manager.requestOkOutputState(0)      
       AllOK:=0
- 
+      
+    'Update battery voltages at io_manager with current values
+    io_manager.updateBatteryVoltages(engADCchRAW[cVBAT1], engADCchRAW[cVBAT2], engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
+
     PlcCnt++
+    
+    
     
 ' === Reset AllMin Max values of specific ADC channel === 
 PRI resetAllADCVals | ii
@@ -693,7 +702,7 @@ PRI ReportLabels
 ' ------------------------ Show debug output -----------------------------
 PRI DoDisplay  | i
     repeat 
-      t.Pause1ms(1000)
+      t.Pause1ms(10)
       If Debug      
         ser.position(0,0)
 
@@ -823,8 +832,17 @@ PRI DoDisplay  | i
           i++
           ser.tx(" ")
         ser.tx(CE)
-    
+        
         ser.tx(CR)
+        ser.tx(CR)
+        i:=0
+        ser.str(string("eADCvRAW:"))
+        repeat NCh
+          ser.str(num.decf(engADCchRAW[i],NumWidth))  'Engineering raw
+          i++
+          ser.tx(" ")
+        ser.tx(CE)    
+        
         ser.tx(CR)
         i:=0
         ser.str(string("eADCvAVG:"))
@@ -870,6 +888,10 @@ PRI DoDisplay  | i
         ser.tx(" ")
         ser.str(string("MainCnt: "))
         ser.dec(MainCnt)   
+        ser.tx(" ")
+        ser.str(string("IOManagerCnt: "))
+        ser.dec(io_manager.getIOManagerCounter)   
+        
     
         ser.tx(cr)
         ser.tx(ce)
@@ -1045,6 +1067,7 @@ PRI DoADCScaling | T1, i
 '       0: engADCchAVG[i]:=
 '       1: engADCchAVG[i]:=99
 '       2: engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate mV
+        engADCchRAW[i]:= f.fround(f.fmul(f.Ffloat(ADCch[i]), Scale[i])) 'Calculate RAW mV
         engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate AVG mV
         engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i])) 'Calculate MAX mV
         engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i])) 'Calculate MIN mV
