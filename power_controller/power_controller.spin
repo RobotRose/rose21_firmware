@@ -56,96 +56,7 @@
 '' 
 
 DAT   
-    NOTE_B0  WORD 31
-    NOTE_C1  WORD 33
-    NOTE_CS1 WORD 35
-    NOTE_D1  WORD 37
-    NOTE_DS1 WORD 39
-    NOTE_E1  WORD 41
-    NOTE_F1  WORD 44
-    NOTE_FS1 WORD 46
-    NOTE_G1  WORD 49
-    NOTE_GS1 WORD 52
-    NOTE_A1  WORD 55
-    NOTE_AS1 WORD 58
-    NOTE_B1  WORD 62
-    NOTE_C2  WORD 65
-    NOTE_CS2 WORD 69
-    NOTE_D2  WORD 73
-    NOTE_DS2 WORD 78
-    NOTE_E2  WORD 82
-    NOTE_F2  WORD 87
-    NOTE_FS2 WORD 93
-    NOTE_G2  WORD 98
-    NOTE_GS2 WORD 104
-    NOTE_A2  WORD 110
-    NOTE_AS2 WORD 117
-    NOTE_B2  WORD 123
-    NOTE_C3  WORD 131
-    NOTE_CS3 WORD 139
-    NOTE_D3  WORD 147
-    NOTE_DS3 WORD 156
-    NOTE_E3  WORD 165
-    NOTE_F3  WORD 175
-    NOTE_FS3 WORD 185
-    NOTE_G3  WORD 196
-    NOTE_GS3 WORD 208
-    NOTE_A3  WORD 220
-    NOTE_AS3 WORD 233
-    NOTE_B3  WORD 247
-    NOTE_C4  WORD 262
-    NOTE_CS4 WORD 277
-    NOTE_D4  WORD 294
-    NOTE_DS4 WORD 311
-    NOTE_E4  WORD 330
-    NOTE_F4  WORD 349
-    NOTE_FS4 WORD 370
-    NOTE_G4  WORD 392
-    NOTE_GS4 WORD 415
-    NOTE_A4  WORD 440
-    NOTE_AS4 WORD 466
-    NOTE_B4  WORD 494
-    NOTE_C5  WORD 523
-    NOTE_CS5 WORD 554
-    NOTE_D5  WORD 587
-    NOTE_DS5 WORD 622
-    NOTE_E5  WORD 659
-    NOTE_F5  WORD 698
-    NOTE_FS5 WORD 740
-    NOTE_G5  WORD 784
-    NOTE_GS5 WORD 831
-    NOTE_A5  WORD 880
-    NOTE_AS5 WORD 932
-    NOTE_B5  WORD 988
-    NOTE_C6  WORD 1047
-    NOTE_CS6 WORD 1109
-    NOTE_D6  WORD 1175
-    NOTE_DS6 WORD 1245
-    NOTE_E6  WORD 1319
-    NOTE_F6  WORD 1397
-    NOTE_FS6 WORD 1480
-    NOTE_G6  WORD 1568
-    NOTE_GS6 WORD 1661
-    NOTE_A6  WORD 1760
-    NOTE_AS6 WORD 1865
-    NOTE_B6  WORD 1976
-    NOTE_C7  WORD 2093
-    NOTE_CS7 WORD 2217
-    NOTE_D7  WORD 2349
-    NOTE_DS7 WORD 2489
-    NOTE_E7  WORD 2637
-    NOTE_F7  WORD 2794
-    NOTE_FS7 WORD 2960
-    NOTE_G7  WORD 3136
-    NOTE_GS7 WORD 3322
-    NOTE_A7  WORD 3520
-    NOTE_AS7 WORD 3729
-    NOTE_B7  WORD 3951
-    NOTE_C8  WORD 4186
-    NOTE_CS8 WORD 4435
-    NOTE_D8  WORD 4699
-    NOTE_DS8 WORD 4978
-
+  
 CON
    ' Version
    major_version    = 0
@@ -200,22 +111,12 @@ CON
 'Buzzer
    BUZZ         = 9
 
-'Power channels
-   PWRBAT1      = 16
-   PWRBAT2      = 17
-   PWRCONTR     = 18
-   PWRPC1       = 19
-   PWRPC2       = 20
-   PWRDR2       = 22
-   PWRDR1       = 21 
-   PWRAUX       = 23
-
 'ADC channels
    NCh = 16              'Number of measuring channels
 
   'ADC1   
    cNTC       = 0
-   NC1        = 1  'not used
+   NC1        = 1        'not used
    V24VContr  = 2
    IAUX       = 3
    IDR2       = 4
@@ -238,28 +139,26 @@ CON
  
    mVBat     = 11.0 ' Real voltage in mV on battery resitor network 10k 1k
    mI        = 10.0 ' 1:10000 conversion from mA current to mV
-   
-'Safety I/O
-  EMERin = 0   'Safety input
-  OK     = 1   'Safety output relais
-  IN0    = 2   'Extra input optocoupler
-  OUT0   = 3   'Extra relais output
 
 ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
 
+
    
 OBJ
-  ADC           : "MCP3208_fast_multi"                  ' ADC
-  ser           : "full_duplex_serial_005"              ' Full duplex serial communication 
-  t             : "Timing"
-  num           : "simple_numbers"                      ' Number to string conversion
-  STRs          : "STRINGS2hk"
-  f             : "FloatMath1_1"                        ' Floating point library
+  ADC             : "MCP3208_fast_multi"                  ' ADC
+  io_manager      : "io_manager"                          ' IO management cog
+  sound           : "sound"                               ' Sound 
+  ser             : "full_duplex_serial_005"              ' Full duplex serial communication 
+  t               : "Timing"
+  num             : "simple_numbers"                      ' Number to string conversion
+  STRs            : "STRINGS2hk"
+  f               : "FloatMath1_1"                        ' Floating point library
+  
   
 VAR
-  LONG ADC1Cog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], ADCConvStack[250], ADCConvCog
+  LONG ADCCog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], io_manager_cog
   LONG PLCCog, PLCStack[50], LinMotCog
   Long ADCRaw[NCh], ADCRawMin[NCh], ADCRawMax[NCh], ADCRawAvg[NCh]  ' Raw bit values
   Long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]      ' Volt
@@ -271,10 +170,7 @@ VAR
 
   Long Scale[Nch]   '' array with scaling factors
   
-  ' Battery management
-  Long auto_battery_switch  '1: enables local auto battery switch
-  Long active_battery       '0: all batteries off, 1: Battery 1 on 2: battery 2 on
-  long battery_switch_sound
+
 
   ' Vars for command handling and processing
   Long ConnectCnt, ConnectTime    
@@ -300,38 +196,37 @@ VAR
   
   ' Safety
   long SafetyCog, SafetyStack[40], SafetyCntr, no_alarm, last_alarm
+  long oneMScounter
   
   ' Debug
   long DebugCog, DebugStack[40]
   
   ' Errors
   long wd_cnt_threshold
-  
-  ' Voltage tresholds
-  long minimal_Vin               ' Minimal Vin supply
-  long warning_Vin               ' Warning supply voltage    
-  long switch_Vin                ' Switch supply voltage
+ 
 
 PUB Main
   Init
 
-  'Beep
+  'sound.Beep(BUZZ)
   
-  BeepHz(NOTE_A4, 1000000/16)
-  BeepHz(NOTE_A5, 1000000/16)
-  BeepHz(NOTE_A6, 1000000/16)
-  BeepHz(NOTE_A7, 1000000/16)
-  BeepHz(NOTE_F7, 1000000/20)
-  BeepHz(NOTE_G7, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A4, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A5, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A6, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A7, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_F7, 1000000/20)
+  sound.BeepHz(BUZZ, NOTE_G7, 1000000/16)
   
   ' Main loop
   repeat
     MainCnt++
 
-    handleCommunication      
+    handleCommunication  
+   
+    io_manager.updateBatteryVoltages(engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
 
     't.Pause1ms(50)
-    !OUTA[Led]
+    '!OUTA[Led]
 
 PRI handleCommunication
   ser.StrInMaxTime(@StrBuf, lMaxStr, MaxWaitTime)   'Non blocking max wait time
@@ -341,28 +236,34 @@ PRI handleCommunication
 
 ' === Main initialization === 
 PRI Init
-  Debug:=false 
-  battery_switch_sound:=true
+  Debug := false 
+
   
   'Reset all min/max values
   resetAllADCVals
-  
-  ' Set default Vin voltage tresholds
-  minimal_Vin := 22000
-  warning_Vin := 22600
-  switch_Vin  := 22500
 
-  ' Error tresholds (timing 1 count is 200ms) default values
-  wd_cnt_threshold                   := 5  
+  ' Error tresholds (timing 1 count is 1*ms) default values
+  wd_cnt_threshold                   := 1000  
   
   InitWatchDog
   
   'Initialize serial communication 
   InitSer
+  
+  ser.str(string("Main Cog running in cog: "))
+  ser.dec(cogid + 1)
+  ser.char(CR)
 
-  if ADC1Cog > 0
+  if ADCCog > 0
     ADC.stop
-  ADC1Cog:= ADC.Start(dpin1, cpin1, spin1, dpin2, cpin2, spin2, dpin3, cpin3, spin3)
+  ADCCog:= ADC.Start(dpin1, cpin1, spin1, dpin2, cpin2, spin2, dpin3, cpin3, spin3)
+  if ADCCog
+    ser.str(string("Started ADCCog("))
+    ser.dec(ADCCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start ADCCog", CR))
+    
   MaxCh:= NCh-1
 
   OUTA[Led]:=1
@@ -375,31 +276,57 @@ PRI Init
     cogstop(ADCMCog~ - 1)
   ADCMCog:=cognew(DoADC,@ADCMStack) + 1
   
-  ser.str(string("Started ADCMCog", CR))
-  
-  if ADCConvCog > 0
-    cogstop(ADCConvCog~ - 1)
-  ADCConvCog:=cognew(DoADCScaling,@ADCConvStack) + 1
-  
-  ser.str(string("Started ADCConvCog", CR))
+  if ADCMCog
+    ser.str(string("Started ADCMCog("))
+    ser.dec(ADCMCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start ADCMCog", CR))
   
   if PlcCog > 0
     cogstop(PlcCog~ - 1) 
   PlcCog:=cognew(DoPLC,@PLCStack) + 1            'Start PLC cog
-
-  ser.str(string("Started PlcCog", CR))
   
+  if PlcCog
+    ser.str(string("Started PlcCog("))
+    ser.dec(PlcCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start PlcCog", CR))
+    
   if SafetyCog > 0
     cogstop(SafetyCog~ - 1)  
   SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
   
-  ser.str(string("Started SafetyCog", CR))
+  if SafetyCog
+    ser.str(string("Started SafetyCog("))
+    ser.dec(SafetyCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start SafetyCog", CR))
   
   if DebugCog > 0
     cogstop(DebugCog~ - 1)  
   DebugCog := CogNew(DoDisplay, @DebugStack) + 1
   
-  ser.str(string("Started Debug", CR))
+  if DebugCog
+    ser.str(string("Started DebugCog("))
+    ser.dec(DebugCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start DebugCog", CR))
+  
+  io_manager_cog := io_manager.start
+  if io_manager_cog
+    ser.str(string("Started io_managerCog("))
+    ser.dec(io_manager_cog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start io_managerCog", CR))
+    
+  io_manager.setBatterySwitchSound(true)
+  io_manager.setBatterySwitchTimeout(-io_manager.getBatterySwitchTimeout)
+  io_manager.setAutoBatterySelect(false)
   
 PRI shutdown
     ser.str(string("Should really shutdown now!", CR))
@@ -413,8 +340,15 @@ PRI InitSer
   if SerCog > 0
     ser.Stop
   SerCog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
- 
-  ser.str(string("Started SerCog", CR))
+  
+  if SerCog
+    ser.str(string("Started SerCog("))
+    ser.dec(SerCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start SerCog", CR))
+
+  return SerCog
 
 '=== Init Watchdog ===
 PRI InitWatchDog
@@ -536,17 +470,17 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              
         'Select fullest battery
         404: ser.str(string("$404,"))
-             ser.dec(selectFullestBattery)
+             ser.dec(io_manager.selectFullestBattery)
              ser.str(string(",", CR))
              
         ' Force select battery
         405: temp := sGetPar        ' Which battery to select
              
              ' Turn off auto battery selecting mode   
-             setAutoBatterySelect(false) 
+             io_manager.setAutoBatterySelect(false) 
                                                  ' 
              ser.str(string("$405,"))
-             ser.dec(selectBattery(temp))
+             ser.dec(io_manager.requestBattery(temp))
              ser.str(string(",", CR))     
        
         ' Turn on/off auto battery selecting mode
@@ -554,12 +488,12 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              
              ' Turn off or on the auto battery selecting mode  (default on) 
              if temp == 0
-                setAutoBatterySelect(false)
+                io_manager.setAutoBatterySelect(false)
              else
-                setAutoBatterySelect(true)    
+                io_manager.setAutoBatterySelect(true)    
              
              ser.str(string("$406,"))
-             if auto_battery_switch == true
+             if io_manager.getAutoBatterySelect
                 ser.dec(1)
              else
                 ser.dec(0)
@@ -573,9 +507,9 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              if temp => 0 and temp =< 5   
                  ' Turn on or off the specified ouput
                  if temp2 == 1     
-                    setSwitch(temp, true)
+                    io_manager.setSwitch(temp, true)
                  else
-                    setSwitch(temp, false)    
+                    io_manager.setSwitch(temp, false)    
                     
                  ser.str(string("$407,"))
                  ser.dec(temp)
@@ -596,10 +530,10 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.str(string("$408,"))
              ' Turn on or off auto battery selecting mode   
              if temp == 1
-               battery_switch_sound := true
+               io_manager.setBatterySwitchSound(true)
                ser.dec(1)
              else 
-               battery_switch_sound := false
+               io_manager.setBatterySwitchSound(false)
                ser.dec(0)                                                ' 
              ser.str(string(",", CR))     
                   
@@ -614,6 +548,7 @@ Return commandOK
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
   wd_cnt                   := 0
+  oneMScounter             := 0
   no_alarm                 := true                'Reset global alarm var
   last_alarm               := 0                   'Reset last alarm message
 
@@ -629,196 +564,38 @@ PRI DoSafety | i, ConnectionError, bitvalue
       no_alarm   := false
       ' TAKE ACTION! TODO
 
-    t.Pause1ms(200)
-      
-{{'Do switches
-PRI DOSwitches
-'0 = off 1 = on
-
-    case Switchstate // 5
-      0: OUTA[PWRBAT1]:=0   '
-         OUTA[PWRBAT2]:=1
-         OUTA[PWRCONTR]:=1
-         OUTA[PWRPC1]:=1
-         OUTA[PWRPC2]:=1  
-         OUTA[PWRDR1]:=1
-         OUTA[PWRDR2]:=1
-         OUTA[PWRAUX]:=1
-         
-      1: OUTA[PWRBAT1]:=0   '
-         OUTA[PWRBAT2]:=1
-         OUTA[PWRCONTR]:=0
-         OUTA[PWRPC1]:=0
-         OUTA[PWRPC2]:=0
-         OUTA[PWRDR1]:=0
-         OUTA[PWRDR2]:=0
-         OUTA[PWRAUX]:=0
-
-      2: OUTA[PWRBAT1]:=0   '
-         OUTA[PWRBAT2]:=1
-         OUTA[PWRCONTR]:=0
-         OUTA[PWRPC1]:=0
-         OUTA[PWRPC2]:=0  
-         OUTA[PWRDR1]:=0
-         OUTA[PWRDR2]:=0
-         OUTA[PWRAUX]:=0
-
-      3: OUTA[PWRBAT1]:=1   '
-         OUTA[PWRBAT2]:=0
-         OUTA[PWRCONTR]:=1
-         OUTA[PWRPC1]:=1
-         OUTA[PWRPC2]:=1  
-         OUTA[PWRDR1]:=1
-         OUTA[PWRDR2]:=1
-         OUTA[PWRAUX]:=1
-
-      4: OUTA[PWRBAT1]:=0   '
-         OUTA[PWRBAT2]:=0
-         OUTA[PWRCONTR]:=0
-         OUTA[PWRPC1]:=0
-         OUTA[PWRPC2]:=0  
-         OUTA[PWRDR1]:=0
-         OUTA[PWRDR2]:=0
-         OUTA[PWRAUX]:=0}
-  }}
-  
-PRI setAutoBatterySelect(state)
-    auto_battery_switch := state
-  
-PRI selectFullestBattery | fullest_battery
-    fullest_battery := getFullestBattery
-    
-    ' Select none of the batteries if the fullest is below the minimal voltage
-    if isBatteryVoltageOK(fullest_battery) == false
-        fullest_battery := 0
-
-    return selectBattery(fullest_battery)
-    
-PRI getFullestBattery
-    if getBatteryVoltage(1) => getBatteryVoltage(2)
-      return 1
-    else
-      return 2
-      
-PRI getBatteryVoltage(i)
-    case i
-        1: return engADCchAVG[cVBAT1]
-        2: return engADCchAVG[cVBAT2]
-    return 0
+    t.Pause1ms(1)
         
-' === Check if battery voltage is above minimal voltage === 
-PRI isBatteryVoltageOK(i)
-    return (getBatteryVoltage(i) => minimal_Vin) 
 
-' === Check if battery warning is required (both batteryies below warning_Vin) ===
-PRI checkBelowWarningVoltage
-    return (getBatteryVoltage(1) =< warning_Vin AND getBatteryVoltage(2) =< warning_Vin)
-   
 
-' === Produce battery warning signal ===
-PRI lowVoltageWarning
-    BeepHz(1000, 1000000/4)
-    BeepHz(500, 1000000/2)
-    BeepHz(1000, 1000000/4)
-    BeepHz(500, 1000000/2)
-    BeepHz(1000, 1000000/4)
-    BeepHz(500, 1000000/2)
+       
+' === Do logic tasks and safety tasks ===
+PRI DoPLC | switch_time_diff
+  Repeat
+  ' Check safetay related values
+
+    if engADCchAVG[cV5V] < c5V
+      s5VOK :=0
+
+    if engADCchAVG[cV3V3] < c3V3                                                               
+      s3V3OK :=0
+
+    if engADCchAVG[cV24VBus] < io_manager.getMinimalVin
+      sVinOK :=0
+      
+    if sVinOK==1 and s3V3OK==1 and  s5VOK==1  '' Check power supplies 
+      io_manager.requestOut0OutputState(1)
+    else
+      io_manager.requestOut0OutputState(0)
+      
+    If io_manager.GetEMERin==1 ' and sVinOK==1 and AllOK==1 ' Process emergency alarms to OK output
+      io_manager.requestOkOutputState(1)
+    else
+      io_manager.requestOkOutputState(0)
+      AllOK:=0
+ 
+    PlcCnt++
     
-'Switch battery 1 or 2. Disable outputs to cut all output current off from darlington
-'Otherwise the Fet won't switch off properly
-'Check for minimal voltage here?
-'Ensures that all ouputs are off when swithcing from no battery to A battery
-PRI selectBattery(N)
-
-  if active_battery == 0 OR N == 0
-    SwitchAllOff         ' Switch off all outputs
-
-  case N
-    0: OUTA[PWRBAT1]:=0   
-       OUTA[PWRBAT2]:=0
-       DIRA[PWRBAT1]:=0
-       DIRA[PWRBAT2]:=0
-       active_battery := N 
-       
-       if battery_switch_sound == true
-         BeepHz(NOTE_E7, 1000000/16) 
-         BeepHz(0, 1000000/32) 
-         BeepHz(NOTE_E3, 1000000/8)    
-       
-    1: DIRA[PWRBAT1]:=1
-       OUTA[PWRBAT1]:=1 
-       DIRA[PWRBAT2]:=0
-       OUTA[PWRBAT2]:=0
-       active_battery := N
-       
-       if battery_switch_sound == true
-         BeepHz(NOTE_E7, 1000000/16)  
-         BeepHz(0, 1000000/32)
-         BeepHz(NOTE_E5, 1000000/32)
-
-    2: DIRA[PWRBAT1]:=0
-       OUTA[PWRBAT1]:=0 
-       DIRA[PWRBAT2]:=1
-       OUTA[PWRBAT2]:=1
-       active_battery := N
-       
-       if battery_switch_sound == true
-         BeepHz(NOTE_E7, 1000000/16) 
-         BeepHz(0, 1000000/32) 
-         BeepHz(NOTE_E5, 1000000/32)
-         BeepHz(0, 1000000/32)
-         BeepHz(NOTE_E5, 1000000/32)
-    
-  return N
-
-' Switch output 0 to 5. 0= all off
-PRI SwitchAllOff
-    setSwitch(0, false)
-    setSwitch(1, false)
-    setSwitch(2, false)
-    setSwitch(3, false)
-    setSwitch(4, false) 
-    setSwitch(5, false) 
-
-PRI setSwitch(N, state)
-  if state == true
-    SwitchOn(N)
-  elseif state == false
-    SwitchOff(N)
-    
-PRI SwitchOn(N)
-  Case N
-    0: DIRA[PWRCONTR]:=1
-       OUTA[PWRCONTR]:=1
-    1: DIRA[PWRPC1]:=1
-       OUTA[PWRPC1]:=1
-    2: DIRA[PWRPC2]:=1
-       OUTA[PWRPC2]:=1
-    3: DIRA[PWRDR1]:=1
-       OUTA[PWRDR1]:=1
-    4: DIRA[PWRDR2]:=1
-       OUTA[PWRDR2]:=1
-    5: DIRA[PWRAUX]:=1
-       OUTA[PWRAUX]:=1
-  
-  'Ensure that not all outputs can be turned on at the same time (to limit peak currents)
-  t.Pause1ms(100)
-
-PRI SwitchOff(N)
-  Case N
-    0: DIRA[PWRCONTR]:=0
-       OUTA[PWRCONTR]:=0
-    1: DIRA[PWRPC1]:=0
-       OUTA[PWRPC1]:=0
-    2: DIRA[PWRPC2]:=0
-       OUTA[PWRPC2]:=0
-    3: DIRA[PWRDR1]:=0
-       OUTA[PWRDR1]:=0
-    4: DIRA[PWRDR2]:=0
-       OUTA[PWRDR2]:=0
-    5: DIRA[PWRAUX]:=0
-       OUTA[PWRAUX]:=0
-
 ' === Reset AllMin Max values of specific ADC channel === 
 PRI resetAllADCVals | ii
     ii:=0
@@ -927,14 +704,20 @@ PRI DoDisplay  | i
         ser.str(minor_version)
         ser.str(string(" ADCMeasurementCog: "))
         ser.dec(ADCMCog)
-        ser.str(string("  ADCConvCog: "))
-        ser.dec(ADCConvCog)
         ser.str(string(" PLCCog: "))
         ser.dec(LinMotCog)
         
         ser.str(string(" Selected Battery: "))
-        ser.dec(active_battery)
-     
+        ser.dec(io_manager.getActiveBattery)
+        
+        ser.str(string(" time since battery switch: "))
+        ser.dec(io_manager.getOneMScounter - io_manager.getBatterySwitchTime)
+        ser.str(string("ms "))
+        
+        ser.str(string(" oneMScounter: "))
+        ser.dec(io_manager.getOneMScounter)
+        ser.str(string("ms "))
+        
         ser.tx(CR)
         ser.tx(CR)
         ser.str(string("       "))
@@ -1092,13 +875,13 @@ PRI DoDisplay  | i
         ser.tx(ce)
     
         ser.str(string("EMER: "))
-        ser.dec(GetEMERin)
+        ser.dec(io_manager.GetEMERin)
         ser.str(string(" OK: "))
-        ser.dec(GetOK)
+        ser.dec(io_manager.GetOK)
         ser.str(string(" IN0: "))
-        ser.dec(GetIN0)
+        ser.dec(io_manager.GetIN0)
         ser.str(string(" OUT0: "))
-        ser.dec(GetOUT0)
+        ser.dec(io_manager.GetOUT0)
         ser.tx(cr)
         ser.tx(ce)
         ser.str(string("sV5OK: "))
@@ -1132,63 +915,29 @@ PRI DisplayIO
   ser.tx(cr)
 
   ser.str(string("   "))
-  ser.str(num.decf(GetContr,3)) 'Engineering avg
+  ser.str(num.decf(io_manager.GetCONTR,3)) 'Engineering avg
   ser.str(string(" "))
-  ser.str(num.decf(GetPC1,3)) '
+  ser.str(num.decf(io_manager.GetPC1,3)) '
   ser.str(string(" "))
-  ser.str(num.decf(GetPC2,3)) '
+  ser.str(num.decf(io_manager.GetPC2,3)) '
   ser.str(string(" "))
-  ser.str(num.decf(GetDR1,3)) '
+  ser.str(num.decf(io_manager.GetDR1,3)) '
   ser.str(string(" "))
-  ser.str(num.decf(GetDR2,3)) '
+  ser.str(num.decf(io_manager.GetDR2,3)) '
   ser.str(string(" "))
-  ser.str(num.decf(GetAUX,3)) '
+  ser.str(num.decf(io_manager.GetAUX,3)) '
   ser.str(string(" "))
   
   ser.tx(cr)
   ser.tx(ce)
 
-' --------------------------------- Do logic tasks and safety tasks
-PRI DoPLC
-  Repeat
-  ' Check safetay related values
 
-    if engADCchAVG[cV5V] < c5V
-      s5VOK :=0
-
-    if engADCchAVG[cV3V3] < c3V3                                                               
-      s3V3OK :=0
-
-    if engADCchAVG[cV24VBus] < minimal_Vin
-      sVinOK :=0
-      
-    if checkBelowWarningVoltage
-       lowVoltageWarning 
-
-   ' Battery management and automatic switch from Bat1 to Bat 2
-   ' WARNING!  Can only work if battery properties of both batteries are properly set!!
- '   if engADCchAVG[cVBAT1] < minimal_Vin
- '     sVinOK :=0
-
-    if sVinOK==1 and s3V3OK==1 and  s5VOK==1  '' Check power supplies 
-      SetOUT0(1)
-    else
-      SetOUT0(0)
-      
-    If GetEMERin==1 ' and sVinOK==1 and AllOK==1 ' Process emergency alarms to OK output
-      SetOK(1)
-    else
-      SetOK(0)
-      AllOK:=0
- 
-    PlcCnt++
-    
 ' ----------------------- Reset program ------------------------
 PRI DoReset
-  sVinOK:=1
-  s3V3OK :=1
-  s5VOK :=1
-  AllOK:=1
+  sVinOK := 1
+  s3V3OK := 1
+  s5VOK  := 1
+  AllOK  := 1
     
 'Measure ADC channels. 
 {PRI DoADC | i, j, T1
@@ -1222,56 +971,9 @@ PRI DoReset
         
      ADCTime:=(CNT-T1)/80   }
   
-'Measure ADC channels.
+'MeasureADC channels.
 PRI DoADC | i, T1
-   repeat
-     T1:=cnt
 
-{    ADCRaw[0]:= ADC.in(0,chip1)
-     ADCRaw[1]:= ADC.in(1,chip1)
-     ADCRaw[2]:= ADC.in(2,chip1)
-     ADCRaw[3]:= ADC.in(3,chip1)
-     ADCRaw[4]:= ADC.in(4,chip1)
-     ADCRaw[5]:= ADC.in(5,chip1)
-     ADCRaw[6]:= ADC.in(6,chip1)
-     ADCRaw[7]:= ADC.in(7,chip1)
-
-     ADCRaw[8]:= ADC.in(0,chip2)
-     ADCRaw[9]:= ADC.in(1,chip2)
-     ADCRaw[10]:= ADC.in(2,chip2)
-     ADCRaw[11]:= ADC.in(3,chip2)
-     ADCRaw[12]:= ADC.in(4,chip2)
-     ADCRaw[13]:= ADC.in(5,chip2)
-     ADCRaw[14]:= ADC.in(6,chip2)
-     ADCRaw[15]:= ADC.in(7,chip2)    }
-
-     i:=0
-     repeat NCh
-'      ADCRaw[i]:= ADC.in(i)       
-       if i<8
-         ADCRaw[i]:= ADC.in(i,chip1)       ' First 8 channels from ADC1 
-'        ADCRaw[i]:= ADC1.in(i)            ' First 8 channels from ADC1
-       else
-         ADCRaw[i]:= ADC.in(i-8,chip2)     ' And next 8 from ADC2  
-'        ADCRaw[i]:= ADC2.in(i-8)          ' And next 8 from ADC2
-
-       
-       ADCRawAVG[i]:= (ADCRawAVG[i] *9 +  ADCRaw[i] )/10
-'      ADCRawAVG[i]:= (ADCRawAVG[i] *9 + ADC.in(i) )/10
-       ADCRawMIN[i] <#= ADCRaw[i]            'save min value
-       ADCRawMAX[i] #>= ADCRaw[i]            'save max value
-       i++
- 
- 
-
-     ADCCnt++
-        
-     ADCTime:=(CNT-T1)/80
-
-' Do scaling from counts to engineering values * 1000
-  
-
-PRI DoADCScaling | T1, i
   ' Fill calibration table
   Scale[0]:= 1.0                ' NTC
   Scale[2]:= 1.0                ' nc
@@ -1289,10 +991,49 @@ PRI DoADCScaling | T1, i
   Scale[13]:= mVBat             ' V24b
   Scale[14]:= 1.0               ' V3V3
   Scale[15]:= 2.05              ' V5V
-  
-  Repeat
-    T1:=cnt
+  repeat
+     T1:=cnt
 
+{{    ADCRaw[0]:= ADC.in(0,chip1)
+     ADCRaw[1]:= ADC.in(1,chip1)
+     ADCRaw[2]:= ADC.in(2,chip1)
+     ADCRaw[3]:= ADC.in(3,chip1)
+     ADCRaw[4]:= ADC.in(4,chip1)
+     ADCRaw[5]:= ADC.in(5,chip1)
+     ADCRaw[6]:= ADC.in(6,chip1)
+     ADCRaw[7]:= ADC.in(7,chip1)
+
+     ADCRaw[8]:= ADC.in(0,chip2)
+     ADCRaw[9]:= ADC.in(1,chip2)
+     ADCRaw[10]:= ADC.in(2,chip2)
+     ADCRaw[11]:= ADC.in(3,chip2)
+     ADCRaw[12]:= ADC.in(4,chip2)
+     ADCRaw[13]:= ADC.in(5,chip2)
+     ADCRaw[14]:= ADC.in(6,chip2)
+     ADCRaw[15]:= ADC.in(7,chip2)    
+}}
+
+     i:=0
+     repeat NCh
+       if i<8
+         ADCRaw[i]:= ADC.in(i,chip1)       ' First 8 channels from ADC1 
+       else
+         ADCRaw[i]:= ADC.in(i-8,chip2)     ' And next 8 from ADC2  
+       
+       ADCRawAVG[i]:= (ADCRawAVG[i] *9 +  ADCRaw[i] )/10
+       ADCRawMIN[i] <#= ADCRaw[i]            'save min value
+       ADCRawMAX[i] #>= ADCRaw[i]            'save max value
+       i++
+       
+     ' Do scaling from counts to engineering values * 1000
+     DoADCScaling
+
+     ADCCnt++        
+     ADCTime:=(CNT-T1)/80
+
+' Do scaling from counts to engineering values * 1000
+PRI DoADCScaling | T1, i
+    T1:=cnt
     i:=0
     Repeat NCh
       ADCch[i]:= f.fround(f.fmul(f.Ffloat(ADCRaw[i]), cADCbits2mV)) 'Calculate mV
@@ -1313,161 +1054,6 @@ PRI DoADCScaling | T1, i
     ScalingTime:=(CNT-T1)/80
 
 
-' ---------------- Set OK output on or off (1 or 0) ---------------------------------------
-PUB SetOK(Value)
-  if Value==0
-    DirA[OK]:=0
-    OUTA[OK]:=0
-  else
-    DirA[OK]:=1
-    OUTA[OK]:=1
-' ---------------- Set OUT0 output on or off (1 or 0) ---------------------------------------
-PUB SetOUT0(Value)
-  if Value==0
-    DirA[OUT0]:=0  
-    OUTA[OUT0]:=0
-  else  
-    DirA[OUT0]:=1  
-    OUTA[OUT0]:=1
-
-' ---------------- Get status OK output (on=1 or off=0) ---------------------------------------
-PUB GetOK
-  if InA[OK]==1
-    Return 1
-  else
-    Return 0  
-
-' ---------------- Get status OK output (on=1 or off=0) ---------------------------------------
-PUB GetOUT0
-  if InA[OUT0]==1
-    Return 1
-  else
-    Return 0   
-
-' ---------------- Get EMERin input (on=1 or off=0) ---------------------------------------
-PUB GetEMERin
-Return InA[EMERin]  
-
-' ---------------- Get IN0 input (on=1 or off=0) ---------------------------------------
-PUB GetIN0
-Return InA[IN0]
-  
-' ---------------- Get status CONTR output (on=1 or off=0) ---------------------------------------
-PUB GetCONTR
-  if InA[PWRCONTR]==1
-    Return 1
-  else
-    Return 0   
-
-' ---------------- Get status PC1 output (on=1 or off=0) ---------------------------------------
-PUB GetPC1
-  if InA[PWRPC1]==1
-    Return 1
-  else
-    Return 0                 
-
-' ---------------- Get status PC2 output (on=1 or off=0) ---------------------------------------
-PUB GetPC2
-  if InA[PWRPC2]==1
-    Return 1
-  else
-    Return 0                 
-
-' ---------------- Get status DR1 output (on=1 or off=0) ---------------------------------------
-PUB GetDR1
-  if InA[PWRDR1]==1
-    Return 1
-  else
-    Return 0                 
-
-' ---------------- Get status DR2 output (on=1 or off=0) ---------------------------------------
-PUB GetDR2
-  if InA[PWRDR2]==1
-    Return 1
-  else
-    Return 0                 
-
-  
-' ---------------- Get status AUX output (on=1 or off=0) ---------------------------------------
-PUB GetAUX
-  if InA[PWRAUX]==1
-    Return 1
-  else
-    Return 0   
-
-PRI Beep
-  repeat 1000
-    !OUTA[BUZZ]
-    t.Pause10us(100)
-    
-PRI BeepHz(hz, time) | times, sleep_time   '-- time in us
-    if hz==0
-        t.Pause10us(time/10)
-    else
-      sleep_time := 1000000/((hz)/2)  ' [us]
-      times      := (time/sleep_time)*2 ' [#]                               
-      repeat times
-        !OUTA[BUZZ]
-        t.Pause10us(sleep_time/10)
-        
-PRI MarioUnderworldTune
-  repeat 2
-    BeepHz(NOTE_C4, 1000000/12)
-    BeepHz(NOTE_C5, 1000000/12)
-    BeepHz(NOTE_A3, 1000000/12)
-    BeepHz(NOTE_A4, 1000000/12)
-    BeepHz(NOTE_AS3, 1000000/12)
-    BeepHz(NOTE_AS4, 1000000/12)
-    BeepHz(0, 1000000/6)
-    BeepHz(0, 1000000/3)  
-  
-  BeepHz(NOTE_F3, 1000000/12)
-  BeepHz(NOTE_F4, 1000000/12)
-  BeepHz(NOTE_D3, 1000000/12)
-  BeepHz(NOTE_D4, 1000000/12)
-  BeepHz(NOTE_DS3, 1000000/12)
-  BeepHz(NOTE_DS4, 1000000/12)
-  BeepHz(0, 1000000/6)
-  BeepHz(0, 1000000/3)
-  
-  BeepHz(NOTE_F3, 1000000/12)
-  BeepHz(NOTE_F4, 1000000/12)
-  BeepHz(NOTE_D3, 1000000/12)
-  BeepHz(NOTE_D4, 1000000/12)
-  BeepHz(NOTE_DS3, 1000000/12)
-  BeepHz(NOTE_DS4, 1000000/12)
-  BeepHz(0, 1000000/6)
-  BeepHz(0, 1000000/6)
-  BeepHz(NOTE_DS4, 1000000/18)
-  BeepHz(NOTE_CS4, 1000000/18)
-  BeepHz(NOTE_D4, 1000000/18)
-
-  BeepHz(NOTE_CS4, 1000000/6)
-  BeepHz(NOTE_DS4, 1000000/6)
-  BeepHz(NOTE_DS4, 1000000/6)
-  BeepHz(NOTE_GS3, 1000000/6)
-  BeepHz(NOTE_G3, 1000000/6)
-  BeepHz(NOTE_CS4, 1000000/6)
- 
-  BeepHz(NOTE_C4, 1000000/18)
-  BeepHz(NOTE_FS4, 1000000/18)
-  BeepHz(NOTE_F4, 1000000/18)
-  BeepHz(NOTE_E3, 1000000/18)
-  BeepHz(NOTE_AS4, 1000000/18)
-  BeepHz(NOTE_A4, 1000000/18)
-
-  BeepHz(NOTE_GS4, 1000000/10)
-  BeepHz(NOTE_DS4, 1000000/10)
-  BeepHz(NOTE_B3, 1000000/10)
-  
-  BeepHz(NOTE_AS3, 1000000/10)
-  BeepHz(NOTE_A3, 1000000/10)
-  BeepHz(NOTE_GS3, 1000000/10)
-  
-  BeepHz(0, 1000000/3)
-  BeepHz(0, 1000000/3)
-  BeepHz(0, 1000000/3)        
-        
 
 ' -----------------Command handling section ---------------------------------------------
 ' ---------------- Get next parameter from string ---------------------------------------
@@ -1514,4 +1100,93 @@ DAT
    s_PC2      Byte "PC2",0
    s_PC1      Byte "PC1",0
    s_CON      Byte "CON",0
-    
+     
+    NOTE_B0  WORD 31
+    NOTE_C1  WORD 33
+    NOTE_CS1 WORD 35
+    NOTE_D1  WORD 37
+    NOTE_DS1 WORD 39
+    NOTE_E1  WORD 41
+    NOTE_F1  WORD 44
+    NOTE_FS1 WORD 46
+    NOTE_G1  WORD 49
+    NOTE_GS1 WORD 52
+    NOTE_A1  WORD 55
+    NOTE_AS1 WORD 58
+    NOTE_B1  WORD 62
+    NOTE_C2  WORD 65
+    NOTE_CS2 WORD 69
+    NOTE_D2  WORD 73
+    NOTE_DS2 WORD 78
+    NOTE_E2  WORD 82
+    NOTE_F2  WORD 87
+    NOTE_FS2 WORD 93
+    NOTE_G2  WORD 98
+    NOTE_GS2 WORD 104
+    NOTE_A2  WORD 110
+    NOTE_AS2 WORD 117
+    NOTE_B2  WORD 123
+    NOTE_C3  WORD 131
+    NOTE_CS3 WORD 139
+    NOTE_D3  WORD 147
+    NOTE_DS3 WORD 156
+    NOTE_E3  WORD 165
+    NOTE_F3  WORD 175
+    NOTE_FS3 WORD 185
+    NOTE_G3  WORD 196
+    NOTE_GS3 WORD 208
+    NOTE_A3  WORD 220
+    NOTE_AS3 WORD 233
+    NOTE_B3  WORD 247
+    NOTE_C4  WORD 262
+    NOTE_CS4 WORD 277
+    NOTE_D4  WORD 294
+    NOTE_DS4 WORD 311
+    NOTE_E4  WORD 330
+    NOTE_F4  WORD 349
+    NOTE_FS4 WORD 370
+    NOTE_G4  WORD 392
+    NOTE_GS4 WORD 415
+    NOTE_A4  WORD 440
+    NOTE_AS4 WORD 466
+    NOTE_B4  WORD 494
+    NOTE_C5  WORD 523
+    NOTE_CS5 WORD 554
+    NOTE_D5  WORD 587
+    NOTE_DS5 WORD 622
+    NOTE_E5  WORD 659
+    NOTE_F5  WORD 698
+    NOTE_FS5 WORD 740
+    NOTE_G5  WORD 784
+    NOTE_GS5 WORD 831
+    NOTE_A5  WORD 880
+    NOTE_AS5 WORD 932
+    NOTE_B5  WORD 988
+    NOTE_C6  WORD 1047
+    NOTE_CS6 WORD 1109
+    NOTE_D6  WORD 1175
+    NOTE_DS6 WORD 1245
+    NOTE_E6  WORD 1319
+    NOTE_F6  WORD 1397
+    NOTE_FS6 WORD 1480
+    NOTE_G6  WORD 1568
+    NOTE_GS6 WORD 1661
+    NOTE_A6  WORD 1760
+    NOTE_AS6 WORD 1865
+    NOTE_B6  WORD 1976
+    NOTE_C7  WORD 2093
+    NOTE_CS7 WORD 2217
+    NOTE_D7  WORD 2349
+    NOTE_DS7 WORD 2489
+    NOTE_E7  WORD 2637
+    NOTE_F7  WORD 2794
+    NOTE_FS7 WORD 2960
+    NOTE_G7  WORD 3136
+    NOTE_GS7 WORD 3322
+    NOTE_A7  WORD 3520
+    NOTE_AS7 WORD 3729
+    NOTE_B7  WORD 3951
+    NOTE_C8  WORD 4186
+    NOTE_CS8 WORD 4435
+    NOTE_D8  WORD 4699
+    NOTE_DS8 WORD 4978
