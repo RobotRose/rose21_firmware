@@ -41,10 +41,12 @@ Read commands:
 	- Get cutoff voltage 			: $204 -> int 							(cutoff voltage)
 	- Get safety input  			: $205 -> bool 							(safety input value)
 	- Get extra input 				: $206 -> bool 							(extra input value)
-	- Get ADC raw values			: $207, 16x int, int, int, int 			(actual, average, min, max)
-	- Get ADC voltage values		: $208, 16x int, int, int, int 			(actual, average, min, max)
-	- Get ADC engineering values	: $209, 16x int, int, int 				(average, min, max)
-	- Get integrated current 		: $210, 16x int, int  					(integration time, integrated current mA)				// Maybe later?
+	- Get ADC raw values			: $207 -> 16x int, int, int, int 		(actual, average, min, max)
+	- Get ADC voltage values		: $208 -> 16x int, int, int, int 		(actual, average, min, max)
+	- Get ADC engineering values	: $209 -> 16x int, int, int 			(average, min, max)
+	- Get integrated current 		: $210 -> 16x int, int  				(integration time, integrated current mA)				// Maybe later?
+	- Get battery voltage RAW 		: $211 -> int, int 						(bat1 mV, bat 2 mV)
+	- Get battery voltage AVG 		: $212 -> int, int 						(bat1 mV, bat 2 mV)
 
 Set commands:
 	- Set auto switch voltage 		: $300, int 							-> int (set switch voltage)
