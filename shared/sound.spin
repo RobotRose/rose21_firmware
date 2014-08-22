@@ -34,10 +34,9 @@ PUB BeepHz(pin, hz, time) | times, sleep_time   '-- time in us
         t.Pause10us(sleep_time/10)
         
 PUB lowVoltageWarning(pin)
-  BeepHz(pin, NOTE_G7, 1000000/8)
-  BeepHz(pin, 0, 1000000/8)
-  BeepHz(pin, NOTE_G7, 1000000/8)
-  BeepHz(pin, 0, 1000000/8)
+  BeepHz(pin, NOTE_G7, 1000000/16)
+  BeepHz(pin, 0, 1000000/64)
+  BeepHz(pin, NOTE_G7, 1000000/16)
 
         
 PUB MarioUnderworldTune(pin)

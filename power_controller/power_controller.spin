@@ -644,22 +644,9 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              
              ser.dec(temp)                                                ' 
              ser.str(string(",", CR))  
-             
-        ' On/off battery change sound
-        306: temp := sGetPar        ' Sound on or off
-             
-             ser.str(string("$306,"))
-             ' Turn on or off the battery change sound
-             if temp == 1
-               io_manager.setBatterySwitchSound(true)
-             else 
-               io_manager.setBatterySwitchSound(false)
-             
-             ser.dec(temp)                                                ' 
-             ser.str(string(",", CR))  
-             
+                
         ' Set battery low alarm interval
-        307: temp := sGetPar        ' interval
+        307: temp := 1000 #> sGetPar        ' interval
              
              ser.str(string("$307,"))
              io_manager.setAlarmInterval(temp)             
