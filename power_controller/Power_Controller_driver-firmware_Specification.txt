@@ -34,37 +34,34 @@ Device commands:
 	- Watchdog 						: $111, int	(wd_value) -> int, int, int, int 	(wd_value, wd_counter, received_wd, expected_wd)
 
 Read commands:
-	- Get output states				: $201 -> bool, bool, bool, bool, bool, bool 	(output 1, 2, 3, 4, 5, 6)
-	- Get selected battery 			: $202 -> int							(selected battery 0,1,2)
-	- Get switch voltage			: $203 -> int							(switch voltage)
-	- Get switch voltage			: $204 -> int							(warning voltage)
-	- Get cutoff voltage 			: $205 -> int 							(cutoff voltage)
-	- Get minimal 3.3v voltage 		: $206 -> int 							(set minimal 3.3v value)
-	- Get minimal 5v voltage		: $207 -> int 							(set minimal 5v value)
-	- Get safety input  			: $208 -> bool 							(safety input value)
-	- Get extra input 				: $209 -> bool 							(extra input value)
-	- Get ADC raw values			: $210, 16x int, int, int, int 			(actual, average, min, max)
-	- Get ADC voltage values		: $211, 16x int, int, int, int 			(actual, average, min, max)
-	- Get ADC engineering values	: $212, 16x int, int, int 				(average, min, max)
-	- Get integrated current 		: $213, 16x int, int  					(integration time, integrated current mA)				// Maybe later?
+	- Get output states				: $200 -> bool, bool, bool, bool, bool, bool 	(output 1, 2, 3, 4, 5, 6)
+	- Get selected battery 			: $201 -> int							(selected battery 0,1,2)
+	- Get switch voltage			: $202 -> int							(switch voltage)
+	- Get warning voltage			: $203 -> int							(warning voltage)
+	- Get cutoff voltage 			: $204 -> int 							(cutoff voltage)
+	- Get safety input  			: $205 -> bool 							(safety input value)
+	- Get extra input 				: $206 -> bool 							(extra input value)
+	- Get ADC raw values			: $207, 16x int, int, int, int 			(actual, average, min, max)
+	- Get ADC voltage values		: $208, 16x int, int, int, int 			(actual, average, min, max)
+	- Get ADC engineering values	: $209, 16x int, int, int 				(average, min, max)
+	- Get integrated current 		: $210, 16x int, int  					(integration time, integrated current mA)				// Maybe later?
 
 Set commands:
-	- Set auto switch voltage 		: $300, int -> int (set switch voltage)
-	- Set warning voltage			: $301, int -> int (set warning voltage)
-	- Set cutoff voltage			: $302, int -> int (set cutoff voltage)
-	- Set minimal 3.3v voltage 		: $303, int -> int (set value)
-	- Set minimal 5v voltage		: $304, int -> int (set value)
-	- Set safety relay output 		: $305, bool -> bool (set value)
-	- Set extra relay output 		: $306, bool -> bool (set value)
+	- Set auto switch voltage 		: $300, int 							-> int (set switch voltage)
+	- Set warning voltage			: $301, int 							-> int (set warning voltage)
+	- Set minimal voltage			: $302, int 							-> int (set cutoff voltage)
+	- Set extra relay output 		: $303, bool 							-> bool (set value)
+	- Set battery auto mode			: $304, bool (auto/man)					-> bool (selected mode) 
+	- Set output state 				: $305, int, bool (ouput 1-5, on/off) 	-> int, bool (output, 0 -> error, on/off)		
+	- Set battery switch sound	 	: $306, bool (on/off)					-> bool (on/off)
+	- Set alarm sound	 			: $307, bool (on/off)					-> bool (on/off)
 
 Other commands:
-	- Shutdown 					: $400, integer (timeout)				-> integer, bool (received timeout, ok/not ok)
+	- Shutdown 					: $400									-> bool (received timeout, ok/not ok)
 	- Serial debug mode 		: $401, bool (on/off)					-> bool (on/off)
-	- Reset min/max vals		: $402, int (adc 0-15)					-> bool (succes)
+	- Reset min/max vals		: $402, int (adc 0-15)					-> int (adc 0-15 reset)
 	- Reset all min/max vals	: $403									-> bool (succes)
-	- Select fullest battery	: $404, int (0 none, 1 bat1, 2 bat2) 	-> int (selected battery 0,1,2)		// Selects highest voltage battery
+	- Select fullest battery	: $404 									-> int (selected battery 0,1,2)		// Selects highest voltage battery
 	- Select battery force 		: $405, int								-> int (selected battery 0,1,2)		// Turn off auto switch mode and force switcht to selected battery
-	- Set battery auto mode		: $406, bool (auto/man)					-> bool (selected mode) 
-	- Set output state 			: $407, int, bool (ouput 1-5, on/off) 	-> int, bool (output, 0 -> error, on/off)		
 
 Bij opstarten een PC aan die de controle neemt over de power controller.
