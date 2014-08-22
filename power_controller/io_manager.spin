@@ -37,8 +37,11 @@ VAR
   long cog
   long cog_stack[100]
   long io_manager_counter
-
+  
+  ' Timers
   long oneMScounter
+  long alarmIntervalTimer
+  long ledIntervalTimer
 
   ' Battery management
   long auto_battery_switch  '1: enables local auto battery switch
@@ -46,6 +49,7 @@ VAR
   long requested_battery    '0: all batteries off, 1: Battery 1 on 2: battery 2 on
   long battery_switch_sound
   long alarm_sound
+  long alarm_interval
   long battery_switch_time
   long auto_battery_switch_timeout
   long v_bat1_raw
@@ -94,12 +98,17 @@ PUB stop
 PRI initialize | i  
   new_request := false
   io_manager_counter := 0
+  
+  ' Timers
   oneMScounter       := 0
+  alarmIntervalTimer := 0
+  ledIntervalTimer   := 0
   
   ' Default values
   batteries_low               := false
   battery_switch_sound        := true
   alarm_sound                 := true
+  alarm_interval              := 5000
   auto_battery_switch         := false
   auto_battery_switch_timeout := 1000
   battery_switch_time         := 0 
@@ -122,7 +131,7 @@ PRI initialize | i
   
   ' Set default Vin voltage tresholds
   minimal_Vin := 22000
-  warning_Vin := 23000
+  warning_Vin := 24000
   switch_Vin  := 24000
   
   ' Reset switch states
@@ -164,6 +173,8 @@ PRI manage | t1
     
     if ||(cnt - t1) => (clkfreq/1000)
       oneMScounter++
+      alarmIntervalTimer++
+      ledIntervalTimer++
       t1 := cnt
     
     ' Wrap!! TODO nicer way to do this 1ms timer?
@@ -186,11 +197,11 @@ PRI checkBatterySwitch
 PRI manageBatteries | switch_time_diff
   ' Battery management and automatic switch from Bat1 to Bat 2
   ' WARNING!  Can only work if battery properties of both batteries are properly set!!
-  'if auto_battery_switch == true AND getBatteryVoltageRaw(active_battery) < switch_Vin
+  if auto_battery_switch == true AND getBatteryVoltageRaw(active_battery) < switch_Vin
     ' Prevent fast back and forth switching by checking if the difference of the voltages is larger than a certain hysteresis value
-    'switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
-    'if switch_time_diff => auto_battery_switch_timeout
-      'selectFullestBattery
+    switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
+    if switch_time_diff => auto_battery_switch_timeout
+      selectFullestBattery
   
   checkBatterySwitch
       
@@ -539,7 +550,13 @@ PUB setAlarmSound(state)
 
 PUB getAlarmSound
   return alarm_sound    
-  
+
+PUB setAlarmInterval(time)
+  alarm_interval := time
+
+PUB getAlarmInterval
+  return alarm_interval 
+       
 PUB setBatterySwitchTimeout(timeout)
   auto_battery_switch_timeout := timeout
 
@@ -551,7 +568,20 @@ PUB setBatteryShutdownHysteresisVoltage(voltage)
 
 PUB getBatteryShutdownHysteresisVoltage
   return battery_shutdown_hysteresis_voltage   
+
+PUB setAlarmIntervalTimer(value)
+  alarmIntervalTimer := value
+     
+PUB getAlarmIntervalTimer
+  return alarmIntervalTimer
+
+PUB setLedIntervalTimer(value)
+  ledIntervalTimer := value
   
+PUB getLedIntervalTimer
+  return ledIntervalTimer
+  
+
   
 DAT   
     NOTE_B0  WORD 31

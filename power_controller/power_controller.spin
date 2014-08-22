@@ -144,6 +144,8 @@ CON
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
   cMinVin = 2200             ' Absolute minimal supply voltage
+
+  main_led_interval = 250    ' [ms]
   
 OBJ
   ADC             : "MCP3208_fast_multi"                  ' ADC
@@ -168,8 +170,6 @@ VAR
   Long AllOK, s5VOK, s3V3OK, sVInOK, OutofRange, PlcCnt
 
   Long Scale[Nch]   '' array with scaling factors
-  
-
 
   ' Vars for command handling and processing
   Long ConnectCnt, ConnectTime    
@@ -213,8 +213,6 @@ PUB Main
   sound.BeepHz(BUZZ, NOTE_F7, 1000000/20)
   sound.BeepHz(BUZZ, NOTE_G7, 1000000/16)
   
-  ' Wait for initialization of io_manager
-  't.Pause1ms(1000)
   ' Run startup sequence
   startup
   
@@ -224,11 +222,18 @@ PUB Main
 
     handleCommunication 
     
-    if io_manager.getBatteriesLow 
-      sound.lowVoltageWarning(BUZZ)
-        
-    't.Pause1ms(50)
-    '!OUTA[Led]
+    ' Check if batteries and low and give alarm singal with a certain interval
+    if io_manager.getBatteriesLow  
+      if io_manager.getAlarmIntervalTimer => io_manager.getAlarmInterval
+        sound.lowVoltageWarning(BUZZ)
+        io_manager.setAlarmIntervalTimer(0)      
+    else
+      io_manager.setAlarmIntervalTimer(0)
+     
+    ' Indicate that the main loop is running   
+    if io_manager.getLedIntervalTimer => main_led_interval
+      !OUTA[Led]
+      io_manager.setLedIntervalTimer(0)
 
 PRI handleCommunication
   ser.StrInMaxTime(@StrBuf, lMaxStr, MaxWaitTime)   'Non blocking max wait time
@@ -352,7 +357,7 @@ PRI startup | selected_battery
   
 ' === Init serial communication ===
 PRI InitSer
-  MaxWaitTime   := 5000                   'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
+  MaxWaitTime   := 5                    'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
   
   ByteFill(@StrBuf,0, lMaxStr)
 
@@ -650,6 +655,14 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              
              ser.dec(temp)                                                ' 
              ser.str(string(",", CR))  
+             
+        ' Set battery low alarm interval
+        307: temp := sGetPar        ' interval
+             
+             ser.str(string("$307,"))
+             io_manager.setAlarmInterval(temp)             
+             ser.dec(io_manager.getAlarmInterval)                                                ' 
+             ser.str(string(",", CR))
       
         ' Initiate shutdown   
         400: ser.str(string("$400,", CR))
@@ -874,8 +887,15 @@ PRI DoDisplay  | i
         ser.dec(io_manager.getOneMScounter - io_manager.getBatterySwitchTime)
         ser.str(string("ms "))
         
+        ser.tx(CR)
         ser.str(string(" oneMScounter: "))
         ser.dec(io_manager.getOneMScounter)
+        ser.str(string("ms "))
+        ser.str(string(" LedIntervalTimer: "))
+        ser.dec(io_manager.getLedIntervalTimer)
+        ser.str(string("ms "))
+        ser.str(string(" AlarmIntervalTimer: "))
+        ser.dec(io_manager.getAlarmIntervalTimer)
         ser.str(string("ms "))
         
         ser.tx(CR)
