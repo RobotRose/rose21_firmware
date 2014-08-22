@@ -200,7 +200,7 @@ PUB Main
     handleCommunication 
     
     ' Check if batteries and low and give alarm singal with a certain interval
-    if io_manager.getBatteriesLow AND io_manager.alarm_sound
+    if io_manager.getBatteriesLow AND io_manager.getAlarmSound
       if io_manager.getAlarmIntervalTimer => io_manager.getAlarmInterval
         sound.lowVoltageWarning(BUZZ)
         io_manager.setAlarmIntervalTimer(0)      
@@ -529,7 +529,32 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
                ser.str(string(","))
                i++
              ser.char(CR)
-                               
+             
+        ' TODO Get ADC integrated engineering values
+        210: ser.str(string("$210,"))
+             i := 0
+             repeat NCh
+               ser.dec(0)
+               ser.str(string(","))
+               ser.dec(0)
+               ser.str(string(","))
+               i++
+             ser.char(CR)
+        
+        ' Get RAW battery voltages
+        211: ser.str(string("$211,"))
+             ser.dec(engADCch[cVBAT1])
+             ser.str(string(","))
+             ser.dec(engADCch[cVBAT2])
+             ser.str(string(",", CR))
+             
+        ' Get AVG battery voltages
+        212: ser.str(string("$212,"))
+             ser.dec(engADCchAVG[cVBAT1])
+             ser.str(string(","))
+             ser.dec(engADCchAVG[cVBAT2])
+             ser.str(string(",", CR))
+                                    
         ' === Set commands ===
         ' Set auto switch voltage
         300: temp := sGetPar    ' Voltage to set
