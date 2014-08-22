@@ -143,9 +143,8 @@ CON
 ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
-
-
-   
+  cMinVin = 2200             ' Absolute minimal supply voltage
+  
 OBJ
   ADC             : "MCP3208_fast_multi"                  ' ADC
   io_manager      : "io_manager"                          ' IO management cog
@@ -162,7 +161,7 @@ VAR
   LONG PLCCog, PLCStack[50], LinMotCog
   Long ADCRaw[NCh], ADCRawMin[NCh], ADCRawMax[NCh], ADCRawAvg[NCh]  ' Raw bit values
   Long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]      ' Volt
-  Long engADCch[NCh], engADCchRAW[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
+  Long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
   LONG Switchstate, MainCnt, MaxCh, ADCTime, ADCCnt, DoMotorCnt, ScalingCnt, ScalingTime
 
   ' Safety related vars
@@ -207,14 +206,17 @@ VAR
 PUB Main
   Init
 
-  'sound.Beep(BUZZ)
-  
   sound.BeepHz(BUZZ, NOTE_A4, 1000000/16)
   sound.BeepHz(BUZZ, NOTE_A5, 1000000/16)
   sound.BeepHz(BUZZ, NOTE_A6, 1000000/16)
   sound.BeepHz(BUZZ, NOTE_A7, 1000000/16)
   sound.BeepHz(BUZZ, NOTE_F7, 1000000/20)
   sound.BeepHz(BUZZ, NOTE_G7, 1000000/16)
+  
+  ' Wait for initialization of io_manager
+  't.Pause1ms(1000)
+  ' Run startup sequence
+  startup
   
   ' Main loop
   repeat
@@ -224,14 +226,7 @@ PUB Main
     
     if io_manager.getBatteriesLow 
       sound.lowVoltageWarning(BUZZ)
-      
-    ser.str(string("Bat 1 shutdown voltage: "))
-    ser.dec(io_manager.getBatteryShutdownVoltage(1))
-    ser.str(string(" | Bat 2 shutdown voltage: "))
-    ser.dec(io_manager.getBatteryShutdownVoltage(2))   
-    ser.char(CR) 
-
-   
+        
     't.Pause1ms(50)
     '!OUTA[Led]
 
@@ -245,7 +240,6 @@ PRI handleCommunication
 PRI Init
   Debug := false 
 
-  
   'Reset all min/max values
   resetAllADCVals
 
@@ -334,9 +328,27 @@ PRI Init
     
   io_manager.setBatterySwitchSound(true)
   io_manager.setAutoBatterySelect(true)
-  
+ 
+' === Shutdown sequence ===  
 PRI shutdown
-    ser.str(string("Should really shutdown now!", CR))
+  ser.str(string("Should really shutdown now!", CR))
+
+' === Startup sequence ===   
+PRI startup | selected_battery
+  
+  ser.str(string("Selecting fullest battery, bat1: "))  
+  ser.dec(io_manager.getBatteryVoltageAvg(1))
+  ser.str(string("mV | bat2: "))
+  ser.dec(io_manager.getBatteryVoltageAvg(2))
+  ser.str(string("mV -> "))
+  selected_battery := io_manager.selectFullestBattery
+  ser.dec(selected_battery)
+  ser.char(CR)
+  if selected_battery <> 0
+    ser.str(string("Battery selected, turning on PC1", CR))
+    io_manager.setSwitch(1, true)
+  else
+    ser.str(string("Batteries not charged, not turning on PC1", CR))
   
 ' === Init serial communication ===
 PRI InitSer
@@ -446,6 +458,199 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
                 'Reset the watchdog counter
                 wd_cnt := 0 
                 
+        ' === Get commands ===        
+        ' Get power output states
+        200: ser.str(string("$200,"))
+             ser.dec(io_manager.GetCONTR)
+             ser.str(string(","))
+             ser.dec(io_manager.GetPC1)
+             ser.str(string(","))
+             ser.dec(io_manager.GetPC2)
+             ser.str(string(","))
+             ser.dec(io_manager.GetDR1)
+             ser.str(string(","))
+             ser.dec(io_manager.GetDR2)
+             ser.str(string(","))
+             ser.dec(io_manager.GetAUX)
+             ser.str(string(",", CR))
+        
+        ' Get selected battery
+        201: ser.str(string("$201,"))
+             ser.dec(io_manager.getActiveBattery)
+             ser.str(string(",", CR))
+        
+        ' Get auto switch voltage
+        202: ser.str(string("$202,"))
+             ser.dec(io_manager.getSwitchVin)
+             ser.str(string(",", CR))
+             
+        ' Get warning voltage 
+        203: ser.str(string("$203,"))
+             ser.dec(io_manager.getWarningVin)
+             ser.str(string(",", CR))
+        
+        ' Get minimal voltage
+        204: ser.str(string("$204,"))
+             ser.dec(io_manager.getMinimalVin)
+             ser.str(string(",", CR))
+             
+        ' Get safety EMER input state 
+        205: ser.str(string("$205,"))
+             ser.dec(io_manager.GetEMERin)
+             ser.str(string(",", CR))
+             
+        ' Get extra IN0 input state
+        206: ser.str(string("$206,"))
+             ser.dec(io_manager.GetIN0)
+             ser.str(string(",", CR))
+             
+        ' Get ADC raw values
+        207: ser.str(string("$207,"))
+             i := 0
+             repeat NCh
+               ser.dec(ADCRaw[i])
+               ser.str(string(","))
+               ser.dec(ADCRawAVG[i])
+               ser.str(string(","))
+               ser.dec(ADCRawMIN[i])
+               ser.str(string(","))
+               ser.dec(ADCRawMAX[i])
+               ser.str(string(","))
+               i++
+             ser.char(CR)
+             
+        ' Get ADC voltage values
+        208: ser.str(string("$208,"))
+             i := 0
+             repeat NCh
+               ser.dec(ADCch[i])
+               ser.str(string(","))
+               ser.dec(ADCchAVG[i])
+               ser.str(string(","))
+               ser.dec(ADCchMIN[i])
+               ser.str(string(","))
+               ser.dec(ADCchMAX[i])
+               ser.str(string(","))
+             ser.char(CR)
+             
+        ' Get ADC engineering values
+        209: ser.str(string("$209,"))
+             i := 0
+             repeat NCh
+               ser.dec(engADCch[i])
+               ser.str(string(","))
+               ser.dec(engADCchAVG[i])
+               ser.str(string(","))
+               ser.dec(engADCchMIN[i])
+               ser.str(string(","))
+               ser.dec(engADCchMAX[i])
+               ser.str(string(","))
+               i++
+             ser.char(CR)
+                               
+        ' === Set commands ===
+        ' Set auto switch voltage
+        300: temp := sGetPar    ' Voltage to set
+     
+             io_manager.setSwitchVin(temp)
+             ser.str(string("$300,"))
+             ser.dec(temp)
+             ser.str(string(",", CR))
+        
+        ' Set warning voltage
+        301: temp := sGetPar    ' Voltage to set
+             
+             io_manager.setWarningVin(temp)
+             ser.str(string("$301,"))
+             ser.dec(temp)
+             ser.str(string(",", CR))
+        
+        ' Set minimal voltage
+        302: temp := sGetPar    ' Voltage to set
+             
+             if temp < cMinVin
+               temp := cMinVin
+               
+             io_manager.setMinimalVin(temp)
+             ser.str(string("$302,"))
+             ser.dec(temp)
+             ser.str(string(",", CR))     
+             
+        ' Set extra OUT0 output state
+        303: temp := sGetPar    ' State to set
+             
+             ser.str(string("$303,"))
+             if temp == 1               
+              ser.dec(io_manager.requestOUT0OutputState(true))
+             else
+              ser.dec(io_manager.requestOUT0OutputState(false))
+             ser.str(string(",", CR)) 
+             
+        ' Turn on/off auto battery selecting mode
+        304: temp := sGetPar        ' Which battery to select
+             
+             ' Turn off or on the auto battery selecting mode  (default on) 
+             if temp == 0
+                io_manager.setAutoBatterySelect(false)
+             else
+                io_manager.setAutoBatterySelect(true)    
+             
+             ser.str(string("$304,"))
+             if io_manager.getAutoBatterySelect
+                ser.dec(1)
+             else
+                ser.dec(0)
+             ser.str(string(",", CR))  
+             
+        ' Turn on/off a specified output
+        305: temp  := sGetPar        ' Which output 
+             temp2 := sGetPar        ' On or off
+                 
+             ser.str(string("$305,"))
+             ' Check output number
+             if temp => 0 and temp =< 5   
+                 ' Turn on or off the specified ouput
+                 if temp2 == 1     
+                    io_manager.setSwitch(temp, true)
+                 else
+                    io_manager.setSwitch(temp, false)    
+                 ser.dec(temp)
+                 ser.str(string(","))
+                 ser.dec(temp2)
+             else 'Error unkown output number)
+                 ser.dec(-1)
+                 ser.str(string(","))
+                 ser.dec(0)
+                 
+             ser.str(string(",", CR))  
+             
+        
+        ' On/off battery change sound
+        306: temp := sGetPar        ' Sound on or off
+             
+             ser.str(string("$306,"))
+             ' Turn on or off the battery change sound
+             if temp == 1
+               io_manager.setBatterySwitchSound(true)
+             else 
+               io_manager.setBatterySwitchSound(false)
+             
+             ser.dec(temp)                                                ' 
+             ser.str(string(",", CR))  
+             
+        ' On/off battery change sound
+        306: temp := sGetPar        ' Sound on or off
+             
+             ser.str(string("$306,"))
+             ' Turn on or off the battery change sound
+             if temp == 1
+               io_manager.setBatterySwitchSound(true)
+             else 
+               io_manager.setBatterySwitchSound(false)
+             
+             ser.dec(temp)                                                ' 
+             ser.str(string(",", CR))  
+      
         ' Initiate shutdown   
         400: ser.str(string("$400,", CR))
              shutdown
@@ -489,60 +694,6 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.str(string("$405,"))
              ser.dec(io_manager.requestBattery(temp))
              ser.str(string(",", CR))     
-       
-        ' Turn on/off auto battery selecting mode
-        406: temp := sGetPar        ' Which battery to select
-             
-             ' Turn off or on the auto battery selecting mode  (default on) 
-             if temp == 0
-                io_manager.setAutoBatterySelect(false)
-             else
-                io_manager.setAutoBatterySelect(true)    
-             
-             ser.str(string("$406,"))
-             if io_manager.getAutoBatterySelect
-                ser.dec(1)
-             else
-                ser.dec(0)
-             ser.str(string(",", CR))  
-             
-        ' Turn on/off a specified output
-        407: temp  := sGetPar        ' Which output 
-             temp2 := sGetPar        ' On or off
-                 
-             ' Check output number
-             if temp => 0 and temp =< 5   
-                 ' Turn on or off the specified ouput
-                 if temp2 == 1     
-                    io_manager.setSwitch(temp, true)
-                 else
-                    io_manager.setSwitch(temp, false)    
-                    
-                 ser.str(string("$407,"))
-                 ser.dec(temp)
-                 ser.str(string(","))
-                 ser.dec(temp2)
-                 ser.str(string(",", CR))  
-             else 'Error unkown output number
-                 ser.str(string("$407,"))
-                 ser.dec(-1)
-                 ser.str(string(","))
-                 ser.dec(0)
-                 ser.str(string(",", CR))  
-             
-        
-        ' On/off battery change sound
-        408: temp := sGetPar        ' Sound on or off
-             
-             ser.str(string("$408,"))
-             ' Turn on or off auto battery selecting mode   
-             if temp == 1
-               io_manager.setBatterySwitchSound(true)
-               ser.dec(1)
-             else 
-               io_manager.setBatterySwitchSound(false)
-               ser.dec(0)                                                ' 
-             ser.str(string(",", CR))     
                   
         other:ser.tx("$")
               ser.dec(command)
@@ -576,8 +727,10 @@ PRI DoSafety | i, ConnectionError, bitvalue
 ' === Do logic tasks and safety tasks ===
 PRI DoPLC 
   Repeat
+   'Update battery voltages at io_manager with current values
+    io_manager.updateBatteryVoltages(engADCch[cVBAT1], engADCch[cVBAT2], engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
+    
     ' Check safety related values
-
     if engADCchAVG[cV5V] < c5V
       s5VOK :=0
 
@@ -598,8 +751,6 @@ PRI DoPLC
       io_manager.requestOkOutputState(0)      
       AllOK:=0
       
-    'Update battery voltages at io_manager with current values
-    io_manager.updateBatteryVoltages(engADCchRAW[cVBAT1], engADCchRAW[cVBAT2], engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
 
     PlcCnt++
     
@@ -838,7 +989,7 @@ PRI DoDisplay  | i
         i:=0
         ser.str(string("eADCvRAW:"))
         repeat NCh
-          ser.str(num.decf(engADCchRAW[i],NumWidth))  'Engineering raw
+          ser.str(num.decf(engADCch[i],NumWidth))  'Engineering
           i++
           ser.tx(" ")
         ser.tx(CE)    
@@ -847,7 +998,7 @@ PRI DoDisplay  | i
         i:=0
         ser.str(string("eADCvAVG:"))
         repeat NCh
-          ser.str(num.decf(engADCchAVG[i],NumWidth)) 'Engineering avg
+          ser.str(num.decf(engADCchAVG[i],NumWidth)) 'Engineering avg 
           i++
           ser.tx(" ")
         ser.tx(CE)
@@ -963,6 +1114,7 @@ PRI DoReset
     
 'Measure ADC channels. 
 {PRI DoADC | i, j, T1
+
    repeat
      T1:=cnt
 
@@ -970,25 +1122,12 @@ PRI DoReset
      j:=0
      repeat 8 ' NCh
        ADCRaw[i]:= ADC1.in(i)      
-'      ADCRaw[i]:= ADC.in(j,chip1) 
        ADCRawAVG[i]:= (ADCRawAVG[i] *9 + ADCRaw[i] )/10
-'      ADCRawAVG[i]:= (ADCRawAVG[i] *9 + ADC.in(i) )/10
        ADCRawMIN[i] <#= ADCRawAVG[i]         'save min value
        ADCRawMAX[i] #>= ADCRawAVG[i]         'save max value
        i++
        j++
 
- {   j:=0
-     repeat 8 ' NCh
-       ADCRaw[i]:= ADC2.in(i)      
-'      ADCRaw[i]:= ADC.in(j,chip2) 
-       ADCRawAVG[i]:= (ADCRawAVG[i] *9 + ADCRaw[i] )/10
-'      ADCRawAVG[i]:= (ADCRawAVG[i] *9 + ADC.in(i) )/10
-       ADCRawMIN[i] <#= ADCRawAVG[i]         'save min value
-       ADCRawMAX[i] #>= ADCRawAVG[i]         'save max value
-       i++
-       j++
-    }
      ADCCnt++
         
      ADCTime:=(CNT-T1)/80   }
@@ -1013,28 +1152,17 @@ PRI DoADC | i, T1
   Scale[13]:= mVBat             ' V24b
   Scale[14]:= 1.0               ' V3V3
   Scale[15]:= 2.05              ' V5V
+   
+  ' Pre-set AVG value with one measurement
+  repeat NCh
+    if i<8
+      ADCRaw[i] := ADC.in(i,chip1)       ' First 8 channels from ADC1 
+    else
+      ADCRaw[i] := ADC.in(i-8,chip2)     ' And next 8 from ADC2  
+    ADCRawAVG[i] := ADCRaw[i]
+  
   repeat
      T1:=cnt
-
-{{    ADCRaw[0]:= ADC.in(0,chip1)
-     ADCRaw[1]:= ADC.in(1,chip1)
-     ADCRaw[2]:= ADC.in(2,chip1)
-     ADCRaw[3]:= ADC.in(3,chip1)
-     ADCRaw[4]:= ADC.in(4,chip1)
-     ADCRaw[5]:= ADC.in(5,chip1)
-     ADCRaw[6]:= ADC.in(6,chip1)
-     ADCRaw[7]:= ADC.in(7,chip1)
-
-     ADCRaw[8]:= ADC.in(0,chip2)
-     ADCRaw[9]:= ADC.in(1,chip2)
-     ADCRaw[10]:= ADC.in(2,chip2)
-     ADCRaw[11]:= ADC.in(3,chip2)
-     ADCRaw[12]:= ADC.in(4,chip2)
-     ADCRaw[13]:= ADC.in(5,chip2)
-     ADCRaw[14]:= ADC.in(6,chip2)
-     ADCRaw[15]:= ADC.in(7,chip2)    
-}}
-
      i:=0
      repeat NCh
        if i<8
@@ -1042,7 +1170,7 @@ PRI DoADC | i, T1
        else
          ADCRaw[i]:= ADC.in(i-8,chip2)     ' And next 8 from ADC2  
        
-       ADCRawAVG[i]:= (ADCRawAVG[i] *9 +  ADCRaw[i] )/10
+       ADCRawAVG[i]:= (ADCRawAVG[i] *4 +  ADCRaw[i] )/5
        ADCRawMIN[i] <#= ADCRaw[i]            'save min value
        ADCRawMAX[i] #>= ADCRaw[i]            'save max value
        i++
@@ -1063,20 +1191,14 @@ PRI DoADCScaling | T1, i
       ADCchMax[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMax[i]), cADCbits2mV)) 'Calculate mV
       ADCchMin[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMin[i]), cADCbits2mV)) 'Calculate mV
 
-'     case Nch   ' Scaling to integer engineering units (mV and mA). 
-'       0: engADCchAVG[i]:=
-'       1: engADCchAVG[i]:=99
-'       2: engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate mV
-        engADCchRAW[i]:= f.fround(f.fmul(f.Ffloat(ADCch[i]), Scale[i])) 'Calculate RAW mV
-        engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate AVG mV
-        engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i])) 'Calculate MAX mV
-        engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i])) 'Calculate MIN mV
+      engADCch[i]:= f.fround(f.fmul(f.Ffloat(ADCch[i]), Scale[i])) 'Calculate RAW mV
+      engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate AVG mV
+      engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i])) 'Calculate MAX mV
+      engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i])) 'Calculate MIN mV
       i++
       
     ScalingCnt++
     ScalingTime:=(CNT-T1)/80
-
-
 
 ' -----------------Command handling section ---------------------------------------------
 ' ---------------- Get next parameter from string ---------------------------------------
@@ -1213,3 +1335,4 @@ DAT
     NOTE_CS8 WORD 4435
     NOTE_D8  WORD 4699
     NOTE_DS8 WORD 4978
+    

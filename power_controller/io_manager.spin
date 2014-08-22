@@ -45,6 +45,7 @@ VAR
   long active_battery       '0: all batteries off, 1: Battery 1 on 2: battery 2 on
   long requested_battery    '0: all batteries off, 1: Battery 1 on 2: battery 2 on
   long battery_switch_sound
+  long alarm_sound
   long battery_switch_time
   long auto_battery_switch_timeout
   long v_bat1_raw
@@ -55,6 +56,7 @@ VAR
   byte batteries_low
   long battery_shutdown_voltage[3]
   long battery_shutdown_hysteresis_voltage[3]
+  byte battery_update_received
 
   ' Voltage tresholds
   long minimal_Vin               ' Minimal Vin supply
@@ -74,7 +76,13 @@ PUB start
   stop                          ' stop cog if running from before
   
   cog := cognew(manage, @cog_stack) + 1 
-  t.Pause10us(50)                 ' wait  for cog to start (300us on 80Mhz)
+  t.Pause10us(50)                 ' wait for cog to start (300us on 80Mhz)
+  
+  initialize  
+  repeat while not battery_update_received
+  
+  ' Wait for average battery voltage values to stabalize
+  t.Pause1ms(500)
                              
   return cog
 
@@ -86,13 +94,15 @@ PUB stop
 PRI initialize | i  
   new_request := false
   io_manager_counter := 0
+  oneMScounter       := 0
   
   ' Default values
   batteries_low               := false
   battery_switch_sound        := true
+  alarm_sound                 := true
   auto_battery_switch         := false
-  auto_battery_switch_timeout := 2000
-  battery_switch_time         := -auto_battery_switch_timeout 
+  auto_battery_switch_timeout := 1000
+  battery_switch_time         := 0 
   active_battery              := 0
   requested_battery           := 0
   battery_shutdown_voltage[0] := 9999999             '[mV]
@@ -101,6 +111,11 @@ PRI initialize | i
   battery_shutdown_hysteresis_voltage[0] := 1000     '[mV]
   battery_shutdown_hysteresis_voltage[1] := 1000     '[mV]
   battery_shutdown_hysteresis_voltage[2] := 1000     '[mV]
+  v_bat1_raw                  := 0 '[mV]
+  v_bat2_raw                  := 0 '[mV]
+  v_bat1_avg                  := 0 '[mV]
+  v_bat2_avg                  := 0 '[mV] 
+  battery_update_received     := false
   
   ' Set default auto_battery_switch_timeout
   auto_battery_switch_timeout := default_auto_battery_switch_timeout
@@ -117,16 +132,16 @@ PRI initialize | i
     
   sound.init(BUZZ)
     
-
 PUB updateBatteryVoltages(v1_raw, v2_raw, v1_avg, v2_avg)
-  v_bat1_raw := v1_raw
-  v_bat2_raw := v2_raw
-  v_bat1_avg := v1_avg
-  v_bat2_avg := v2_avg
+  v_bat1_raw              := v1_raw
+  v_bat2_raw              := v2_raw
+  v_bat1_avg              := v1_avg
+  v_bat2_avg              := v2_avg
+  battery_update_received := true
 
 PUB requestBattery(N)
   requested_battery := N
-  new_request := true
+  new_request       := true
   
   ' If this function is called from the IO_manager cog itself we need to call this function: checkBatterySwitch 
   ' This to prevent a deadlock
@@ -141,9 +156,6 @@ PUB requestBattery(N)
   
     
 PRI manage | t1
-  
-  initialize
-
   t1 := cnt
   repeat
   
@@ -165,7 +177,7 @@ PRI managePowerOutputs
   updateSwitches
   
 PRI checkBatterySwitch
-  ' Switch batteries if requested
+  ' Switch batteries if needed
   if requested_battery <> active_battery
     selectBattery(requested_battery)
  
@@ -174,11 +186,11 @@ PRI checkBatterySwitch
 PRI manageBatteries | switch_time_diff
   ' Battery management and automatic switch from Bat1 to Bat 2
   ' WARNING!  Can only work if battery properties of both batteries are properly set!!
-  if auto_battery_switch == true AND getBatteryVoltageRaw(active_battery) < switch_Vin
+  'if auto_battery_switch == true AND getBatteryVoltageRaw(active_battery) < switch_Vin
     ' Prevent fast back and forth switching by checking if the difference of the voltages is larger than a certain hysteresis value
-    switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
-    if switch_time_diff => auto_battery_switch_timeout
-      selectFullestBattery
+    'switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
+    'if switch_time_diff => auto_battery_switch_timeout
+      'selectFullestBattery
   
   checkBatterySwitch
       
@@ -412,7 +424,7 @@ PUB GetOK
   else
     Return 0  
 
-' ---------------- Get status OK output (on=1 or off=0) ---------------------------------------
+' ---------------- Get status OUT0 output (on=1 or off=0) ---------------------------------------
 PUB GetOUT0
   if InA[OUT0]==1
     Return 1
@@ -521,6 +533,12 @@ PUB setBatterySwitchSound(state)
 
 PUB getBatterySwitchSound
   return battery_switch_sound  
+
+PUB setAlarmSound(state)
+  alarm_sound := state
+
+PUB getAlarmSound
+  return alarm_sound    
   
 PUB setBatterySwitchTimeout(timeout)
   auto_battery_switch_timeout := timeout
