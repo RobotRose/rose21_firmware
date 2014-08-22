@@ -9,31 +9,8 @@
 '' Otherwise the FET-switches will break down
 '' ********************************************************************
 ''
-'' Commands:
-'' $90 Debug monitor on
-'' $91 Debug monitor off  (default)
+'' SEE accompanied TXT file for communication specification
 ''
-'' $9: Reset min/max for current and voltage measurements
-''
-'' $10: Switch all batteries off
-'' $11: Battery 1 active
-'' $12: Battery 2 active
-''
-'' $21: Controller output on
-'' $22: PC1 on
-'' $23: PC2 on
-'' $24: DR1 on
-'' $25: DR2 on
-'' $26: AUX on
-
-'' $30: All outputs off
-'' $31: Controller off
-'' $32: PC1 off
-'' $33: PC2 off
-'' $34: DR1 off
-'' $35: DR2 off
-'' $36: AUX off
-
 '' Summary of operation
 ''                            [1]     [2]     [3]     [4]     [5]     [6]
 ''      ┌────────┐   /        CONTR   PC1     PC2     DR1     DR2     AUX
