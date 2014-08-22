@@ -11,6 +11,9 @@ OBJ
   
 VAR 
 
+PUB init(pin)
+  DIRA[pin] ~~     'Set buzz pin as output
+
 PUB getNote(name, number)   ' Both numeric values 0 = A, 1 = B, 2 = C, 3 = D, 4 = E, 5 = F, 6 = G
   'TODO
   return 1000
@@ -29,6 +32,13 @@ PUB BeepHz(pin, hz, time) | times, sleep_time   '-- time in us
       repeat times
         !OUTA[pin]
         t.Pause10us(sleep_time/10)
+        
+PUB lowVoltageWarning(pin)
+  BeepHz(pin, NOTE_G6, 1000000/16)
+  BeepHz(pin, 0, 1000000/2)
+  BeepHz(pin, NOTE_G6, 1000000/16)
+  BeepHz(pin, 0, 1000000/2)
+ ' BeepHz(pin, 0, 1000000/32)
         
 PUB MarioUnderworldTune(pin)
   repeat 2
