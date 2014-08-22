@@ -202,6 +202,11 @@ PRI manageBatteries | switch_time_diff
     switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
     if switch_time_diff => auto_battery_switch_timeout
       selectFullestBattery
+  else
+    ' if not auto switching 
+    ' Check if we need to turn off the current battery
+    if getBatteryVoltageAvg(active_battery) < switch_Vin
+      requestBattery(0)
   
   checkBatterySwitch
       
