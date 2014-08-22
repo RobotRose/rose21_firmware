@@ -200,7 +200,7 @@ PUB Main
     handleCommunication 
     
     ' Check if batteries and low and give alarm singal with a certain interval
-    if io_manager.getBatteriesLow  
+    if io_manager.getBatteriesLow AND io_manager.alarm_sound
       if io_manager.getAlarmIntervalTimer => io_manager.getAlarmInterval
         sound.lowVoltageWarning(BUZZ)
         io_manager.setAlarmIntervalTimer(0)      
