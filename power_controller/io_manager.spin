@@ -206,7 +206,7 @@ PRI manageBatteries | switch_time_diff
   else
     ' if not auto switching 
     ' Check if we need to turn off the current battery
-    if getBatteryVoltageAvg(active_battery) < minimal_Vin
+    if active_battery <> 0 AND getBatteryVoltageAvg(active_battery) < minimal_Vin
       requestBattery(0)
   
   checkBatterySwitch
