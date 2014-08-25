@@ -587,6 +587,11 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
         216: ser.str(string("$216,"))
              ser.dec(wd_cnt_threshold)
              ser.str(string(",", CR))
+             
+        ' Get charging_Vin
+        217: ser.str(string("$217,"))
+             ser.dec(io_manager.getChargingVin)
+             ser.str(string(",", CR))
                                     
         ' === Set commands ===
         ' Set auto switch voltage
@@ -696,6 +701,14 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.str(string("$309,"))
              ser.dec(wd_cnt_threshold)
              ser.str(string(",", CR))
+             
+        ' Set charging voltage
+        310: temp := sGetPar    ' Voltage to set
+                            
+             io_manager.setChargingVin(temp)
+             ser.str(string("$310,"))
+             ser.dec(io_manager.getChargingVin)
+             ser.str(string(",", CR))     
       
         ' === Other commands ===
         ' Enable/reset watchdog
@@ -737,14 +750,25 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.str(string(",", CR))
              
         ' Force select battery
-        406: temp := sGetPar        ' Which battery to select
+        406: temp := 0 #> sGetPar <# 2        ' Which battery to select
              
              ' Turn off auto battery selecting mode   
              io_manager.setAutoBatterySelect(false) 
                                                  ' 
              ser.str(string("$406,"))
              ser.dec(io_manager.requestBattery(temp))
-             ser.str(string(",", CR))     
+             ser.str(string(",", CR)) 
+        
+        ' Is battery charging
+        407: temp := 0 #> sGetPar <# 2        ' Which battery 
+
+             ser.str(string("$407,"))
+             if io_manager.isBatteryCharging(temp) == true
+               ser.dec(1)
+             else
+               ser.dec(0)
+             ser.str(string(",", CR)) 
+                 
                   
         other:ser.tx("$")
               ser.dec(command)

@@ -68,7 +68,8 @@ VAR
   long minimal_Vin               ' Minimal Vin supply
   long warning_Vin               ' Warning supply voltage    
   long switch_Vin                ' Switch supply voltage
-  
+  long charging_Vin              ' Charging supply voltage
+                                  
   ' Power outputs
   long switch_state[6]
   long ok_output_state
@@ -132,9 +133,10 @@ PRI initialize | i
   auto_battery_switch_timeout := default_auto_battery_switch_timeout
   
   ' Set default Vin voltage tresholds
-  minimal_Vin := 22000
-  warning_Vin := 24000
-  switch_Vin  := 24000
+  minimal_Vin   := 22000
+  warning_Vin   := 24000
+  switch_Vin    := 24000
+  charging_Vin  := 27400
   
   ' Reset switch states
   i := 0
@@ -273,7 +275,10 @@ PRI checkBatteriesLow
 
 PUB isBatteryLow(i)
   return getBatteryVoltageAvg(i) =< warning_Vin
-  
+
+PUB isBatteryCharging(i)
+  return getBatteryVoltageAvg(i) => charging_Vin
+    
 ' === Check if the shutdown voltage is minimally larger that the minimal voltage plus the treshold voltage ===
 ' To account for voltage drop with load
 PRI isBatteryVoltageHysteresisOK(i)   
@@ -554,6 +559,12 @@ PUB setSwitchVin(Vin)
 PUB getSwitchVin
   return switch_vin
   
+PUB setChargingVin(value)
+  charging_Vin := value
+     
+PUB getChargingVin
+  return charging_Vin
+  
 PUB setBatterySwitchSound(state)
   battery_switch_sound := state
 
@@ -595,8 +606,6 @@ PUB setLedIntervalTimer(value)
   
 PUB getLedIntervalTimer
   return ledIntervalTimer
-  
-
   
 DAT   
     NOTE_B0  WORD 31
