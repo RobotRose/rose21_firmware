@@ -34,8 +34,8 @@ DAT
   
 CON
    ' Version
-   major_version    = 0
-   minor_version    = 1 
+   major_version    = 1
+   minor_version    = 0 
    CONTROLLER_ID    = 3
 
 'Set 80Mhz
