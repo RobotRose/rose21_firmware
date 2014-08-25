@@ -12,20 +12,18 @@
 '' SEE accompanied TXT file for communication specification
 ''
 '' Summary of operation
-''                            [1]     [2]     [3]     [4]     [5]     [6]
+''                            [0]     [1]     [2]     [3]     [4]     [5]
 ''      ┌────────┐   /        CONTR   PC1     PC2     DR1     DR2     AUX
 ''      │ Bat1   │──/  ───┐    │       │       │       │       │       │
-''      └────────┘ $11    │    │       │       │       │       │       │
+''      └────────┘        │    │       │       │       │       │       │
 ''                        │     /       /       /       /       /       /
 ''                        ┣────/────── /────── /────── /────── / ───── /
-''      ┌────────┐   /    │ on $21    $22    $23      $24     $25     $26
-''      │ Bat2   │──/  ───┘off $31    $32    $33      $34     $35     $36
-''      └────────┘ $12     All outputs off $30
-'' 
-''        $10 all batteries off
+''      ┌────────┐   /    │
+''      │ Bat2   │──/  ───┘
+''      └────────┘         
 '' 
 '' 
-'' Data for PC:
+'' Data for PC in serial debug mode:
 '' NTC    NC Vcont  IAux  IDr2  IDr1  IPC2  IPC1 ICntr IBat2 IBat1  V24b VBat1 VBat2   3V3    5V
 '' Data available in: Raw ADC bits
 ''                    Voltage (mV)
