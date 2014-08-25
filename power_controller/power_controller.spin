@@ -207,7 +207,7 @@ PUB Main
         sound.lowVoltageWarning(BUZZ)
         io_manager.setAlarmIntervalTimer(0)      
     else
-      io_manager.setAlarmIntervalTimer(0)
+      io_manager.setAlarmIntervalTimer(io_manager.getAlarmInterval)
      
     ' Indicate that the main loop is running   
     if io_manager.getLedIntervalTimer => main_led_interval
@@ -611,11 +611,8 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.str(string(",", CR))
         
         ' Set minimal voltage
-        302: temp := sGetPar    ' Voltage to set
-             
-             if temp < cMinVin
-               temp := cMinVin
-               
+        302: temp := cMinVin #> sGetPar    ' Voltage to set
+                            
              io_manager.setMinimalVin(temp)
              ser.str(string("$302,"))
              ser.dec(temp)
