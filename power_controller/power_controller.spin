@@ -331,6 +331,10 @@ PRI startup | selected_battery
     io_manager.setSwitch(1, true)
   else
     ser.str(string("Batteries not charged, not turning on PC1", CR))
+    
+' === Reset communication ===
+PRI reset_communication
+  InitWatchDog
   
 ' === Init serial communication ===
 PRI InitSer
@@ -396,8 +400,7 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
               ser.tx(",")  
               ser.tx(CR) 
         '--- WATCHDOG ---
-        111:      
-             received_wd := sGetPar
+        111: received_wd := sGetPar
              ' Check value
              if received_wd <> expected_wd
                 ' DO DISABLEING STUFF? TODO
@@ -554,6 +557,32 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.str(string(","))
              ser.dec(engADCchAVG[cVBAT2])
              ser.str(string(",", CR))
+             
+        ' Get battery switch sound state
+        213: ser.str(string("$213,"))
+             if io_manager.getBatterySwitchSound == true     
+                ser.dec(1)
+             else
+                ser.dec(0)             
+             ser.str(string(",", CR))
+             
+        ' Get alarm sound state
+        214: ser.str(string("$214,"))
+             if io_manager.getAlarmSound == true     
+                ser.dec(1)
+             else
+                ser.dec(0)    
+             ser.str(string(",", CR))
+             
+        ' Get alarm sound interval
+        215: ser.str(string("$215,"))
+             ser.dec(io_manager.getAlarmInterval)
+             ser.str(string(",", CR))
+             
+        ' Get watchdog treshold counter
+        216: ser.str(string("$216,"))
+             ser.dec(wd_cnt_threshold)
+             ser.str(string(",", CR))
                                     
         ' === Set commands ===
         ' Set auto switch voltage
@@ -645,55 +674,74 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.dec(temp)                                                ' 
              ser.str(string(",", CR))  
                 
-        ' Set battery low alarm interval
-        307: temp := 1000 #> sGetPar        ' interval
+        ' Set battery low alarm sound state
+        307: temp := 0 #> sGetPar <# 1      ' on/off
              
              ser.str(string("$307,"))
+             io_manager.setAlarmSound(temp)             
+             ser.dec(io_manager.getAlarmSound)                                                ' 
+             ser.str(string(",", CR))
+        
+        ' Set battery low alarm interval
+        308: temp := 1000 #> sGetPar        ' interval
+             
+             ser.str(string("$308,"))
              io_manager.setAlarmInterval(temp)             
              ser.dec(io_manager.getAlarmInterval)                                                ' 
              ser.str(string(",", CR))
+             
+        ' Set watchdog treshold counter
+        309: wd_cnt_threshold := 0 #> sGetPar
+             ser.str(string("$309,"))
+             ser.dec(wd_cnt_threshold)
+             ser.str(string(",", CR))
       
+        ' === Other commands ===
+        ' Enable/reset watchdog
+        400: reset_communication
+             ser.str(string("$400,", CR))
+             
         ' Initiate shutdown   
-        400: ser.str(string("$400,", CR))
-             shutdown
+        401: shutdown
+             ser.str(string("$401,", CR))
         
         'Enable/disable serial debug mode    
-        401: temp := sGetPar        
+        402: temp := sGetPar        
              if temp == 1
                Debug := true
              elseif temp == 0
                Debug := false
              
-             ser.str(string("$401,"))
+             ser.str(string("$402,"))
              ser.dec(temp)
              ser.str(string(",", CR))
      
         'Reset specified ADC min/max values
-        402: temp := sGetPar   
+        403: temp := sGetPar   
              
              resetADCVals(temp)
                           
-             ser.str(string("$402,"))
+             ser.str(string("$403,"))
              ser.dec(temp)
              ser.str(string(",", CR))
              
         'Reset ALL ADC min/max values
-        403: resetAllADCVals
+        404: resetAllADCVals
                           
-             ser.str(string("$403,", CR))
+             ser.str(string("$404,", CR))
              
         'Select fullest battery
-        404: ser.str(string("$404,"))
+        405: ser.str(string("$405,"))
              ser.dec(io_manager.selectFullestBattery)
              ser.str(string(",", CR))
              
         ' Force select battery
-        405: temp := sGetPar        ' Which battery to select
+        406: temp := sGetPar        ' Which battery to select
              
              ' Turn off auto battery selecting mode   
              io_manager.setAutoBatterySelect(false) 
                                                  ' 
-             ser.str(string("$405,"))
+             ser.str(string("$406,"))
              ser.dec(io_manager.requestBattery(temp))
              ser.str(string(",", CR))     
                   
@@ -705,11 +753,14 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
               
 Return commandOK
 
-' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | i, ConnectionError, bitvalue
-  wd_cnt                   := 0
+
+PRI resetSafety 
   no_alarm                 := true                'Reset global alarm var
   last_alarm               := 0                   'Reset last alarm message
+
+' ---------------- Check safety of platform and put in safe condition when needed ---------
+PRI DoSafety | i, ConnectionError, bitvalue
+  resetSafety
 
   ' Main safety loop    
   repeat
@@ -721,6 +772,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
     if wd_cnt > wd_cnt_threshold    
       last_alarm := 1
       no_alarm   := false
+'      shutdownNonDefaultOutputs
       ' TAKE ACTION! TODO
 
     t.Pause1ms(1)

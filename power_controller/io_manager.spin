@@ -82,12 +82,12 @@ PUB start
   cog := cognew(manage, @cog_stack) + 1 
   t.Pause10us(50)                 ' wait for cog to start (300us on 80Mhz)
   
-  initialize  
+  battery_update_received := false
   repeat while not battery_update_received
   
   ' Wait for average battery voltage values to stabalize
   t.Pause1ms(500)
-                             
+                               
   return cog
 
 PUB stop
@@ -165,6 +165,7 @@ PUB requestBattery(N)
   
     
 PRI manage | t1
+  initialize
   t1 := cnt
   repeat
   
@@ -289,7 +290,9 @@ PRI selectBattery(N)
   ' Store the voltage a battery had before toggeling it off
   if N <> active_battery
     battery_shutdown_voltage[active_battery] := getBatteryVoltageRaw(active_battery)
-   
+  
+  
+  
   case N
     0: OUTA[PWRBAT1]:=0   
        OUTA[PWRBAT2]:=0
@@ -545,7 +548,7 @@ PUB getSwitchVin
   return switch_vin
   
 PUB setBatterySwitchSound(state)
-  battery_switch_sound := state
+  battery_switch_sound := true
 
 PUB getBatterySwitchSound
   return battery_switch_sound  
