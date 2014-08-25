@@ -120,7 +120,9 @@ CON
   c3V3 = 3200                ' Minimal 3V3 supply
   cMinVin = 2200             ' Absolute minimal supply voltage
 
-  main_led_interval = 250    ' [ms]                           
+  main_led_interval = 250    ' [ms]       
+  
+  averaging_samples = 40     ' Number of samples to average the ADC values with                    
   
 OBJ
   ADC             : "MCP3208_fast_multi"                  ' ADC
@@ -1255,7 +1257,7 @@ PRI DoADC | i, T1
        else
          ADCRaw[i]:= ADC.in(i-8,chip2)     ' And next 8 from ADC2  
        
-       ADCRawAVG[i]:= (ADCRawAVG[i] *4 +  ADCRaw[i] )/5
+       ADCRawAVG[i]:= (ADCRawAVG[i] *(averaging_samples - 1) +  ADCRaw[i] )/averaging_samples
        ADCRawMIN[i] <#= ADCRaw[i]            'save min value
        ADCRawMAX[i] #>= ADCRaw[i]            'save max value
        i++
