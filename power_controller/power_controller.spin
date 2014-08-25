@@ -122,9 +122,7 @@ CON
   c3V3 = 3200                ' Minimal 3V3 supply
   cMinVin = 2200             ' Absolute minimal supply voltage
 
-  main_led_interval = 250    ' [ms]
-                              
-  default_output = 1         ' PC1 turns on automatically at startup                             
+  main_led_interval = 250    ' [ms]                           
   
 OBJ
   ADC             : "MCP3208_fast_multi"                  ' ADC
@@ -207,7 +205,7 @@ PUB Main
         sound.lowVoltageWarning(BUZZ)
         io_manager.setAlarmIntervalTimer(0)      
     else
-      io_manager.setAlarmIntervalTimer(io_manager.getAlarmInterval)
+      io_manager.setAlarmIntervalTimer(0)
      
     ' Indicate that the main loop is running   
     if io_manager.getLedIntervalTimer => main_led_interval
@@ -329,10 +327,9 @@ PRI startup | selected_battery
   ser.dec(selected_battery)
   ser.char(CR)
   if selected_battery <> 0
-    ser.str(string("Battery selected, turning on default output.", CR))
-    io_manager.setSwitch(default_output, true)
+    ser.str(string("Battery selected.", CR))
   else
-    ser.str(string("Batteries not charged, not turning on default output.", CR))
+    ser.str(string("Batteries not charged!", CR))
     
 ' === Reset communication ===
 PRI reset_communication
@@ -367,7 +364,7 @@ PRI InitWatchDog
 PRI handleWatchdogError | i
   i := 0
   repeat 6
-    if i <> default_output
+    if i <> io_manager.getDefaultOutput
       io_manager.setSwitch(i, false)
     i++
   

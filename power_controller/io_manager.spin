@@ -27,6 +27,8 @@ CON
   n_switches   = 6
   
   default_auto_battery_switch_timeout = 2000
+  
+  default_output = 1         ' PC1 turns on automatically at startup 
 
 OBJ
   sound         : "sound"
@@ -212,7 +214,7 @@ PRI manageBatteries | switch_time_diff
   checkBatterySwitch
       
   ' Check voltage levels
-  batteries_low := checkWarningVoltage
+  batteries_low := checkBatteriesLow
   
 PUB selectFullestBattery | fullest_battery, emptiest_battery, selected_battery
     fullest_battery := getFullestBattery
@@ -266,10 +268,10 @@ PUB isBatteryVoltageOK(i)
     return (getBatteryVoltageAvg(i) => minimal_Vin) 
 
 ' === Check if battery warning is required (both batteries below warning_Vin) ===
-PRI checkWarningVoltage 
-    return (isBatteryWarningVoltageOK(1) AND isBatteryWarningVoltageOK(2))
+PRI checkBatteriesLow
+    return (isBatteryLow(1) AND isBatteryLow(2))
 
-PUB isBatteryWarningVoltageOK(i)
+PUB isBatteryLow(i)
   return getBatteryVoltageAvg(i) =< warning_Vin
   
 ' === Check if the shutdown voltage is minimally larger that the minimal voltage plus the treshold voltage ===
@@ -286,6 +288,8 @@ PRI selectBattery(N)
   ' This also ensures that the outputs are not being left in an on state
   if not isBatteryVoltageOK(N) 'active_battery == 0 OR N == 0 
     SwitchAllOff         ' Switch off all outputs
+  else
+    turnOnDefaultOuput   ' Always turn on the default output
   
   ' Store the voltage a battery had before toggeling it off
   if N <> active_battery
@@ -340,6 +344,13 @@ PRI SwitchAllOff
   setSwitch(3, false)
   setSwitch(4, false) 
   setSwitch(5, false) 
+  
+  
+PUB turnOffDefaultOutput
+  setSwitch(default_output, false)
+  
+PUB turnOnDefaultOuput
+  setSwitch(default_output, true)
 
 PUB setSwitch(N, req_state)
   switch_state[N] := req_state
@@ -497,9 +508,9 @@ PUB GetAUX
   else
     Return 0         
         
-
-
 ' ====== getters and setters ======
+PUB getDefaultOutput
+  return default_output
 
 PUB getBatteriesLow
   return batteries_low
