@@ -123,6 +123,8 @@ CON
   cMinVin = 2200             ' Absolute minimal supply voltage
 
   main_led_interval = 250    ' [ms]
+                              
+  default_output = 1         ' PC1 turns on automatically at startup                             
   
 OBJ
   ADC             : "MCP3208_fast_multi"                  ' ADC
@@ -277,18 +279,7 @@ PRI Init
     ser.str(string(")", CR))
   else
     ser.str(string("Unable to start PlcCog", CR))
-    
-  if SafetyCog > 0
-    cogstop(SafetyCog~ - 1)  
-  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
-  
-  if SafetyCog
-    ser.str(string("Started SafetyCog("))
-    ser.dec(SafetyCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start SafetyCog", CR))
-  
+      
   if DebugCog > 0
     cogstop(DebugCog~ - 1)  
   DebugCog := CogNew(DoDisplay, @DebugStack) + 1
@@ -310,6 +301,17 @@ PRI Init
     
   io_manager.setBatterySwitchSound(true)
   io_manager.setAutoBatterySelect(true)
+  
+  if SafetyCog > 0
+    cogstop(SafetyCog~ - 1)  
+  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
+  
+  if SafetyCog
+    ser.str(string("Started SafetyCog("))
+    ser.dec(SafetyCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start SafetyCog", CR))
  
 ' === Shutdown sequence ===  
 PRI shutdown
@@ -327,14 +329,15 @@ PRI startup | selected_battery
   ser.dec(selected_battery)
   ser.char(CR)
   if selected_battery <> 0
-    ser.str(string("Battery selected, turning on PC1", CR))
-    io_manager.setSwitch(1, true)
+    ser.str(string("Battery selected, turning on default output.", CR))
+    io_manager.setSwitch(default_output, true)
   else
-    ser.str(string("Batteries not charged, not turning on PC1", CR))
+    ser.str(string("Batteries not charged, not turning on default output.", CR))
     
 ' === Reset communication ===
 PRI reset_communication
   InitWatchDog
+  resetSafety
   
 ' === Init serial communication ===
 PRI InitSer
@@ -360,7 +363,13 @@ PRI InitWatchDog
   expected_wd   := 0                     
   wd            := 0
   wd_cnt        := 0
-  
+
+PRI handleWatchdogError | i
+  i := 0
+  repeat 6
+    if i <> default_output
+      io_manager.setSwitch(i, false)
+    i++
   
 '***************************************  Handle command string received from client
 PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, temp, temp2
@@ -403,7 +412,7 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
         111: received_wd := sGetPar
              ' Check value
              if received_wd <> expected_wd
-                ' DO DISABLEING STUFF? TODO
+                handleWatchdogError
                 ser.tx("$")
                 ser.dec(111)
                 ser.tx(",")
@@ -772,9 +781,8 @@ PRI DoSafety | i, ConnectionError, bitvalue
     if wd_cnt > wd_cnt_threshold    
       last_alarm := 1
       no_alarm   := false
-'      shutdownNonDefaultOutputs
-      ' TAKE ACTION! TODO
-
+      handleWatchdogError
+      
     t.Pause1ms(1)
    
        

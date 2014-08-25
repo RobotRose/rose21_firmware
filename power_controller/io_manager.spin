@@ -206,7 +206,7 @@ PRI manageBatteries | switch_time_diff
   else
     ' if not auto switching 
     ' Check if we need to turn off the current battery
-    if getBatteryVoltageAvg(active_battery) < switch_Vin
+    if getBatteryVoltageAvg(active_battery) < minimal_Vin
       requestBattery(0)
   
   checkBatterySwitch
@@ -290,9 +290,7 @@ PRI selectBattery(N)
   ' Store the voltage a battery had before toggeling it off
   if N <> active_battery
     battery_shutdown_voltage[active_battery] := getBatteryVoltageRaw(active_battery)
-  
-  
-  
+ 
   case N
     0: OUTA[PWRBAT1]:=0   
        OUTA[PWRBAT2]:=0
@@ -332,9 +330,7 @@ PRI selectBattery(N)
   battery_switch_time := oneMScounter
     
   return N
-  
-  
-  
+
 ' ====== POWER OUTPUTS ======
 ' Switch output 0 to 5. 0= all off
 PRI SwitchAllOff
@@ -548,7 +544,7 @@ PUB getSwitchVin
   return switch_vin
   
 PUB setBatterySwitchSound(state)
-  battery_switch_sound := true
+  battery_switch_sound := state
 
 PUB getBatterySwitchSound
   return battery_switch_sound  
