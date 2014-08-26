@@ -15,6 +15,8 @@
 ''
 ''   Button: to Retract position
 ''
+'' SEE accompanied TXT file for communication specification
+''
 ''   Outputs:
 ''   MoveMode
 ''   InPos  (-1 = in pos)
@@ -24,34 +26,31 @@
 ''*****************************************************
 
 
-DAT Product BYTE "900067 LinMot MCP3208",0
-    Version Byte "1",0
-    SubVersion Byte "C",0
+DAT 
     
 CON
+   ' Version
+   major_version    = 3
+   minor_version    = 0 
+   CONTROLLER_ID    = 2
 
    'Set 80Mhz
    _clkmode = xtal1+pll16x
    _xinfreq = 5000000      
 
-'' Serial port 
+   ' Characters
    CR = 13
    LF = 10
    CS = 0
-   CE = 11                  'CE: Clear to End of line
-   TXD = 30 '26 ' 30
-   RXD = 31 '27 ' 31
-   Baud = 115200
+   CE = 11    
+
+   '' Serial port 
+   txd  = 30 '26 ' 30
+   rxd  = 31 '27 ' 31
+   baud = 115200
 
    NumWidth = 5             ' Number of positions for debug array display
-   
-'' Strings
-  lMaxStr = 257             'Stringlength is 256 + 1 for 0 termination
-  StringSize = lMaxStr-1
-  bytebuffersize = 2048
-  Cmdlen = 10
-  LineLen = bytebuffersize  ' Buffer size for incoming line
-         
+      
 ' ADC SPI connections
    dpin1 = 4
    cpin1 = 7
@@ -86,13 +85,10 @@ BetaNTC = 4220
 ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
-  cVin = 9500               ' Minimal Vin supply
+  cVin = 9500                ' Minimal Vin supply
     
 'Button Retract position
-  Retract = 400              ' Park position linear motor
-  PrePos1 = 500              ' Preset position 1
-  PrePos2 = 1000             ' Preset position 2
-  PrePos3 = 2000             ' Preset position 3
+  retract_position = 400              ' Park position linear motor
 
 ' MotorDrive 1451 pin's
   sINA = 16
@@ -100,20 +96,16 @@ BetaNTC = 4220
   sPWM = 16
 
 ' DC Motor PWM
-  Freq          = 5000      'PWM freq in Hz
-  BASE_PIN      = sPWM
-  cDefHyst      = 50        'Hysteresis for position control
+  Freq          = 5000       ' PWM freq in Hz
+  cDefHyst      = 50         ' Hysteresis for position control
 
-  EndPosLow = 250            ' Smallest position of lin mot
-  EndPosHigh = 3200          ' Highest position of lin mot
+  EndPosLow     = 150        ' Smallest position of lin mot
+  EndPosHigh    = 3450       ' Highest position of lin mot
   
-  StandardSpeed = 150        ' Standard speed for moves
+  default_speed = 150       ' Standard speed for moves
 
   InPosWindow = 100          ' If position error < than this value, InPos value is -1 else 0
 
-CON
-
-  
 'Button
   pButton1 = 22
 
@@ -127,109 +119,268 @@ CON
   Bumper0 = 8
   
 
-'Led  
-  LED = 25             'Propeller LED
+  ' Led  
+  LED = 25                   ' Propeller LED PIN
+
+  main_led_interval = 250    ' [ms]       
+  
+  averaging_samples = 40     ' Number of samples to average the ADC values with    
 
 
 OBJ
   ADC           : "MCP3208_fast"                       ' ADC
-  ser           : "full_duplex_serial_005"              ' Full duplex serial communication 
+  ser           : "full_duplex_serial_005"             ' Full duplex serial communication 
   t             : "Timing"
   PWM           : "PWMx8"                              ' PWM module motor drive
   STRs          : "STRINGS2hk"
-  num           : "simple_numbers"                      ' Number to string conversion
-  f             : "FloatMath1_1"                        ' Floating point library
+  num           : "simple_numbers"                     ' Number to string conversion
+  f             : "FloatMath1_1"                       ' Floating point library
+  rose_comm     : "rose_communication"                 ' Rose communication framework
   
 VAR
-  LONG ADCCog, SerCog, PWMCog, ADCMCog, ADCStack[50], LinMotCog, LinMotStack[50], PLCCog, PLCStack[50]
-  Long ADCConvStack[250]
-  Long MaxCh, ADCTime, ADCCnt, DoMotorCnt, PlcCnt
+  long ADCCog, PWMCog, ADCMCog, ADCStack[50], LinMotCog, LinMotStack[50], PLCCog, PLCStack[50], DebugCog, DebugStack[50], SafetyCog, SafetyStack[50], serial_cog
+  long MaxCh, ADCTime, ADCCnt, DoMotorCnt, PlcCnt
 
-  Long ADCRaw[NCh], ADCRawMin[NCh], ADCRawAVG[NCh], ADCRawMax[NCh]         ' Bits
-  Long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]             ' Volt
-  Long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
-  Long ADCConvCog
-  Long Scale[Nch], ScalingCnt, ScalingTime '' array with scaling factors
+  long ADCRaw[NCh], ADCRawMin[NCh], ADCRawAVG[NCh], ADCRawMax[NCh]         ' Bits
+  long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]             ' Volt
+  long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
+  long ADCConvCog
+  long Scale[Nch], ScalingCnt, ScalingTime '' array with scaling factors
   
-  Long MotorPWM, MotorPos, Speed, MoveDir
-  Long PosError, Ibuf, Period
-  Long InPos, EndPos1, EndPos2
-
-  Long ConnectCnt, ConnectTime    
-  byte data[bytebuffersize]     'Receive buffer
-  long DataLen                  'Buffer len
-  Byte StrMiscReport[lMaxStr]   'Report string various other data
-  Long CommandTime, ConnectionTime
-  Long Sender, LastPar1[CmdLen]
- 'Input string handling
-  Byte StrBuf[lMaxStr]  'String buffer for receiving chars from serial port
-  Long StrSP, StrP, StrLen        'Instring semaphore, counter, Stringpointer, String length
-  Byte Ch
-
-  Long MoveMode         '0= disable, 1: speed and pos, 2: potm 3: retract on button to fixed position
-  Long AllOK, s5VOK, s3V3OK, sVInOK, OutofRange
+  long MotorPWM, MotorPos, Speed, MoveDir
+  long PosError, Ibuf, Period
+  long InPos, EndPos1, EndPos2
   
-  Long Button1
+  ' Debug mode on/off
+  long debug
+
+  ' State
+  long MoveMode                       '0= disable, 1: speed and pos, 2: potm 3: retract_position on button to fixed position
+  byte OutofRange
+  
+  ' Button state
+  long Button1
+  
+  ' Timers
+  long led_interval_timer
+  
+  ' Safety
+  byte AllOK, s5VOK, s3V3OK, sVInOK
+  byte no_alarm
+  long last_alarm
+  
+  ' Watchdog
+  long received_wd
+  long expected_wd 
+  long wd
+  long wd_cnt
+  long wd_cnt_threshold
+
             
-PUB Main | T1, NewCh, ii
+PUB Main | T1, NewCh
+  
   Init
-
+  debug := true
   repeat
-
-    NewCh:=Ser.RxCheck
-    if NewCh>0
-      Ser.Str(string("New Cmd received"))
-      T1:=cnt
-      Ser.Str(num.decf(ConnectCnt,4))
-      Ser.Str(string(" ",Ser#NL, Ser#LF))
-
-    'Initialize the buffers and bring the data over
-      bytefill(@data, 0, bytebuffersize)
-      ser.StrIn(@Data)
-      bytemove(@data+1,@data,bytebuffersize-1)
-      data[0]:=NewCh
-'   repeat
-'     packetSize := W5100.rxTCP(0, @data)
-'     i++
- '  while packetSize == 0 and i<20000
-  ' if i<20000
+    ' Read data from serial
+    ser.StrInMaxTime(rose_comm.getStringBuffer, rose_comm.getMaxStringLength, rose_comm.getMaxWaitTime)  
       
-      DataLen:=strsize(@data)        'store string length for use by parsers
+    if(rose_comm.checkForCommand)
+      if debug
+        ser.str(string("Received command: "))
+        displayCommand
+        ser.char(CR)
+      DoCommand
+    elseif debug
+      ser.str(string("No command received, previous command: "))
+      displayCommand
+      ser.char(CR)
       
-      Ser.Str(string(CR, "Packet from client: "))
-      Ser.Str(@Data)
-      Ser.char(CR)
+    ' Indicate that the main loop is running   
+    if led_interval_timer => main_led_interval
+      !OUTA[Led]
+      led_interval_timer := 0
 
-      DoCommand   'Execute command in received string
-
-      Ser.Str(string(CR, "Final report: ",CR))
-
-      strs.EraseString(@StrMiscReport)  'Init report string
-      strs.concatenate(@StrMiscReport, string("OK. Last Conn time us : "))
-      strs.concatenate(@StrMiscReport,num.decf(ConnectionTime,4))
-      strs.AddCharToStr(",",@StrMiscReport)
-      strs.concatenate(@StrMiscReport,num.decf(ConnectCnt++,5))
-      ser.str(@StrMiscReport)
-      
-    DoDisplay
-
-    t.Pause1ms(100)
-
-    !OUTA[Led]
+PRI displayCommand | i
+  ser.str(string("["))
+  ser.str(rose_comm.getStringBuffer)
+  ser.str(string("], "))
+  ser.dec(rose_comm.getNrOfParameters)
+  ser.str(string(" parameters: ["))
+  i := 1
+  repeat rose_comm.getNrOfParameters        
+    ser.dec(rose_comm.getParameter(i++))
+    if i =< rose_comm.getNrOfParameters
+      ser.str(string(", "))
     
- '  if GetOK==1
- '    SetOK(0)
- '    SetOUT0(0)
- '  else
- '    SetOK(1)
- '    SetOUT0(1)
+  ser.str(string("]"))
+  
+PRI Init
+  DirA[Led] ~~                              ' Set led pin as output
+  OUTA[Led] := 1                            ' Turn on the led
+ 
+  'Reset all min/max values
+  resetAllADCVals
+  
+  initialize_serial
+  
+  ' Wait for rose communication to startup
+  rose_comm.initialize
+  repeat while not rose_comm.isInitialized
+  
+  if ADCCog > 0
+    cogstop(ADCCog~ - 1)
+  ADCCog := ADC.Start(dpin1, cpin1, spin1,Mode1) ' Start ADC low level
+  MaxCh  := NCh-1
+  
+  if ADCCog
+    ser.str(string("Started ADCCog("))
+    ser.dec(ADCCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start ADCCog", CR))
+    
+  if DebugCog > 0
+    cogstop(DebugCog~ - 1)  
+  DebugCog := CogNew(DoDisplay, @DebugStack) + 1
+  
+  if DebugCog
+    ser.str(string("Started DebugCog("))
+    ser.dec(DebugCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start DebugCog", CR))
+   
+  if ADCMCog > 0
+    cogstop(ADCMCog~ - 1)
+  ADCMCog:=cognew(DoADC, @ADCStack)                 ' Start Measurement cog
+  
+  if ADCMCog
+    ser.str(string("Started ADCMCog("))
+    ser.dec(ADCMCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start ADCMCog", CR))
+    
+  if SafetyCog > 0
+    cogstop(SafetyCog~ - 1)  
+  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
+  
+  if SafetyCog
+    ser.str(string("Started SafetyCog("))
+    ser.dec(SafetyCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start SafetyCog", CR))
+    
+  if PwmCog > 0
+    cogstop(PwmCog~ - 1)  
+  PwmCog := pwm.start(sPWM, %00000100, Freq)    ' Init pwm object
+  pwm.duty(18, 0)
+  
+  if PwmCog
+    ser.str(string("Started PwmCog("))
+    ser.dec(PwmCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start PwmCog", CR))
 
+  if LinMotCog > 0
+    cogstop(LinMotCog~ - 1) 
+  LinMotCog := cognew(Do_Motor, @LinMotStack)       ' Start Lin motor controller
+                                                   
+  if LinMotCog
+    ser.str(string("Started LinMotCog("))
+    ser.dec(LinMotCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start LinMotCog", CR))
+    
+  ' Set default values 
+  debug     := false
+  MotorPos  := ADCRawAVG[FBPM]                      ' Make set position equal to actual position
+  sVinOK    := 1
+  s3V3OK    := 1
+  s5VOK     := 1
+  AllOK     := 1
 
+'=== Init Watchdog ===
+PRI InitWatchDog
+  ' Error tresholds (timing 1 count is 1*ms) default values
+  wd_cnt_threshold  := 1000 
+  received_wd       := 0 
+  expected_wd       := 0                     
+  wd                := 0
+  wd_cnt            := 0
+
+PRI handleWatchdogError | i
+  ' Do some handling man!
+  ' 
+' === Init serial communication ===
+PUB initialize_serial
+
+  serial_cog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
+  
+  if serial_cog
+    ser.str(string("Started serial communication, cog: "))
+    ser.dec(serial_cog)
+    ser.str(string(".", CR))
+  else
+    ser.str(string("Unable to start serial communication.", CR))
+
+  return serial_cog  
+  
 ' --------------------------------- Do logic tasks and safety tasks
-PRI DoPLC
+PRI DoPLC | t1
+  t1 := cnt
   Repeat
-  ' Check safetay related values
+   ' Forward emergency   
+    If GetEMERin==1 and sVinOK==1 and AllOK==1 ' Process emergency alarms to OK output
+      SetOK(1)
+    else
+      SetOK(0)
+      AllOK:=0      
+  
+    ' Read the button input state
+    Button1 := GetButton
+    if Button1 == 1
+      AllOK     := 1              ' Try to reset drive
+      sVinOK    := 1
+      s3V3OK    := 1
+      s5VOK     := 1
+      Speed     := default_speed  ' Set speed
+      MoveMode  := 3              ' To rectractposition
+      MotorPos  := retract_position
 
+
+    case MoveMode
+      2: MotorPos := (ADCRawAVG[Potm1])               'Move mode 2: Position controlled by Potm 1
+
+    ' Timers
+    if ||(cnt - t1) => (clkfreq/1000)
+      led_interval_timer++
+      t1 := cnt
+    PlcCnt++
+
+PRI resetSafety 
+  no_alarm                 := true                'Reset global alarm var
+  last_alarm               := 0                   'Reset last alarm message
+
+' ---------------- Check safety of platform and put in safe condition when needed ---------
+PRI DoSafety | i, ConnectionError, bitvalue
+  resetSafety
+
+  ' Main safety loop    
+  repeat
+    '-- Watchdog -- 
+    wd_cnt++
+
+    if wd_cnt > wd_cnt_threshold    
+      last_alarm := 1
+      no_alarm   := false
+      handleWatchdogError
+      
+    ' Voltages   
     if engADCchAVG[V5V] < c5V
       s5VOK :=0
 
@@ -238,44 +389,44 @@ PRI DoPLC
 
     if engADCchAVG[Vin] < cVin
       sVinOK :=0
-
-    if sVinOK==1 and s3V3OK==1 and  s5VOK==1  '' Check power supplies 
-      SetOUT0(1)
-    else
-      SetOUT0(0)
       
-    If GetEMERin==1 and sVinOK==1 and AllOK==1 ' Process emergency alarms to OK output
-      SetOK(1)
-    else
-      SetOK(0)
-      AllOK:=0
-      
-  
-    Button1:=GetButton
-    if Button1 == 1
-      AllOK:=1               ' Try to reset drive
-      sVinOK:=1
-      s3V3OK :=1
-      s5VOK :=1
-      Speed := StandardSpeed ' Set speed
-      MoveMode:=3            ' To rectractposition
-      MotorPos:=Retract
+    t.Pause1ms(1)
 
-
-    case MoveMode
-
-      2: MotorPos:=(ADCRawAVG[Potm1])               'Move mode 2: Position controlled by Potm 1
-
-
-    PlcCnt++
+' === Reset AllMin Max values of specific ADC channel === 
+PRI resetAllADCVals | ii
+    ii:=0
+    repeat NCh 
+        resetADCVals(ii++)
     
-' ----------------------- Reset program ------------------------
-PRI DoReset
-  MotorPos:= ADCRawAVG[FBPM]  ' Make set position equal to actual position
-  sVinOK:=1
-  s3V3OK :=1
-  s5VOK :=1
-  AllOK:=1
+' === Reset Min Max values of specific ADC channel === 
+PRI resetADCVals(i)
+    if i => 0 and i =< NCh
+        ADCRawMIN[i]:=999999
+        ADCRawMAX[i]:=0
+        ADCRawAVG[i]:=0
+        return i
+    else 
+        return -1 
+               
+'Measuring cog. Runs continuously
+PRI DoADC  | i, T1
+   repeat
+     T1:=cnt
+
+     i:=0
+     repeat NCh
+       ADCRaw[i]:= ADC.in(i)' * 5000 / 4095'  + 55 'Calculate mV
+'      ADCRawAVG[i]:= ADC.average(i,1,100)  * 5000 / 4096 'Calculate mV
+       ADCRawAVG[i]:= ADCRawAVG[i] *(averaging_samples - 1) + ADCRaw[i] / (averaging_samples)
+       ADCRawMax[i] #>= ADCRaw[i]               'save max value
+       ADCRawMIN[i] <#= ADCRaw[i]            'save min value
+       i++
+       
+     DoADCScaling
+
+     ADCCnt++
+        
+     ADCTime:=(CNT-T1)/80
 
 PRI DoADCScaling | T1, i
   ' Fill calibration table
@@ -314,29 +465,140 @@ PRI DoADCScaling | T1, i
     ScalingCnt++
     ScalingTime:=(CNT-T1)/80
 
+' === Handle command string received from client ===
+PRI DoCommand | command
 
+    command := rose_comm.getCommand
 
+    Case command
+        '== Default 100 range communication ===
+        '--- Communicate controller id ---
+        100 : ser.str(string("$100,"))
+              ser.dec(CONTROLLER_ID)
+              ser.tx(",")  
+              ser.tx(CR) 
+        '--- Communicate software version ---
+        101 : ser.str(string("$101,"))
+              ser.dec(major_version)
+              ser.tx(",")  
+              ser.dec(minor_version)
+              ser.tx(",")  
+              ser.tx(CR) 
+        '--- WATCHDOG ---
+        111: received_wd := rose_comm.getParameter(1)
+             ' Check value
+             if received_wd <> expected_wd
+                handleWatchdogError
+                ser.tx("$")
+                ser.dec(111)
+                ser.tx(",")
+                ser.dec(-1)
+                ser.tx(",")  
+                ser.dec(wd_cnt)
+                ser.tx(",")            
+                ser.dec(received_wd)
+                ser.tx(",")   
+                ser.dec(expected_wd)
+                ser.tx(",")   
+                ser.tx(CR)  
+             else    
+                ser.tx("$")
+                ser.dec(111)
+                ser.tx(",")
+                ser.dec(wd)
+                ser.tx(",")  
+                ser.dec(wd_cnt)
+                ser.tx(",")                
+                ser.dec(received_wd)
+                ser.tx(",")   
+                ser.dec(expected_wd)
+                ser.tx(",")   
+                ser.tx(CR)  
+
+                if expected_wd == 1
+                   expected_wd := 0             
+                else
+                   expected_wd := 1
+
+                if wd == 1
+                   wd := 0             
+                else
+                   wd := 1                                 
+ 
+                'Reset the watchdog counter
+                wd_cnt := 0 
+                
+       {{ 200: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getBoolStr(rose_comm.nrOfParametersCorrect(2)))
+             
+             if rose_comm.nrOfParametersCorrect(2)  
+              ser.str(rose_comm.getDecStr(rose_comm.getParameter(1)))  
+              ser.str(rose_comm.getDecStr(rose_comm.getParameter(2)))
+            ser.str(rose_comm.getEOLStr)
+}}
+                
+'***************************************  Handle command string received from client
+{{PRI DoCommand | CmdDone, lCmd, ParNr, Servonr, Value 'Process command string
+  Ser.Str(string("Do command: "))
+
+  CMDDone:=false
+    Ch:=" "
+ '   Ser.char(">")
+ '   Ser.char(Data[StrP])
+    StrP:=0
+    
+    repeat until Ch == "$" or StrP => DataLen          'Skip leading chars until $
+ '    StrP++
+      GetCh
+      
+    if Ch=="$"
+ '    Ser.Str(string(" Cmd Begin "))
+      lCmd:=sGetPar
+      Ser.char(CR)
+      case lCmd 'ch
+        0:  ' Ser.Str(string(" Disable "))        'Disable
+             MoveMode:=0
+             DoReset                              'And Reset unit
+
+        1:   Ser.Str(string(" Speed, Pos "))      'Set speed and position
+             Speed:=sgetPar                       'Speed
+'             Speed:= default_speed
+             MotorPos:=sgetPar                    'Dir
+             MoveMode:=1
+             ser.dec(Speed)                       'Set new Speed
+             ser.tx(" ")
+             ser.dec(MotorPos)
+             
+        2: MoveMode:=2                            'Set move mode 2. Position controlled by Potm1
+           Speed:=default_speed                             'At speed
+           
+        8: Doreset
+           
+        9: ResetMinMax
+         
+        10: Speed := default_speed ' Set speed
+            MotorPos:=retract_position      ' Move to retract_position
+            MoveMode:=10
+        11: Speed := default_speed ' Set speed
+            MotorPos:=PrePos1      ' Move to Pos 1
+            MoveMode:=11
+        12: Speed := default_speed ' Set speed
+            MotorPos:=PrePos2      ' Move to Pos 2
+            MoveMode:=12
+        13: Speed := default_speed ' Set speed
+            MotorPos:=PrePos3      ' Move to Pos 3
+            MoveMode:=13
+           
+        other:
+          Ser.Str(string(" No valid command "))
+
+    else
+      Ser.Str(string(" No command "))
+}}
 ' ------------------------ Show debug output -----------------------------
 PRI DoDisplay | i
+  if debug
     ser.position(0,0)
-    ser.str(@Product)
-    ser.str(@Version)
-    ser.str(@SubVersion)
-
-    ser.tx(CR)
-    ser.str(string(" SerCog: "))
-    ser.dec(SerCog)
-    ser.str(string(" ADCCog: "))
-    ser.dec(ADCMCog)
-    ser.str(string(" PWMCog: "))
-    ser.dec(PWMCog)
-    ser.str(string(" LinMotCog: "))
-    ser.dec(LinMotCog)
-    ser.str(string(" PLCCog: "))
-    ser.dec(LinMotCog)
-    ser.str(string(" ADCConvCog: "))
-    ser.dec(ADCConvCog)
-    ser.tx(CR)
 
  '===========================================================
  '  s_V5V Byte "5V",0                    'ch0
@@ -536,6 +798,7 @@ PRI DoDisplay | i
 ' Motor drive controller
 Con
   _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
+                                     '
 PRI Do_Motor | T1, ClkCycles, Hyst, AbsMotorPWM, ActDuty, lMotorPos
   OUTA[sINA]:=0      ' Set direction pins as output for PWM
   DirA[sINA] ~~
@@ -576,7 +839,7 @@ PRI Do_Motor | T1, ClkCycles, Hyst, AbsMotorPWM, ActDuty, lMotorPos
         OUTA[sINB]:=0   
         MotorPWM:=(Speed)
   
-'   Pwm.Duty(BASE_PIN,MotorPWM)
+'   Pwm.Duty(sPWM,MotorPWM)
     MotorPWM := -Speed #> MotorPWM <# Speed
 
     AbsMotorPWM := ||MotorPWM         'Ramp generator
@@ -596,49 +859,9 @@ PRI Do_Motor | T1, ClkCycles, Hyst, AbsMotorPWM, ActDuty, lMotorPos
 
     waitcnt(ClkCycles + T1)          'Wait for designated time
   
-'Measuring cog. Runs continuously
-PRI DoADC  | i, T1
-   repeat
-     T1:=cnt
-
-     i:=0
-     repeat NCh
-       ADCRaw[i]:= ADC.in(i)' * 5000 / 4095'  + 55 'Calculate mV
-'      ADCRawAVG[i]:= ADC.average(i,1,100)  * 5000 / 4096 'Calculate mV
-       ADCRawAVG[i]:= ADCRawAVG[i] *9/10 + ADCRaw[i] / 10
-       ADCRawMax[i] #>= ADCRaw[i]               'save max value
-       ADCRawMIN[i] <#= ADCRaw[i]            'save min value
-       i++
-
-     ADCCnt++
-        
-     ADCTime:=(CNT-T1)/80
-
-PRI Init
-
-  OUTA[Led]:=1                                 ' Led
-  DirA[Led] ~~
-  
-  SerCog:=ser.start(rxd, txd, 0, baud)      'serial port on prop plug #2
-  ser.Clear
-  t.Pause1ms(200)
-
-  ser.position(0,0)
-  ser.str(@Version)
-  ser.tx(" ")
-
-  ADCCog:= ADC.Start(dpin1, cpin1, spin1,Mode1) ' Start ADC low level    #3
-  MaxCh:= NCh-1
 
 
-  ADCMCog:=cognew(DoADC, @ADCStack)             ' Start Measurement cog  #4
-  
-  PwmCog:=pwm.start(BASE_PIN, %00000100, Freq)  'init pwm object         #4
-  pwm.duty(18, 0)
 
-  LinMotCog:=cognew(Do_Motor, @LinMotStack)     'Start Lin motor controller  #6
-  ADCConvCog:=cognew(DoADCScaling,@ADCConvStack)                       ' #7
-  PlcCog:=cognew(DoPLC,@PLCStack)               'Start PLC cog           #8
   
    
 ' ------------------------------------ Calculate NTC resistance
@@ -661,18 +884,7 @@ Return Rntc'V 'Intc
 'BetaNTC = 4220
 
 PRI Calc_T_NTC(R) | lT
-
-Return lT
-
-' ------------------------------------ Reset Min Max values ADC conversion
-PRI ResetMinMax  | ii
-  ii:=0
-  repeat NCh
-    ADCRawMIN[ii]:=999999
-    ADCRawMAX[ii]:=0
-    ADCRawAVG[ii]:=0
-    ii++
-    
+  return lT
 
 ' ---------------- Get Bumper input (on=1 or off=0) n in range 1-8 ------------------------------------
 PUB GetBumper(n)
@@ -728,110 +940,6 @@ Return InA[EMERin]
 ' ---------------- Get IN0 input (on=1 or off=0) ---------------------------------------
 PUB GetIN0
 Return InA[IN0]
-  
-' ---------------- Get next parameter from string ---------------------------------------
-PRI sGetPar | j, ii, lPar
-  j:=0
-  Bytefill(@LastPar1,0,CmdLen)   'Clear buffer
-
-'  ser.str(string(" In GetPar : " ))
-'  ser.tx(Ch)
-  repeat until Ch => "0" and Ch =< "9"  or Ch == "-" or Ch == 0    
-'    ser.tx("{")
-    Getch
-'    ser.tx(Ch)
-
-  if Ch == 0
-'    ser.tx(">")
-'    ser.str(string(" 1: Unexpected end of str! " ))
-    Return -99  'error unexpected end of string
-    
-  ser.str(string(" GetPar : " ))
-  repeat while  Ch => "0" and Ch =< "9"  or Ch == "-"
-    if Ch == 0
-      ser.tx(">")
-      ser.str(string(" 2: Unexpected end of str! " ))
-      Return -98  'error unexpected end of string
-    if ch<>"," and j<CmdLen
-'      ser.tx("|")
-'      ser.dec(j)
-'      ser.tx(">")
-'      ser.tx(Ch)
-      byte[@LastPar1][j]:=ch
-      j++
-'       ser.str(@LastPar1)
-     Getch           'skip next
- 
-  ser.str(@LastPar1)
-  LPar:=ser.strtodec(@LastPar1)
-  ser.tx("=")
-  ser.dec(lPar)
-  ser.tx(" ")
-Return Lpar
-
-' ---------------- Get next character from string ---------------------------------------
-Pri GetCh  'Get next character from commandstring
-   If Ch > 0
-     Ch:=Byte[@Data][StrP++]
-'   ser.tx("\")          
-'   ser.tx(ch)
-'***************************************  Handle command string received from client
-PRI DoCommand | CmdDone, lCmd, ParNr, Servonr, Value 'Process command string
-  Ser.Str(string("Do command: "))
-
-  CMDDone:=false
-    Ch:=" "
- '   Ser.char(">")
- '   Ser.char(Data[StrP])
-    StrP:=0
-    
-    repeat until Ch == "$" or StrP => DataLen          'Skip leading chars until $
- '    StrP++
-      GetCh
-      
-    if Ch=="$"
- '    Ser.Str(string(" Cmd Begin "))
-      lCmd:=sGetPar
-      Ser.char(CR)
-      case lCmd 'ch
-        0:  ' Ser.Str(string(" Disable "))        'Disable
-             MoveMode:=0
-             DoReset                              'And Reset unit
-
-        1:   Ser.Str(string(" Speed, Pos "))      'Set speed and position
-             Speed:=sgetPar                       'Speed
-'             Speed:= StandardSpeed
-             MotorPos:=sgetPar                    'Dir
-             MoveMode:=1
-             ser.dec(Speed)                       'Set new Speed
-             ser.tx(" ")
-             ser.dec(MotorPos)
-             
-        2: MoveMode:=2                            'Set move mode 2. Position controlled by Potm1
-           Speed:=StandardSpeed                             'At speed
-           
-        8: Doreset
-           
-        9: ResetMinMax
-         
-        10: Speed := StandardSpeed ' Set speed
-            MotorPos:=Retract      ' Move to Retract
-            MoveMode:=10
-        11: Speed := StandardSpeed ' Set speed
-            MotorPos:=PrePos1      ' Move to Pos 1
-            MoveMode:=11
-        12: Speed := StandardSpeed ' Set speed
-            MotorPos:=PrePos2      ' Move to Pos 2
-            MoveMode:=12
-        13: Speed := StandardSpeed ' Set speed
-            MotorPos:=PrePos3      ' Move to Pos 3
-            MoveMode:=13
-           
-        other:
-          Ser.Str(string(" No valid command "))
-
-    else
-      Ser.Str(string(" No command "))
 
 DAT
    s_V5V        Byte "    5V",0         'ch0
