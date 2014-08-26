@@ -18,8 +18,8 @@ Device commands:
 Read commands:
 	- Get bumper states				: $200 -> bool, bool, bool, bool, bool, bool, bool, bool ( bumper states )
 	- Get lift position				: $201 -> integer 						(lift position 0-4095)
-	- Get safety relay input  		: $202 -> bool 							(safety input value)
-	- Get extra relay input 		: $203 -> bool 							(extra input value)
+	- Get safety input  			: $202 -> bool 							(safety input value)
+	- Get extra input 				: $203 -> bool 							(extra input value)
 	- Get alarm state				: $204 -> bool, bool, bool, bool, bool	(safety input, 3v3 OK, 5v OK, Vin OK, home button pressed)
 	- Get ADC raw values			: $205 -> 8x int, int, int, int 		(actual, average, min, max)
 	- Get ADC voltage values		: $206 -> 8x int, int, int, int 		(actual, average, min, max)
@@ -42,12 +42,10 @@ Other commands:
 	- Serial debug mode 				: $402, bool (on/off)							-> bool (on/off)
 	- Select control type				: $403, int (0 potmeter1 / 1 potmeter2 / 2 PC)	-> int 	(0 potmeter1 / 1 potmeter2 / 2 PC)
 	- Move to position blocking 		: $404, int, int (speed 0-256, position 0-4095)	-> bool, int, int (command acceptance, received speed, received position) // blocking
-	- Move to predefined pos blocking	: $405, int (position# 0-4)						-> int (reached position# 0-4)		// blocking
-	- Move to position interrupt		: $406, int, int (speed 0-256, position 0-4095)	-> bool, int, int (command acceptance, received speed, received position) // interrupt, need timeout timer?
-	- Move to predefined pos interrupt	: $407, int (position# 0-4)						-> int (reached position# 0-4)											  // interrupt, need timeout timer?
-	- Reset ADC min/max vals			: $408, int (adc# 0-7)							-> int (received adc#0-7)
-	- Reset all ADC min/max vals		: $409											-> bool (succes)
-	- Reset alarm state					: $410											-> bool (succes)
+	- Move to position 					: $405, int, int (speed 0-256, position 0-4095)	-> bool, int, int (command acceptance, received speed, received position) // interrupt, need timeout timer?
+	- Reset ADC min/max vals			: $406, int (adc# 0-7)							-> int (received adc#0-7)
+	- Reset all ADC min/max vals		: $407											-> bool (succes)
+	- Reset alarm state					: $408											-> bool (succes)
 
 Interrupts:		// Possible??
 	- Position reached 			: $500
