@@ -220,7 +220,11 @@ PRI handleCommunication
 
 ' === Main initialization === 
 PRI Init
-  Debug := false 
+  Debug   := false 
+  sVinOK  := 1
+  s3V3OK  := 1
+  s5VOK   := 1
+  AllOK   := 1
 
   'Reset all min/max values
   resetAllADCVals
@@ -1192,13 +1196,6 @@ PRI DisplayIO
   ser.tx(ce)
 
 
-' ----------------------- Reset program ------------------------
-PRI DoReset
-  sVinOK := 1
-  s3V3OK := 1
-  s5VOK  := 1
-  AllOK  := 1
-    
 'Measure ADC channels. 
 {PRI DoADC | i, j, T1
 
