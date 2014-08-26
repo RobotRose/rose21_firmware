@@ -228,9 +228,6 @@ PRI Init
 
   'Reset all min/max values
   resetAllADCVals
-
-  ' Error tresholds (timing 1 count is 1*ms) default values
-  wd_cnt_threshold                   := 1000  
   
   InitWatchDog
   
@@ -361,6 +358,9 @@ PRI InitSer
 
 '=== Init Watchdog ===
 PRI InitWatchDog
+  ' Error tresholds (timing 1 count is 1*ms) default values
+  wd_cnt_threshold                   := 1000  
+
   expected_wd   := 0                     
   wd            := 0
   wd_cnt        := 0
