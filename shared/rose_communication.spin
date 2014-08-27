@@ -168,14 +168,26 @@ PUB getNrOfParameters
   return nr_of_parameters
  
 ' === Get a specific parameter numbered from 1 === 
-PUB getParameter(i)
+PUB getParam(i)
   i--
   if i < 0 OR i > nr_of_parameters
     return -1
     
   return parameters[i]
+  
+' === Get a specific boolean parameter numbered from 1 === 
+' if value is tother than 1 or 0 it will return false
+PUB getBoolParam(i)
+  i--
+  if i < 0 OR i > nr_of_parameters
+    return false
+   
+  if parameters[i] == 1 
+    return true
+  else
+    return false
 
-PUB nrOfParametersCorrect(expected_nr_of_parameters)
+PUB nrOfParametersCheck(expected_nr_of_parameters)
   return expected_nr_of_parameters == nr_of_parameters
   
 PUB getMaxStringLength
@@ -198,7 +210,7 @@ PUB getBoolStr(boolean)
   if boolean
     return string("1,")
   else
-    return string("0,")
+    return string("0,") 
     
 PUB getDecStr(decimal) | decimal_string
   clearSubstrings
