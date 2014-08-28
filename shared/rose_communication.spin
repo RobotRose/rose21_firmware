@@ -207,10 +207,16 @@ PUB getCommandStr(command_number)
   return strings.concatenate(strings.concatenate(@substr1, sn.dec(command_number)), @substr2)
 
 PUB getBoolStr(boolean)
+  clearSubstrings
+  
   if boolean
-    return string("1,")
+    substr1[0] := "1"
+    substr1[1] := ","
+    return @substr1
   else
-    return string("0,") 
+    substr1[0] := "0"
+    substr1[1] := ","
+    return @substr1 
     
 PUB getDecStr(decimal) | decimal_string
   clearSubstrings
