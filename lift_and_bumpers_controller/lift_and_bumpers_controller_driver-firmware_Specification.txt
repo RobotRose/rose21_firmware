@@ -19,7 +19,7 @@ Read commands:
 	- Get bumper states				: $200 -> bool, bool, bool, bool, bool, bool, bool, bool ( bumper states )
 	- Get motor pos percentage		: $201 -> integer 						(lift position 0-100%)
 	- Get safety input  			: $202 -> bool 							(safety input value)
-	- Get OUT0 input 				: $203 -> bool 							(extra input value)
+	- Get IN0 input 				: $203 -> bool 							(extra input value)
 	- Get safety state				: $204 -> bool, bool, bool, bool		(safety input, 3v3 OK, 5v OK, Vin OK)
 	- Get ADC raw values			: $205 -> 8x int, int, int, int 		(actual, average, min, max)
 	- Get ADC voltage values		: $206 -> 8x int, int, int, int 		(actual, average, min, max)
@@ -31,7 +31,7 @@ Read commands:
 
 Set variables commands:
 	- Set safety relay output 		: $300, bool 								-> bool (set value)
-	- Set extra relay output 		: $301, bool 								-> bool (set value)
+	- Set OUT0 relay output 		: $301, bool 								-> bool (set value)
 	- Set min/max motor pos 		: $302, int, int (200-3400, 200-3400)		-> int, int (set values)
 	- Set min/max motor speed 		: $303, int, int (0-255, 0-255)				-> int, int (set values)
 	- Set watchdog treshold 		: $304, int (watchdog timout [mS]) 			-> int (set value)
