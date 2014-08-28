@@ -679,8 +679,8 @@ PRI DoCommand | i, command
              if rose_comm.nrOfParametersCheck(2)
                min_motor_speed := rose_comm.getParam(1)
                max_motor_speed := rose_comm.getParam(2)
-               ser.str(rose_comm.getDecStr(min_motor_position)) 
-               ser.str(rose_comm.getDecStr(max_motor_position)) 
+               ser.str(rose_comm.getDecStr(min_motor_speed)) 
+               ser.str(rose_comm.getDecStr(max_motor_speed)) 
              ser.str(rose_comm.getEOLStr) 
         ' Set watchdog treshold
         304: ser.str(rose_comm.getCommandStr(command)) 
