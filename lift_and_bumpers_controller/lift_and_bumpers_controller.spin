@@ -170,7 +170,9 @@ VAR
   long Button1
   
   ' Timers
+  long timer_cnt
   long led_interval_timer
+  long oneMScounter
   
   ' Safety
   byte AllVOK, s5VOK, s3V3OK, sVInOK
@@ -184,9 +186,10 @@ VAR
   long wd_cnt
   long wd_cnt_threshold
   
+  
   ' Controller state
   byte controller_enabled
-  
+  byte button_enable_override 
 
             
 PUB Main | T1, NewCh
@@ -237,7 +240,8 @@ PRI Init
   max_motor_speed     := strict_max_motor_speed                      ' Highest speed of lin mot                                                        ' 
   debug               := false
   controller_enabled  := false
- 
+  button_enable_override := false
+  
   'Reset all min/max values
   resetAllADCVals
   
@@ -314,6 +318,7 @@ PRI Init
     ser.str(string(")", CR))
   else
     ser.str(string("Unable to start LinMotCog", CR))
+    
   
 PRI toggleControllerState(enable)
   if enable
@@ -347,29 +352,6 @@ PUB initialize_serial
     ser.str(string("Unable to start serial communication.", CR))
 
   return serial_cog  
-  
-' --------------------------------- Do logic tasks and safety tasks
-PRI DoPLC | t1
-  t1 := cnt
-  Repeat
-   ' Forward emergency   
-    If GetEMERin AND AllVOK ' Process emergency alarms to OK output
-      SetOK(true)
-    else
-      SetOK(false)
-  
-    ' Read the button input state
-    Button1 := GetButton
-    if Button1
-      resetVoltageSafety                      ' Try really hard
-      motor_speed         := default_speed    ' Set speed
-      lift_motor_setpoint := retract_position
-
-    ' Timers
-    if ||(cnt - t1) => (clkfreq/1000)
-      led_interval_timer++
-      t1 := cnt
-    PlcCnt++
 
 PRI resetSafety 
   no_alarm            := true                'Reset global alarm var
@@ -386,18 +368,26 @@ PRI resetCommunication
   resetSafety
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | i, ConnectionError, bitvalue
+PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
+  DIRA[pButton1] := 0     ' Set button as input  
   resetSafety
-  resetVoltageSafety
+  resetVoltageSafety 
+  
+  timer_cnt     := cnt
+  oneMScounter  := 0
   
   ' Main safety loop    
   repeat
-    '-- Watchdog -- 
-    wd_cnt++
+    DoPLC
+    
+    '-- Watchdog @ 1ms -- 
+    if oneMScounter > prev_oneMScounter
+      wd_cnt++
+      prev_oneMScounter := oneMScounter
 
     if wd_cnt > wd_cnt_threshold    
       last_alarm := 1
-      'no_alarm   := false
+      'no_alarm   := false            // ========================================= TODO
       handleWatchdogError
       
     ' Voltages   
@@ -412,7 +402,31 @@ PRI DoSafety | i, ConnectionError, bitvalue
       
     AllVOK := s5VOK AND s3V3OK AND sVinOK
       
-    t.Pause1ms(1)
+    
+    
+' === Do logic tasks and safety tasks ===
+PRI DoPLC
+  ' Forward emergency   
+  If GetEMERin AND AllVOK ' Process emergency alarms to OK output
+    SetOK(true)
+  else
+    SetOK(false)
+
+  ' Read the button input state
+  Button1 := GetButton
+  if Button1
+    button_enable_override := true
+    resetVoltageSafety                      ' Try really hard
+    setMotorSpeedPercentage(50)            ' Set speed
+    setMotorSetpoint(retract_position)
+
+  ' Timers
+  if ||(cnt - timer_cnt) => (clkfreq/1000)
+    oneMScounter++
+    led_interval_timer++
+    timer_cnt := cnt
+    
+  PlcCnt++
 
 ' === Reset AllMin Max values of specific ADC channel === 
 PRI resetAllADCVals | ii
@@ -785,7 +799,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
     wanted_motor_speed := -max_motor_speed #> (-max_speed #> MoveDir * motor_speed <# max_speed) <# max_motor_speed
     
     
-    if controller_enabled      
+    if controller_enabled OR button_enable_override     
       ' Ramp generator
       ' Runs at ramp period
       if (cnt - T2) > ramp_period_cycles
@@ -801,6 +815,10 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
         pwm.duty(sPWM, || current_duty_cycle)
       else
         pwm.duty(sPWM, 0)                     ' Stop motor
+      
+    ' Check if finished with moving to button position
+    if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position
+        button_enable_override := false
    
     DoMotorCnt++
 
@@ -828,65 +846,65 @@ Return Rntc'V 'Intc
 PRI Calc_T_NTC(R) | lT        ' TODO
   return lT
 
-' ---------------- Get Bumper input (on=1 or off=0) n in range 1-8 ------------------------------------
-PUB GetBumper(n)
-  if n > 0 and n < 9
-    if InA[Bumper0+n-1]==1
-      return 0
+' ---------------- Get Bumper input (on=true or off=false) i in range 1-8 ------------------------------------
+PUB GetBumper(i)
+  if i > 0 and i < 9
+    if InA[Bumper0 + i - 1] == 1
+      return false
     else
-      return 1   
+      return true   
   else
     return -1  'Wrong bumper index
     
-' ---------------- Get Button input (on=1 or off=0) ---------------------------------------
+' ---------------- Get Button input (on=true or off=false) ---------------------------------------
 PUB GetButton
-  if InA[pButton1]==1
+  if INA[pButton1] == 1
     return false
   else
     return true   
 ' ---------------- Set OK output on or off (true or false) ---------------------------------------
 PUB SetOK(enable)
   if enable
-    DirA[OK]:=0
-    OUTA[OK]:=1
+    DIRA[OK]    := 0
+    OUTA[OK]    := 1
   else
-    DirA[OK]:=1
-    OUTA[OK]:=0
+    DIRA[OK]    := 1
+    OUTA[OK]    := 0
 ' ---------------- Set OUT0 output on or off (true or false) ---------------------------------------
 PUB SetOUT0(enable)
   if enable
-    DirA[OUT0]:=0  
-    OUTA[OUT0]:=1
+    DIRA[OUT0]  := 0  
+    OUTA[OUT0]  := 1
   else  
-    DirA[OUT0]:=1  
-    OUTA[OUT0]:=0
+    DIRA[OUT0]  := 1  
+    OUTA[OUT0]  := 0
 
 ' ---------------- Get status OK output (on=true or off=false) ---------------------------------------
 PUB GetOK
-  if InA[OK] == 1
-    return true
+  if INA[OK] == 1
+    return false
   else
-    return false   
+    return true   
 
 ' ---------------- Get status OK output (on=true or off=false) ---------------------------------------
 PUB GetOUT0
-  if InA[OUT0] == 1
-    return true
+  if INA[OUT0] == 1
+    return false
   else
-    return false   
+    return true   
 
 ' ---------------- Get EMERin input (on=1 or off=0) ---------------------------------------
 PUB GetEMERin
- if InA[EMERin] == 1
-   return true
+ if INA[EMERin] == 1
+   return false
  else
-   return false 
+   return true 
 ' ---------------- Get IN0 input (on=1 or off=0) ---------------------------------------
 PUB GetIN0
- if InA[IN0] == 1
-   return true
+ if INA[IN0] == 1
+   return false
  else
-   return false 
+   return true 
 
 ' ------------------------ Show debug output -----------------------------
 PRI DoDisplay |   i
