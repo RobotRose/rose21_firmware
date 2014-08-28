@@ -31,6 +31,10 @@ Read commands:
 	- Get is in Position 			: $212 -> bool 							(is the lift at its setpoint)
 	- Get is moving 				: $213 -> bool 							(is the lift moving)
 	- Get serial debug mode 		: $214 -> bool 							(serial debug enabled)
+	- Get set_point        			: $215 -> int 							(position 200-3400)
+    - Get set_point percentage 		: $216 -> int 							(0-100%)
+    - Get set speed 				: $217 -> int 							(speed 0-255)
+    - Get set speed percentage 		: $218 -> int 							(0-100%)
 
 Set variables commands:
 	- Set safety relay output 		: $300, bool 								-> bool (set value)

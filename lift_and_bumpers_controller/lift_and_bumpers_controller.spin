@@ -635,6 +635,22 @@ PRI DoCommand | i, command
         214: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getBoolStr(debug))
              ser.str(rose_comm.getEOLStr)
+        ' Get set_point
+        215: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(getMotorSetpoint))
+             ser.str(rose_comm.getEOLStr)
+        ' Get set_point percentage
+        216: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(getMotorSetpointPercentage))
+             ser.str(rose_comm.getEOLStr)
+        ' Get set_speed
+        217: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(getMotorSpeed))
+             ser.str(rose_comm.getEOLStr)
+        ' Get set_speed percentage
+        218: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(getMotorSpeedPercentage))
+             ser.str(rose_comm.getEOLStr)
         
         ' === SETTERS ===
         ' Set OK output state
@@ -730,6 +746,9 @@ PUB stopMotor
 PUB setMotorSetpointPercentage(percentage)
    setMotorSetpoint(calcRangeValue(percentage, min_motor_position, max_motor_position))
    return getMotorSetpointPercentage
+
+PUB getMotorSetpoint
+  return lift_motor_setpoint
 
 PUB getMotorSetpointPercentage
    return calcRangePercentage(lift_motor_setpoint, min_motor_position, max_motor_position)
