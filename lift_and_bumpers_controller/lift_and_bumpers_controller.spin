@@ -564,11 +564,11 @@ PRI DoCommand | i, command
              ser.str(rose_comm.getEOLStr)
         'Get safety input
         202: ser.str(rose_comm.getCommandStr(command))
-             ser.str(rose_comm.getDecStr(GetEMERin)) 
+             ser.str(rose_comm.getBoolStr(GetEMERin)) 
              ser.str(rose_comm.getEOLStr)
         'Get IN0 input
         203: ser.str(rose_comm.getCommandStr(command))
-             ser.str(rose_comm.getDecStr(GetIN0)) 
+             ser.str(rose_comm.getBoolStr(GetIN0)) 
              ser.str(rose_comm.getEOLStr)
         'Get safety state input
         204: ser.str(rose_comm.getCommandStr(command))
@@ -760,13 +760,14 @@ PUB getMotorPosPercentage
   return calcRangePercentage(getMotorPos, min_motor_position, max_motor_position)
   
 PUB calcRangePercentage(value, minimal, maximal)
-  return f.fround( f.fmul( f.fdiv( f.ffloat(value - minimal), f.ffloat(maximal - minimal) ), 100.0) )
+  return 0 #> ( f.fround( f.fmul( f.fdiv( f.ffloat(value - minimal), f.ffloat(maximal - minimal) ), 100.0) ) ) <# 100
 
 PUB calcRangeValue(percentage, minimal, maximal)
+  percentage := 0 #> percentage <# 100
   return f.fround( f.fdiv( f.fmul( f.ffloat(percentage), f.ffloat(maximal - minimal)), 100.0) ) + minimal
 
 PUB isMotorMoving   
-  return current_duty_cycle > 0 AND (OUTA[sINA] <> 0 OR OUTA[sINB] <> 0)
+  return (current_duty_cycle > 0)
   
 PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_period, ramp_period_cycles
   OUTA[sINA] := 0      ' Set direction pins as output for PWM
@@ -826,7 +827,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
           current_duty_cycle := || wanted_motor_speed
         
       ' Set duty cycle
-      if no_alarm                             ' Move only when all is OK and enabled
+      if no_alarm OR button_enable_override   ' Move only when all is OK or button override
         pwm.duty(sPWM, || current_duty_cycle)
       else
         pwm.duty(sPWM, 0)                     ' Stop motor
