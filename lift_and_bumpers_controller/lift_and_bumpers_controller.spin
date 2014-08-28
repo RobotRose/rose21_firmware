@@ -387,7 +387,7 @@ PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
 
     if wd_cnt > wd_cnt_threshold    
       last_alarm := 1
-      'no_alarm   := false            // ========================================= TODO
+      no_alarm   := false            ' ========================================= TODO
       handleWatchdogError
       
     ' Voltages   
@@ -578,6 +578,7 @@ PRI DoCommand | i, command
              ser.str(rose_comm.getBoolStr(s5VOK)) 
              ser.str(rose_comm.getBoolStr(s3V3OK)) 
              ser.str(rose_comm.getBoolStr(sVinOK)) 
+             ser.str(rose_comm.getBoolStr(button_enable_override)) 
              ser.str(rose_comm.getEOLStr)
         ' Get ADC raw values
         205: ser.str(rose_comm.getCommandStr(command))
@@ -631,6 +632,10 @@ PRI DoCommand | i, command
         ' Is lift moving
         213: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getBoolStr(isMotorMoving))
+             ser.str(rose_comm.getEOLStr)
+        ' Is serial debug mode enabled or disabled
+        214: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getBoolStr(debug))
              ser.str(rose_comm.getEOLStr)
         
         ' === SETTERS ===
@@ -717,7 +722,7 @@ CON
                                      '
 ' Force stop the motor
 PUB stopMotor
-  lift_motor_setpoint := getMotorPos
+  lift_motor_setpoint    := getMotorPos
   OUTA[sINA]             := 0   
   OUTA[sINB]             := 0
   pwm.duty(sPWM, 0) 
