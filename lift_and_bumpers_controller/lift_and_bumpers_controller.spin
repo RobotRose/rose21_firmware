@@ -736,6 +736,7 @@ CON
                                      '
 ' Force stop the motor
 PUB stopMotor
+  button_enable_override := false
   lift_motor_setpoint    := getMotorPos
   OUTA[sINA]             := 0   
   OUTA[sINB]             := 0
@@ -829,7 +830,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       OUTA[sINA]            := 1
       OUTA[sINB]            := 0   
   
-    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) -InPosWindow) ), f.ffloat(1500)), f.ffloat(max_motor_speed)) ) 
+    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) -InPosWindow) ), f.ffloat(1000)), f.ffloat(max_motor_speed)) ) 
       
     wanted_motor_speed := -max_motor_speed #> (-max_speed #> MoveDir * motor_speed <# max_speed) <# max_motor_speed
     
