@@ -20,7 +20,7 @@ Read commands:
 	- Get motor pos percentage		: $201 -> integer 						(lift position 0-100%)
 	- Get safety input  			: $202 -> bool 							(safety input value)
 	- Get IN0 input 				: $203 -> bool 							(extra input value)
-	- Get safety state				: $204 -> bool, bool, bool, bool		(safety input, 3v3 OK, 5v OK, Vin OK)
+	- Get safety state				: $204 -> bool, bool, bool, bool, bool	(safety input, 3v3 OK, 5v OK, Vin OK, moving to button position)
 	- Get ADC raw values			: $205 -> 8x int, int, int, int 		(actual, average, min, max)
 	- Get ADC voltage values		: $206 -> 8x int, int, int, int 		(actual, average, min, max)
 	- Get ADC engineering values	: $207 -> 8x int, int, int 				(average, min, max)
@@ -30,6 +30,7 @@ Read commands:
 	- Get watchdog treshold 		: $211 -> int 							(watchdog timeout [mS])
 	- Get is in Position 			: $212 -> bool 							(is the lift at its setpoint)
 	- Get is moving 				: $213 -> bool 							(is the lift moving)
+	- Get serial debug mode 		: $214 -> bool 							(serial debug enabled)
 
 Set variables commands:
 	- Set safety relay output 		: $300, bool 								-> bool (set value)
