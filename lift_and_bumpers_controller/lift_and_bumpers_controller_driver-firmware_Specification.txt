@@ -27,7 +27,9 @@ Read commands:
 	- Get integrated current 		: $208 -> 8x int, int  					(integration time, integrated current mA)				// Maybe later?
 	- Get position error 			: $209 -> int 							(position error 200-3400)
 	- Get motor pos 				: $210 -> int 							(position 200-3400)
-	- Get watchdog treshold 		: $211 -> int 							(wathcdog timeout [mS])
+	- Get watchdog treshold 		: $211 -> int 							(watchdog timeout [mS])
+	- Get is in Position 			: $212 -> bool 							(is the lift at its setpoint)
+	- Get is moving 				: $213 -> bool 							(is the lift moving)
 
 Set variables commands:
 	- Set safety relay output 		: $300, bool 								-> bool (set value)
