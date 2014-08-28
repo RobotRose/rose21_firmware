@@ -533,27 +533,25 @@ PRI DoCommand | i, command
                 ser.str(rose_comm.getDecStr(-1))
                 ser.str(rose_comm.getDecStr(wd_cnt))
                 ser.str(rose_comm.getDecStr(received_wd))
-                ser.str(rose_comm.getDecStr(expected_wd))
-                
+                ser.str(rose_comm.getDecStr(expected_wd))                
              else    
                 ser.str(rose_comm.getDecStr(wd))
                 ser.str(rose_comm.getDecStr(wd_cnt))
                 ser.str(rose_comm.getDecStr(received_wd))
                 ser.str(rose_comm.getDecStr(expected_wd))
-                ser.str(rose_comm.getEOLStr)
                 if expected_wd == 1
                    expected_wd := 0             
                 else
                    expected_wd := 1
-
+                   
                 if wd == 1
                    wd := 0             
                 else
                    wd := 1                                 
- 
+             
                 'Reset the watchdog counter
                 wd_cnt := 0 
-              ser.str(rose_comm.getEOLStr)  
+             ser.str(rose_comm.getEOLStr)  
         ' Get bumper states        
         200: ser.str(rose_comm.getCommandStr(command))
              i := 1
