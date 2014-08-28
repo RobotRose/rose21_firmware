@@ -340,7 +340,9 @@ PRI InitWatchDog
   wd_cnt            := 0
 
 PRI handleWatchdogError | i
-  stopMotor
+  if last_alarm == 0
+    setAlarm(1)          ' if alarm changed
+    forceStopMotor
   
 ' === Init serial communication ===
 PUB initialize_serial
@@ -395,8 +397,7 @@ PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
       prev_oneMScounter := oneMScounter
 
     if wd_cnt > wd_cnt_threshold    
-      if setAlarm(1)          ' if alarm changed
-        handleWatchdogError
+      handleWatchdogError
       
     ' Voltages   
     if engADCchAVG[V5V] < c5V
@@ -1154,6 +1155,8 @@ PRI DoDisplay |   i
       ser.dec(sVinOK)
       ser.str(string(" AllVOK: "))
       ser.dec(AllVOK)
+      ser.str(string(" last_alarm: "))
+      ser.dec(last_alarm)
       ser.tx(cr)
       ser.tx(ce)
   
