@@ -624,6 +624,14 @@ PRI DoCommand | i, command
         211: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getDecStr(wd_cnt_threshold))
              ser.str(rose_comm.getEOLStr)
+        ' Is lift in position
+        212: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getBoolStr(InPos))
+             ser.str(rose_comm.getEOLStr)
+        ' Is lift moving
+        213: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getBoolStr(isMotorMoving))
+             ser.str(rose_comm.getEOLStr)
         
         ' === SETTERS ===
         ' Set OK output state
@@ -713,6 +721,7 @@ PUB stopMotor
   OUTA[sINA]             := 0   
   OUTA[sINB]             := 0
   pwm.duty(sPWM, 0) 
+  current_duty_cycle     := 0
   
 ' Set setpoint by an integer in the range 0 - 100, limited to min and max values. Returns the actually set value
 PUB setMotorSetpointPercentage(percentage)
@@ -752,7 +761,10 @@ PUB calcRangePercentage(value, minimal, maximal)
 
 PUB calcRangeValue(percentage, minimal, maximal)
   return f.fround( f.fdiv( f.fmul( f.ffloat(percentage), f.ffloat(maximal - minimal)), 100.0) ) + minimal
-   
+
+PUB isMotorMoving   
+  return current_duty_cycle > 0 AND (OUTA[sINA] <> 0 OR OUTA[sINB] <> 0)
+  
 PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_period, ramp_period_cycles
   OUTA[sINA] := 0      ' Set direction pins as output for PWM
   DirA[sINA]~~
@@ -815,6 +827,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
         pwm.duty(sPWM, || current_duty_cycle)
       else
         pwm.duty(sPWM, 0)                     ' Stop motor
+        current_duty_cycle := 0
       
     ' Check if finished with moving to button position
     if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position
