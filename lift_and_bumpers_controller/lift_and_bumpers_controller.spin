@@ -22,15 +22,18 @@
 ''   AllVOK, s5VOK, s3V3OK, sVInOK, OutofRange   (1 = OK)
 ''
 ''   EMERIn signal enables movement
+''
+''  alarm_state 0 -> All OK
+''  alarm_state 1 -> Watchdog error
+''  alarm_state 2 -> ForceStop command received
 ''*****************************************************
-
 
 DAT 
     
 CON
   ' Version
   major_version    = 3
-  minor_version    = 0 
+  minor_version    = 1 
   CONTROLLER_ID    = 2
 
   ' Set 80Mhz
@@ -337,8 +340,8 @@ PRI InitWatchDog
   wd_cnt            := 0
 
 PRI handleWatchdogError | i
-  ' Do some handling man!
-  ' 
+  stopMotor
+  
 ' === Init serial communication ===
 PUB initialize_serial
 
@@ -367,6 +370,12 @@ PRI resetCommunication
   InitWatchDog
   resetSafety
 
+PRI setAlarm(new_alarm_number) | changed_alarm
+  changed_alarm          := new_alarm_number <> last_alarm
+  no_alarm               := false
+  last_alarm             := new_alarm_number  
+  return changed_alarm
+      
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
   DIRA[pButton1] := 0     ' Set button as input  
@@ -386,9 +395,8 @@ PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
       prev_oneMScounter := oneMScounter
 
     if wd_cnt > wd_cnt_threshold    
-      last_alarm := 1
-      no_alarm   := false            ' ========================================= TODO
-      handleWatchdogError
+      if setAlarm(1)          ' if alarm changed
+        handleWatchdogError
       
     ' Voltages   
     if engADCchAVG[V5V] < c5V
@@ -577,6 +585,7 @@ PRI DoCommand | i, command
              ser.str(rose_comm.getBoolStr(s3V3OK)) 
              ser.str(rose_comm.getBoolStr(sVinOK)) 
              ser.str(rose_comm.getBoolStr(button_enable_override)) 
+             ser.str(rose_comm.getDecStr(last_alarm)) 
              ser.str(rose_comm.getEOLStr)
         ' Get ADC raw values
         205: ser.str(rose_comm.getCommandStr(command))
@@ -697,7 +706,7 @@ PRI DoCommand | i, command
              ser.str(rose_comm.getEOLStr)
         ' Force motor to stop
         401: ser.str(rose_comm.getCommandStr(command)) 
-             stopMotor
+             forceStopMotor
              ser.str(rose_comm.getEOLStr)     
         ' Enable/disable serial debug mode
         402: ser.str(rose_comm.getCommandStr(command)) 
@@ -734,14 +743,19 @@ PRI DoCommand | i, command
 CON
   _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
                                      '
-' Force stop the motor
+' Stop the motor
 PUB stopMotor
-  button_enable_override := false
   lift_motor_setpoint    := getMotorPos
+
+' Force stop the motor
+PUB forceStopMotor   
+  setAlarm(2)
+  button_enable_override := false
   OUTA[sINA]             := 0   
   OUTA[sINB]             := 0
   pwm.duty(sPWM, 0) 
   current_duty_cycle     := 0
+  stopMotor
   
 ' Set setpoint by an integer in the range 0 - 100, limited to min and max values. Returns the actually set value
 PUB setMotorSetpointPercentage(percentage)
@@ -835,7 +849,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
     wanted_motor_speed := -max_motor_speed #> (-max_speed #> MoveDir * motor_speed <# max_speed) <# max_motor_speed
     
     
-    if controller_enabled OR button_enable_override     
+    if (no_alarm AND controller_enabled) OR ( button_enable_override AND (last_alarm == 1 OR last_alarm == 2) )   ' Controller enabled or home button pressed and not force stopped or watchdogged (alarmstate 2 or alarmstate 1)
       ' Ramp generator
       ' Runs at ramp period
       if (cnt - T2) > ramp_period_cycles
@@ -847,14 +861,14 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
           current_duty_cycle := || wanted_motor_speed
         
       ' Set duty cycle
-      if no_alarm OR button_enable_override   ' Move only when all is OK or button override
-        pwm.duty(sPWM, || current_duty_cycle)
-      else
-        pwm.duty(sPWM, 0)                     ' Stop motor
-        current_duty_cycle := 0
+      'if button_enable_override   ' Move only when all is OK or button override
+      pwm.duty(sPWM, || current_duty_cycle)
+      'else
+     '   pwm.duty(sPWM, 0)                     ' Stop motor
+     '   current_duty_cycle := 0
       
     ' Check if finished with moving to button position
-    if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position
+    if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position  
         button_enable_override := false
    
     DoMotorCnt++
