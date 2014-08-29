@@ -1,39 +1,10 @@
-{{=============================================================================
- Qic PID object real version for 8 motors dec/febr 2010 HJK
- Uses quadrature encoder to measure motor velocity
- Velocity/position control in 8 fold PID loop velocity and position at approx. 500 us per loop
- Set and read parameters of QiK controller
- Read PWM encoder US Digital
- V1.2 Dec 2010:
-   LCD screen 2x16
-   Xbee command interface
-   Checks if Remote connection Joystick is alive.230400
-   If no contact after 0.1 sec, platform shuts down
-   Jan 2011 Board 900085a
- V2a Febr 2011:
-   Table for steering and speedcommand. Stadard steering,
-   cross steering and rotation around center.
-   PC communication extended with movemode for steering modes
-   LCD serial cong removed. Cog needed for other tasks
- Test V2b PID met FE error  Validated 1 April 2011
- V3: June 2011 String handling for commands from joystick and pc
- V31: Juli 2011 Combined PID and I/O loop in PID V4. Saves a cog for communication and safety.
- V32: Command for commanding individual motors. 
- V33: Release version okt 2011
- V33a/b: Nov 2011 Minor mod's: debug screen, Setpoints and braking
- V35: Serial communication with PC via Serial port and Debug Via standard USB port
- V36: Okke: Major overhaul, removed unneccesary code, changed communication protocol, PID loop timing and velocity calc changed
-            Added watchdog
- To do: MAE time out error, xbee comm time out error
-
- 
-=============================================================================        
-}}
+'' Rose B.V. 2014
+'' Author: Okke Hendriks
 '' Please see TXT for communication documentation
 
 CON
    ' Version
-   major_version    = 37
+   major_version    = 1
    minor_version    = 1 
    CONTROLLER_ID    = 1
 
