@@ -146,6 +146,7 @@ OBJ
   PID           : "PID_4A"                              ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
   n             : "simple_numbers"                      ' Number to string conversion
   eprom         : "eeprom"                              ' Routines for saving and reloading settings
+  rose_comm     : "rose_communication"                  ' Rose communication
   
 Var Long DoShowParameters
 
@@ -248,7 +249,7 @@ PUB main | T1, lch
 
 ' ----------------  Init main program ---------------------------------------
 PRI InitMain
- !outa[Led]                             ' Toggle I/O Pin for debug
+  !outa[Led]                             ' Toggle I/O Pin for debug
   DisableWheelUnits
 
   dira[Led]~~                            'Set I/O pin for LED to output…
@@ -527,62 +528,50 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
       command:=sGetPar
 
       Case command
+       ' Move to position percentage with a certain speed percentage
+        403: ser.str(rose_comm.getCommandStr(command)) 
+             if rose_comm.nrOfParametersCheck(2)
+               ser.str( rose_comm.getDecStr(setMotorSpeedPercentage(rose_comm.getParam(1))) )
+               ser.str( rose_comm.getDecStr(setMotorSetpointPercentage(rose_comm.getParam(2))) )
+             ser.str(rose_comm.getEOLStr)     
+         '== Default 100 range communication ===
         '--- Communicate controller id ---
-        100 : Xbee.str(string("$100,"))
-              Xbee.dec(CONTROLLER_ID)
-              Xbee.tx(",")  
-              Xbee.tx(CR) 
+        100 : ser.str(rose_comm.getCommandStr(command))
+              ser.str(rose_comm.getDecStr(CONTROLLER_ID))
+              ser.str(rose_comm.getEOLStr) 
         '--- Communicate software version ---
-        101 : Xbee.str(string("$101,"))
-              Xbee.dec(major_version)
-              Xbee.tx(",")  
-              Xbee.dec(minor_version)
-              Xbee.tx(",")  
-              Xbee.tx(CR) 
+        101 : ser.str(rose_comm.getCommandStr(command))
+              ser.str(rose_comm.getDecStr(major_version))
+              ser.str(rose_comm.getDecStr(minor_version))
+              ser.str(rose_comm.getEOLStr) 
         '--- WATCHDOG ---
-        111:      
-             received_wd := sGetPar
+        111: received_wd := rose_comm.getParam(1)
+             ser.str(rose_comm.getCommandStr(command))
              ' Check value
              if received_wd <> expected_wd
-                DisableWheelUnits
-                Xbee.tx("$")
-                Xbee.dec(111)
-                Xbee.tx(",")
-                Xbee.dec(-1)
-                Xbee.tx(",")  
-                Xbee.dec(wd_cnt)
-                Xbee.tx(",")            
-                Xbee.dec(received_wd)
-                Xbee.tx(",")   
-                Xbee.dec(expected_wd)
-                Xbee.tx(",")   
-                Xbee.tx(CR)  
+                handleWatchdogError
+                ser.str(rose_comm.getDecStr(-1))
+                ser.str(rose_comm.getDecStr(wd_cnt))
+                ser.str(rose_comm.getDecStr(received_wd))
+                ser.str(rose_comm.getDecStr(expected_wd))                
              else    
-                Xbee.tx("$")
-                Xbee.dec(111)
-                Xbee.tx(",")
-                Xbee.dec(wd)
-                Xbee.tx(",")  
-                Xbee.dec(wd_cnt)
-                Xbee.tx(",")                
-                Xbee.dec(received_wd)
-                Xbee.tx(",")   
-                Xbee.dec(expected_wd)
-                Xbee.tx(",")   
-                Xbee.tx(CR)  
-
+                ser.str(rose_comm.getDecStr(wd))
+                ser.str(rose_comm.getDecStr(wd_cnt))
+                ser.str(rose_comm.getDecStr(received_wd))
+                ser.str(rose_comm.getDecStr(expected_wd))
                 if expected_wd == 1
                    expected_wd := 0             
                 else
                    expected_wd := 1
-
+                   
                 if wd == 1
                    wd := 0             
                 else
                    wd := 1                                 
- 
+             
                 'Reset the watchdog counter
-                wd_cnt := 0           
+                wd_cnt := 0 
+             ser.str(rose_comm.getEOLStr)           
 
         '=== Set drive PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, FeMax, MaxCurr
         900: Ki:= sGetPar
