@@ -2,6 +2,7 @@ rose20_platform_firmware.spin
 Timing.spin
 MAE3.spin
 quadrature_encoder.spin
+full_duplex_serial_005.spin
 timing.spin
 QiK_commands.spin
 timing.spin
@@ -9,7 +10,8 @@ PID_4A.spin
 eeprom.spin
 simple_numbers.spin
 full_duplex_serial_005.spin
+STRINGS2hk.spin
 rose_communication.spin
-parallax_serial_terminal.spin
+full_duplex_serial_005.spin
 timing.spin
 >compiler=SPIN

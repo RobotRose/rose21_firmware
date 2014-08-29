@@ -29,7 +29,7 @@ CON
 OBJ
   ser           : "full_duplex_serial_005"             ' Full duplex serial communication 
   sn            : "simple_numbers"                     ' For conversion of variables to strings
-  strings       : "STRINGS2hk"
+  strings       : "STRINGS2hk"                        
   
 VAR
   ' State
@@ -73,11 +73,6 @@ PUB checkForCommand | check_command
     return true
   else
     return false
-    
-  'if Strsize(@StrBuf) > 3                         'Received string must be larger than 3 char's skip rest (noise)
-  '  return true
-  'else
-  '  return false
 
 PUB getCommand
   return command      
