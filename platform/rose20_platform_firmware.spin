@@ -146,6 +146,7 @@ OBJ
   PID           : "PID_4A"                              ' PID contr. 8 loops. Sep. Pos and Vel feedb + I/O.
   n             : "simple_numbers"                      ' Number to string conversion
   eprom         : "eeprom"                              ' Routines for saving and reloading settings
+  rose_comm     : "rose_communication"                  ' Rose communication
   
 Var Long DoShowParameters
 
@@ -168,7 +169,7 @@ Var Long DoShowParameters
 
     ' Xbee input
     Long XbeeCmdCntr  
-    Long Sender, CMDi, myID, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
+    Long command, CMDi, myID, XbeeTime, Enabled, XbeeStat, Lp, XbeeCog
     Byte Cmd[LineLen] ,LastPar1[CmdLen]
     Byte XbeeTimeout
 
@@ -178,12 +179,6 @@ Var Long DoShowParameters
     Long SerEnabled, oSel0, CmdDone
     Long MaxWaitTime                            ' Wait time for new Xbee string
 
-    ' Safety
-    Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
-    Long following_error_counter
-    Long current_error_counter 
-    Long connection_error_counter
- 
     ' Received command variables
     long PfStatus, connection_error_byte
     Long LastAlarm
@@ -216,6 +211,12 @@ Var Long DoShowParameters
     ' Movement/turning hysteresis
     Long start_a_err, stop_a_err, stopstart_a_err  
  
+    ' Safety
+    Long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
+    Long following_error_counter
+    Long current_error_counter 
+    Long connection_error_counter
+    
     ' Errors
     long following_error_counter_treshold
     long current_error_counter_threshold
@@ -248,7 +249,7 @@ PUB main | T1, lch
 
 ' ----------------  Init main program ---------------------------------------
 PRI InitMain
- !outa[Led]                             ' Toggle I/O Pin for debug
+  !outa[Led]                             ' Toggle I/O Pin for debug
   DisableWheelUnits
 
   dira[Led]~~                            'Set I/O pin for LED to output…
@@ -506,7 +507,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
   OK:=1
 
   StrP:=0  'Reset line pointer
-  Sender:=0
+  command:=0
   StrLen:=strsize(@StrBuf)  
 
   if StrLen > (MaxStr-1)        'Check max len
@@ -524,65 +525,53 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
         Quit                    'Exit loop
 
     if OK == 1
-      Sender:=sGetPar
+      command:=sGetPar
 
-      Case Sender
+      Case command
+       ' Move to position percentage with a certain speed percentage
+        403: ser.str(rose_comm.getCommandStr(command)) 
+             if rose_comm.nrOfParametersCheck(2)
+               ser.str( rose_comm.getDecStr(setMotorSpeedPercentage(rose_comm.getParam(1))) )
+               ser.str( rose_comm.getDecStr(setMotorSetpointPercentage(rose_comm.getParam(2))) )
+             ser.str(rose_comm.getEOLStr)     
+         '== Default 100 range communication ===
         '--- Communicate controller id ---
-        100 : Xbee.str(string("$100,"))
-              Xbee.dec(CONTROLLER_ID)
-              Xbee.tx(",")  
-              Xbee.tx(CR) 
+        100 : ser.str(rose_comm.getCommandStr(command))
+              ser.str(rose_comm.getDecStr(CONTROLLER_ID))
+              ser.str(rose_comm.getEOLStr) 
         '--- Communicate software version ---
-        101 : Xbee.str(string("$101,"))
-              Xbee.dec(major_version)
-              Xbee.tx(",")  
-              Xbee.dec(minor_version)
-              Xbee.tx(",")  
-              Xbee.tx(CR) 
+        101 : ser.str(rose_comm.getCommandStr(command))
+              ser.str(rose_comm.getDecStr(major_version))
+              ser.str(rose_comm.getDecStr(minor_version))
+              ser.str(rose_comm.getEOLStr) 
         '--- WATCHDOG ---
-        111:      
-             received_wd := sGetPar
+        111: received_wd := rose_comm.getParam(1)
+             ser.str(rose_comm.getCommandStr(command))
              ' Check value
              if received_wd <> expected_wd
-                DisableWheelUnits
-                Xbee.tx("$")
-                Xbee.dec(111)
-                Xbee.tx(",")
-                Xbee.dec(-1)
-                Xbee.tx(",")  
-                Xbee.dec(wd_cnt)
-                Xbee.tx(",")            
-                Xbee.dec(received_wd)
-                Xbee.tx(",")   
-                Xbee.dec(expected_wd)
-                Xbee.tx(",")   
-                Xbee.tx(CR)  
+                handleWatchdogError
+                ser.str(rose_comm.getDecStr(-1))
+                ser.str(rose_comm.getDecStr(wd_cnt))
+                ser.str(rose_comm.getDecStr(received_wd))
+                ser.str(rose_comm.getDecStr(expected_wd))                
              else    
-                Xbee.tx("$")
-                Xbee.dec(111)
-                Xbee.tx(",")
-                Xbee.dec(wd)
-                Xbee.tx(",")  
-                Xbee.dec(wd_cnt)
-                Xbee.tx(",")                
-                Xbee.dec(received_wd)
-                Xbee.tx(",")   
-                Xbee.dec(expected_wd)
-                Xbee.tx(",")   
-                Xbee.tx(CR)  
-
+                ser.str(rose_comm.getDecStr(wd))
+                ser.str(rose_comm.getDecStr(wd_cnt))
+                ser.str(rose_comm.getDecStr(received_wd))
+                ser.str(rose_comm.getDecStr(expected_wd))
                 if expected_wd == 1
                    expected_wd := 0             
                 else
                    expected_wd := 1
-
+                   
                 if wd == 1
                    wd := 0             
                 else
                    wd := 1                                 
- 
+             
                 'Reset the watchdog counter
-                wd_cnt := 0           
+                wd_cnt := 0 
+             ser.str(rose_comm.getEOLStr)           
 
         '=== Set drive PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, FeMax, MaxCurr
         900: Ki:= sGetPar
@@ -996,7 +985,7 @@ PRI DoXCommand | OK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd
               Xbee.tx(CR)
 
         other:Xbee.tx("$")
-              Xbee.dec(sender)
+              Xbee.dec(command)
               xBee.tx(",")
               xBee.str(string("Unkown command", 13)) 
 
@@ -1007,7 +996,7 @@ Return OK
 ' ---------------- Send actual and max currents to PC -------------------------------
 PRI DoCurrents2PC | i
   Xbee.tx("$")
-  Xbee.dec(Sender)        'Last Sender
+  Xbee.dec(command)        'Last command
 
   repeat i from 0 to MotorCnt-1       'Send actual currents
     xBee.tx(",")
@@ -1083,7 +1072,7 @@ Return lch
 ' ---------------- Print program status to PC ---------------------------------------
 PRI DoStatus2PC
   Xbee.tx("$")
-  Xbee.dec(Sender)        'Last Sender
+  Xbee.dec(command)        'Last command
   Xbee.tx(",")
   Xbee.dec(LastAlarm)     'Last error
   Xbee.tx(",")
@@ -1109,7 +1098,7 @@ PRI DoStatus2PC
 PRI DoPos2PC | i
   i:=0
   Xbee.tx("$")
-  Xbee.dec(Sender)
+  Xbee.dec(command)
   Xbee.tx(",")
 
   i:=0
@@ -1390,7 +1379,7 @@ PRI ShowParameters | i
 ' ---------------- Dump PID settigns to Xbee ---------------------------------------
 PRI DoPIDSettings | i
   Xbee.tx("$")
-  Xbee.dec(Sender)        'Last Sender
+  Xbee.dec(command)        'Last command
   Xbee.tx(",")
   xBee.str(string(CR,"MAEOffs: $0"))
   repeat i from 0 to MAECnt-1   'Copy working values to buffer
@@ -1581,8 +1570,8 @@ PRI ShowScreen | i
     ser.str(string(" PfStatus: "))
     ser.str(n.ibin(PfStatus,16))
        
-    ser.str(string(CE,CR," Sender: "))
-    ser.str(n.decf(Sender,4))
+    ser.str(string(CE,CR," command: "))
+    ser.str(n.decf(command,4))
 
 ' ---------------- 'Set bit in 32 bit Long var -------------------------------
 PRI SetBit(VarAddr,Bit) | lBit, lMask

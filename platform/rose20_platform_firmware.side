@@ -8,6 +8,8 @@ timing.spin
 PID_4A.spin
 eeprom.spin
 simple_numbers.spin
+full_duplex_serial_005.spin
+rose_communication.spin
 parallax_serial_terminal.spin
 timing.spin
 >compiler=SPIN

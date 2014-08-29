@@ -5,5 +5,7 @@ STRINGS2hk.spin
 FloatMath1_1.spin
 simple_numbers.spin
 full_duplex_serial_005.spin
+rose_communication.spin
+full_duplex_serial_005.spin
 Timing.spin
 >compiler=SPIN
