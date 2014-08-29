@@ -20,11 +20,13 @@ CON
   StringSize      = lMaxStr-1
   bytebuffersize  = 2048
   LineLen         = bytebuffersize  ' Buffer size for incoming line
-  MaxWaitTime     = 5               'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
+  MaxWaitTime     = 5000               'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
    
   ' Command handling
   max_parameters        = 50
   max_substring_length  = 10
+  
+  UNKOWN_COMMAND_NUMBER = 102
   
 OBJ
   ser           : "full_duplex_serial_005"             ' Full duplex serial communication 
@@ -219,6 +221,9 @@ PUB getDecStr(decimal) | decimal_string
   bytemove(@substr1, decimal_string, strsize(decimal_string))  
   substr2[0] := ","
   return strings.concatenate(@substr1, @substr2)
+  
+PUB getUnkownCommandStr
+  return getCommandStr(UNKOWN_COMMAND_NUMBER)
 
 PUB getEOLStr
   return string(CR)

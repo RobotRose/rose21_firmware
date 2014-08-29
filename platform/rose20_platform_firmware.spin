@@ -1,4 +1,4 @@
- {=============================================================================
+{{=============================================================================
  Qic PID object real version for 8 motors dec/febr 2010 HJK
  Uses quadrature encoder to measure motor velocity
  Velocity/position control in 8 fold PID loop velocity and position at approx. 500 us per loop
@@ -27,25 +27,10 @@
  To do: MAE time out error, xbee comm time out error
 
  
-=============================================================================
-}
-{{ Platform control commands:
- Uses string handling for xbee command line handling
-
- Xbee remote control
-   XB$500,33251,-369,-88,0,0,0,0,   Id ($500),Cntr,JoyX,JoyY,Btn1,btn2,btn3,btn4
-
-  PC Interface:
-  Enable motion             :  $902,Enable   Enable : 0=no motion 1= motion allowed
-  individual Wheel mode     :  $905,cnt,speed1, speed2, speed3, speed4, angle1, angle2. All angles and speeds independent
-   
-  Clear Errors     :  $908  (No parameters) ResetPfStatus: Reset platform status, ResetMaxCurrent, ResetCurError   
-  Query wheel pos  :  $911  Returns 4 wheel positions, 4 steer positions, 4 wheel speeds,  Right Front, Left Front, RightR ear, Left Rear 
-  Query Status     :  $912  Query status of various par's, like errors, platform status, life counters Xbee comm time
-  Query currents   :  $914  Query actual and max currents: Return $914,actual current 0..7, max current [0..7]  
-  Query PID pars   :  $916  Report PID parameters  
-        
+=============================================================================        
 }}
+'' Please see TXT for communication documentation
+
 CON
    ' Version
    major_version    = 37
@@ -153,7 +138,7 @@ Var Long DoShowParameters
 
     ' Serial input
     long serial_cntr  
-    long CMDi, myID, XbeeTime, Enabled, Lp, XbeeCog
+    long CMDi, myID, serial_time, Enabled, Lp, XbeeCog
 
     ' Received command variables
     long PfStatus, connection_error_byte
@@ -187,16 +172,23 @@ Var Long DoShowParameters
     long start_a_err, stop_a_err, stopstart_a_err  
  
     ' Safety
-    long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError, expected_wd, wd, wd_cnt
+    long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError
     long following_error_counter
     long current_error_counter 
     long connection_error_counter
+    
+    ' Watchdog
+    long received_wd
+    long expected_wd 
+    long wd
+    long wd_cnt
+    long wd_cnt_threshold
     
     ' Errors
     long following_error_counter_treshold
     long current_error_counter_threshold
     long connection_error_counter_threshold
-    long wd_cnt_threshold
+    long watchdog_treshold
     
 ' ---------------- Main program CONTROLLER_ID---------------------------------------
 PUB main | T1, lch 
@@ -243,7 +235,7 @@ PRI InitMain
   following_error_counter_treshold   := 15    
   current_error_counter_threshold    := 4     
   connection_error_counter_threshold := 20     
-  wd_cnt_threshold                   := 5    
+  watchdog_treshold                   := 5    
     
   following_error_counter   := 0   
   current_error_counter     := 0
@@ -268,10 +260,22 @@ PRI InitMain
 
 '=== Init Watchdog Stuff ===
 PRI InitWatchDog
-  expected_wd   := 0                     
-  wd            := 0
-  wd_cnt        := 0
+  received_wd       := 0
+  expected_wd       := 0
+  wd                := 0
+  wd_cnt            := 0
+  wd_cnt_threshold  := 1000
+  
+PRI handleWatchdogError
+  DisableWheelUnits
+  
+PRI resetCommunication
+  InitWatchDog
+  resetSafety
+  
+PRI resetSafety
 
+  
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
   PID.ResetCurrentStatus
@@ -342,13 +346,13 @@ PRI DoSafety | i, ConnectionError, bitvalue
     else
       wd_cnt := 0
 
-    if wd_cnt > wd_cnt_threshold    
+    if wd_cnt > watchdog_treshold    
       ResetBit(@PfStatus,NoAlarm)
       SetBit(@PfStatus,CurrBit)
       LastAlarm := 3
       NoAlarm   := false
       connection_error_byte := 0
-      DisableWheelUnits
+      handleWatchdogError
 
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
@@ -392,12 +396,15 @@ PRI DoSafety | i, ConnectionError, bitvalue
 PRI AddError2Log(ErCode)
 
 ' ---------------- Enable or disable the controller ---------------------------------------
-PRI setControllerState(enable) 
-    if enable and not Enabled         ' Enable Disable platform 1 = enabled 0 = disabled
+PRI setControllerState(enable)
+  if enable AND not( drive_pid_vals_set AND steer_pid_vals_set )
+    return false
+  else
+    if enable AND not Enabled         ' Enable Disable platform 1 = enabled 0 = disabled
        EnableWheelUnits
-    elseif not enable and Enabled  
+    elseif not enable AND Enabled  
        DisableWheelUnits
-
+  return true     
 
 '------------------ Move all wheels individually --------------------------------
 PRI Move | speed_margin
@@ -460,23 +467,26 @@ PRI setBrakeState(brake_state)
         DisableWheels
         pid.BrakeWheels(1)                ' Zero does not work..
 
+    return set_brake_state
+
 
 ' -------------- DoCommand: Get command parameters from rose communication and handle them -------------
-PRI DoCommand | i, command
+PRI DoCommand | t1, i, command
+  t1 := cnt
   command := rose_comm.getCommand  
 
   case command   
-     '== Default 100 range communication ===
-    '--- Communicate controller id ---
+    ' === Default 100 range communication ===
+    ' === Communicate controller id ===
     100 : ser.str(rose_comm.getCommandStr(command))
           ser.str(rose_comm.getDecStr(CONTROLLER_ID))
           ser.str(rose_comm.getEOLStr) 
-    '--- Communicate software version ---
+    ' === Communicate software version ===
     101 : ser.str(rose_comm.getCommandStr(command))
           ser.str(rose_comm.getDecStr(major_version))
           ser.str(rose_comm.getDecStr(minor_version))
           ser.str(rose_comm.getEOLStr) 
-    '--- WATCHDOG ---
+    ' === WATCHDOG ===
     111: received_wd := rose_comm.getParam(1)
          ser.str(rose_comm.getCommandStr(command))
          ' Check value
@@ -503,443 +513,298 @@ PRI DoCommand | i, command
          
             'Reset the watchdog counter
             wd_cnt := 0 
-         ser.str(rose_comm.getEOLStr)           
+         ser.str(rose_comm.getEOLStr)    
+         
+    ' === Set watchdog timer ==         
+    112: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           watchdog_treshold := 0 #> rose_comm.getParam(1)
+           ser.str(rose_comm.getDecStr(watchdog_treshold))
+         ser.str(rose_comm.getEOLStr) 
+    
+    ' === Get watchdog timer ==        
+    113: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(watchdog_treshold))
+         ser.str(rose_comm.getEOLStr)   
+    
+    ' === GETTERS ===
+    
+    ' === Get velocity of motor with ID
+    200:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetActVel(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr)
+          
+    ' === Get position of motor with ID
+    201:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            if rose_comm.getParam(1) == 0 OR rose_comm.getParam(1) == 2 OR rose_comm.getParam(1) == 4 OR rose_comm.getParam(1) == 6                                                                                                                            '
+              ser.str(rose_comm.getDecStr(pid.GetActEncPos(rose_comm.getParam(1))))  ' Drive motor, normal encoders         
+            else
+              ser.str(rose_comm.getDecStr(pid.GetActEncPos(rose_comm.getParam(1))))  ' Steer motors, absolute encoders
+          ser.str(rose_comm.getEOLStr)
 
-    '=== Set drive PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, FeMax, MaxCurr
-    900: Ki:= sGetPar
-         K:= sGetPar
-         Kp:= sGetPar
-         Kd:= sGetPar
-         Ilimit:= sGetPar
-         PosScale:= sGetPar
-         VelScale:= sGetPar
-         VelMax:= sGetPar
-         FeMax:= sGetPar
-         MaxCurr:= sGetPar
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(900)
-         Xbee.tx(",")
-         Xbee.dec(Ki)
-         Xbee.tx(",")
-         Xbee.dec(K)
-         Xbee.tx(",")
-         Xbee.dec(Kp)
-         Xbee.tx(",")
-         Xbee.dec(Kd)
-         Xbee.tx(",")
-         Xbee.dec(Ilimit)
-         Xbee.tx(",")
-         Xbee.dec(PosScale)
-         Xbee.tx(",")
-         Xbee.dec(VelScale)
-         Xbee.tx(",")
-         Xbee.dec(VelMax)
-         Xbee.tx(",")
-         Xbee.dec(FeMax)
-         Xbee.tx(",")
-         Xbee.dec(MaxCurr)
-         Xbee.tx(",")
-         Xbee.tx(CR)         
-         SetDrivePIDPars(Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
-         '=== Set steering PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr
-    901: Ki:= sGetPar             
-         K:= sGetPar
-         Kp:= sGetPar
-         Kd:= sGetPar
-         Ilimit:= sGetPar
-         PosScale:= sGetPar
-         VelScale:= sGetPar
-         VelMax:= sGetPar
-         FeMax:= sGetPar
-         MaxCurr:= sGetPar
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(901)
-         Xbee.tx(",")
-         Xbee.dec(Ki)
-         Xbee.tx(",")
-         Xbee.dec(K)
-         Xbee.tx(",")
-         Xbee.dec(Kp)
-         Xbee.tx(",")
-         Xbee.dec(Kd)
-         Xbee.tx(",")
-         Xbee.dec(Ilimit)
-         Xbee.tx(",")
-         Xbee.dec(PosScale)
-         Xbee.tx(",")
-         Xbee.dec(VelScale)
-         Xbee.tx(",")
-         Xbee.dec(VelMax)
-         Xbee.tx(",")
-         Xbee.dec(FeMax)
-         Xbee.tx(",")
-         Xbee.dec(MaxCurr)
-         Xbee.tx(",")
-         Xbee.tx(CR)         
-         SetSteerPIDPars(Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
+    ' === Get current of motor with ID
+    202:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetActCurrent(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr)
 
-   '=== Enable command from PC 
-    902: do_enable:=sGetpar   'TODO replace by setControllerState
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(902)
-         Xbee.tx(",")
-         ' if enabling but the drive or steer PID values are not yet set, send error response
-         if do_enable==1 and drive_pid_vals_set and steer_pid_vals_set
-            Xbee.dec(do_enable)        
-         elseif do_enable==1
-            Xbee.dec(3)     'Error response meaning not all pid vals were set before enabling
-            do_enable:=0    'Force do_enable to zero
-         'If disabling return a zero
-         if do_enable==0
-            Xbee.dec(0) 
-         Xbee.tx(",")
-         Xbee.tx(CR)         
+    ' === Get maximally reached current of motor with ID
+    203:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr)
 
-    '=== Set the movement speeds and directions, 
+    ' === Get position error of motor with ID
+    204:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr( pid.GetSetp(rose_comm.getParam(1)) - pid.GetActPos(rose_comm.getParam(1)) ))
+          ser.str(rose_comm.getEOLStr)
+
+    ' === Get velocity error of motor with ID
+    205:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetDeltaVel(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr)
+
+    '=== Get PI out of motor with ID
+    206:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetPIDOut(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get P out of motor with ID
+    207:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr( pid.GetPIDOut(rose_comm.getParam(1)) - pid.GetIbuf(rose_comm.getParam(1)) ))
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get I out of motor with ID
+    208:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetIbuf(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get D of motor with ID
+    209:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetD(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get MAE of motor with ID
+    210:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetMAEpos(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get FE of motor with ID
+    211:  ser.str(rose_comm.getCommandStr(command)) 
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+            ser.str(rose_comm.getDecStr(pid.GetFE(rose_comm.getParam(1))))
+          ser.str(rose_comm.getEOLStr)       
+
+    ' === Get AlarmState and LastAlarm number
+    212:  ser.str(rose_comm.getCommandStr(command)) 
+          ser.str(rose_comm.getBoolStr(!NoAlarm))
+          ser.str(rose_comm.getDecStr(LastAlarm))
+          ser.str(rose_comm.getDecStr(connection_error_byte))
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get All drive motor positions number
+    213:  repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           ' Timeout in [ms] 
+          ser.str(rose_comm.getCommandStr(command))
+          if pid.getEncSem
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(0)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(2)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(4)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(6)))
+            
+          else
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(0))
+          pid.resetActEncPosSem 
+          ser.str(rose_comm.getEOLStr) 
+
+    ' === Get All status info
+    ' First all drive motor positions and clk difference
+    214:  repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           ' Timeout in [ms]
+          ser.str(rose_comm.getCommandStr(command))                                                                   ' 
+          if pid.getEncSem
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(0)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(2)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(4)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(6)))
+          else
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(0))
+          pid.resetActEncPosSem  
+
+          'Steer motors positions, absolute encoders
+          ser.str(rose_comm.getDecStr(pid.GetActPos(1)))
+          ser.str(rose_comm.getDecStr(pid.GetActPos(3)))
+          ser.str(rose_comm.getDecStr(pid.GetActPos(5)))
+          ser.str(rose_comm.getDecStr(pid.GetActPos(7)))
+
+          '=== Get AlarmState and LastAlarm number
+          ser.str(rose_comm.getBoolStr(!NoAlarm))
+          ser.str(rose_comm.getDecStr(LastAlarm))
+          ser.str(rose_comm.getDecStr(connection_error_byte))
+          ser.str(rose_comm.getEOLStr)
+      
+    ' === SETTERS ===
+        
+    ' === Set drive PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelMax, VelScale, FeMax, MaxCurr
+    300: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(10)
+           Ki       := rose_comm.getParam(1)
+           K        := rose_comm.getParam(2)
+           Kp       := rose_comm.getParam(3)
+           Kd       := rose_comm.getParam(4)
+           Ilimit   := rose_comm.getParam(5)
+           PosScale := rose_comm.getParam(6)
+           VelScale := rose_comm.getParam(7)
+           VelMax   := rose_comm.getParam(8)
+           FeMax    := rose_comm.getParam(9)
+           MaxCurr  := rose_comm.getParam(10)
+           
+           SetDrivePIDPars(Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
+           
+           ser.str(rose_comm.getDecStr(Ki)) 
+           ser.str(rose_comm.getDecStr(K)) 
+           ser.str(rose_comm.getDecStr(Kp)) 
+           ser.str(rose_comm.getDecStr(Kd)) 
+           ser.str(rose_comm.getDecStr(Ilimit)) 
+           ser.str(rose_comm.getDecStr(PosScale)) 
+           ser.str(rose_comm.getDecStr(VelScale)) 
+           ser.str(rose_comm.getDecStr(VelMax)) 
+           ser.str(rose_comm.getDecStr(FeMax)) 
+           ser.str(rose_comm.getDecStr(MaxCurr)) 
+         ser.str(rose_comm.getEOLStr)
+           
+         
+    ' === Set steering PID parameters: Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr
+    301: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(10)
+           Ki       := rose_comm.getParam(1)
+           K        := rose_comm.getParam(2)
+           Kp       := rose_comm.getParam(3)
+           Kd       := rose_comm.getParam(4)
+           Ilimit   := rose_comm.getParam(5)
+           PosScale := rose_comm.getParam(6)
+           VelScale := rose_comm.getParam(7)
+           VelMax   := rose_comm.getParam(8)
+           FeMax    := rose_comm.getParam(9)
+           MaxCurr  := rose_comm.getParam(10)
+           
+           SetSteerPIDPars(Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)
+           
+           ser.str(rose_comm.getDecStr(Ki)) 
+           ser.str(rose_comm.getDecStr(K)) 
+           ser.str(rose_comm.getDecStr(Kp)) 
+           ser.str(rose_comm.getDecStr(Kd)) 
+           ser.str(rose_comm.getDecStr(Ilimit)) 
+           ser.str(rose_comm.getDecStr(PosScale)) 
+           ser.str(rose_comm.getDecStr(VelScale)) 
+           ser.str(rose_comm.getDecStr(VelMax)) 
+           ser.str(rose_comm.getDecStr(FeMax)) 
+           ser.str(rose_comm.getDecStr(MaxCurr)) 
+         ser.str(rose_comm.getEOLStr)
+  ' === Set start/stop movement angle error values
+    302: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(2) 
+           start_a_err  := rose_comm.getParam(1)
+           stop_a_err   := rose_comm.getParam(2)          
+           ser.str(rose_comm.getDecStr(start_a_err)) 
+           ser.str(rose_comm.getDecStr(stop_a_err)) 
+         ser.str(rose_comm.getEOLStr)  
+    ' === Set error tresholds
+    303: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(3) 
+           following_error_counter_treshold   := 0 #> rose_comm.getParam(1)
+           current_error_counter_threshold    := 0 #> rose_comm.getParam(2)  
+           connection_error_counter_threshold := 0 #> rose_comm.getParam(3)        
+           ser.str(rose_comm.getDecStr(following_error_counter_treshold)) 
+           ser.str(rose_comm.getDecStr(current_error_counter_threshold)) 
+           ser.str(rose_comm.getDecStr(connection_error_counter_threshold))
+         ser.str(rose_comm.getEOLStr) 
+ 
+    ' === ACTIONS ===
+    
+    ' === Enable command from PC 
+    400: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(1) 
+           ' If enabling but the drive or steer PID values are not yet set, send error response
+           if setControllerState(rose_comm.getBoolParam(1))
+             ser.str(rose_comm.getBoolStr(rose_comm.getBoolParam(1)))            
+           else
+             ' Error response meaning not all pid vals were set before enabling
+             ser.str(rose_comm.getDecStr(3))  
+         ser.str(rose_comm.getEOLStr)
+
+    ' === Set the movement speeds and directions ===
     'Front right is 0
     'Front left is  2
     'Back right is  4
     'Back left is   6
-    903: wSpeed[0] := -PID.GetMaxVel(0)     #> sGetPar  <# PID.GetMaxVel(0)        
-         wAngle[0] := PID.GetSetpMaxMin(1)  #> sGetPar <# PID.GetSetpMaxPlus(1)
-         wSpeed[1] := -PID.GetMaxVel(2)     #> sGetPar  <# PID.GetMaxVel(2)         
-         wAngle[1] := PID.GetSetpMaxMin(3)  #> sGetPar <# PID.GetSetpMaxPlus(3)     
-         wSpeed[2] := -PID.GetMaxVel(4)     #> sGetPar  <# PID.GetMaxVel(4)          
-         wAngle[2] := PID.GetSetpMaxMin(5)  #> sGetPar <# PID.GetSetpMaxPlus(5)     
-         wSpeed[3] := -PID.GetMaxVel(6)     #> sGetPar  <# PID.GetMaxVel(6)
-         wAngle[3] := PID.GetSetpMaxMin(7)  #> sGetPar <# PID.GetSetpMaxPlus(7)                        
+    401: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(8) 
+           
+           wSpeed[0] := -PID.GetMaxVel(0)     #> rose_comm.getParam(1) <# PID.GetMaxVel(0)        
+           wAngle[0] := PID.GetSetpMaxMin(1)  #> rose_comm.getParam(2) <# PID.GetSetpMaxPlus(1)
+           wSpeed[1] := -PID.GetMaxVel(2)     #> rose_comm.getParam(3) <# PID.GetMaxVel(2)         
+           wAngle[1] := PID.GetSetpMaxMin(3)  #> rose_comm.getParam(4) <# PID.GetSetpMaxPlus(3)     
+           wSpeed[2] := -PID.GetMaxVel(4)     #> rose_comm.getParam(5) <# PID.GetMaxVel(4)          
+           wAngle[2] := PID.GetSetpMaxMin(5)  #> rose_comm.getParam(6) <# PID.GetSetpMaxPlus(5)     
+           wSpeed[3] := -PID.GetMaxVel(6)     #> rose_comm.getParam(7) <# PID.GetMaxVel(6)
+           wAngle[3] := PID.GetSetpMaxMin(7)  #> rose_comm.getParam(8) <# PID.GetSetpMaxPlus(7)                        
          
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(903)
-         Xbee.tx(",")
-         Xbee.dec(wSpeed[0])
-         Xbee.tx(",")
-         Xbee.dec(wAngle[0])
-         Xbee.tx(",")             
-         Xbee.dec(wSpeed[1])
-         Xbee.tx(",")
-         Xbee.dec(wAngle[1])
-         Xbee.tx(",")
-         Xbee.dec(wSpeed[2])
-         Xbee.tx(",")
-         Xbee.dec(wAngle[2])
-         Xbee.tx(",")
-         Xbee.dec(wSpeed[3])
-         Xbee.tx(",")
-         Xbee.dec(wAngle[3])
-         Xbee.tx(",")
-         Xbee.tx(CR)  
+           ser.str(rose_comm.getDecStr(wSpeed[0])) 
+           ser.str(rose_comm.getDecStr(wAngle[0])) 
+           ser.str(rose_comm.getDecStr(wSpeed[1])) 
+           ser.str(rose_comm.getDecStr(wAngle[1]))
+           ser.str(rose_comm.getDecStr(wSpeed[2])) 
+           ser.str(rose_comm.getDecStr(wAngle[2])) 
+           ser.str(rose_comm.getDecStr(wSpeed[3])) 
+           ser.str(rose_comm.getDecStr(wAngle[3]))
+         ser.str(rose_comm.getEOLStr)
 
-        '=== Set start/stop movement angle error values
-    904: start_a_err:= sGetPar
-         stop_a_err:= sGetPar
-
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(904)
-         Xbee.tx(",")
-         Xbee.dec(start_a_err)
-         Xbee.tx(",")
-         Xbee.dec(stop_a_err)
-         Xbee.tx(",")
-         Xbee.tx(CR)         
-
-        '=== Set active or no brake mode, 2 is default
-    905: global_brake_state:= sGetPar               '1 Active brake mode or 2 no brake mode
-         if global_brake_state < 1 or global_brake_state > 2
-           global_brake_state := 2
-
-         setBrakeState(global_brake_state)
-
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(905)
-         Xbee.tx(",")
-         Xbee.dec(global_brake_state)
-         Xbee.tx(",")
-         Xbee.tx(CR) 
-
-        '=== Set error tresholds
-    906: following_error_counter_treshold   := sGetPar                  
-         current_error_counter_threshold    := sGetPar     
-         connection_error_counter_threshold := sGetPar     
-         wd_cnt_threshold                   := sGetPar    
-
-         'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(906)
-         Xbee.tx(",")
-         Xbee.dec(following_error_counter_treshold)
-         Xbee.tx(",")
-         Xbee.dec(current_error_counter_threshold)
-         Xbee.tx(",")
-         Xbee.dec(connection_error_counter_threshold)
-         Xbee.tx(",")
-         Xbee.dec(wd_cnt_threshold)
-         Xbee.tx(",")
-         Xbee.tx(CR) 
- 
-    999: ResetPfStatus        'Reset platform status
-        'Send a reply (mirroring the received command)
-         Xbee.tx("$")
-         Xbee.dec(999)
-         Xbee.tx(CR)
-
-    '=== Status commands
-    912: DoStatus2PC     'Status and errors
-    913: DoPos2Pc        'Position to PC
-    914: DoCurrents2PC   'Report currents
-    916: DoPIDSettings   'Send PID parameters to PC
- 
-    '=== Get velocity of motor with ID
-    1000: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1000)
-            xBee.tx(",")
-            xBee.dec(pid.GetActVel(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get position of motor with ID
-    1001: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1001)
-            xBee.tx(",")
-            if req_id == 0 or req_id == 2 or req_id == 4 or req_id == 6         'Drive motor, normal encoders
-                xBee.dec(pid.GetActEncPos(req_id))     
-            else                                                                'Steer motors, absolute encoders
-                xBee.dec(pid.GetActPos(req_id))  
-            
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get current of motor with ID
-    1002: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1002)
-            xBee.tx(",")
-            xBee.dec(pid.GetActCurrent(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get maximally reached current of motor with ID
-    1003: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1003)
-            xBee.tx(",")
-            xBee.dec(pid.GetMaxCurrent(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get position error of motor with ID
-    1004: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1004)
-            xBee.tx(",")
-            xBee.dec(pid.GetSetp(req_id) - pid.GetActPos(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get velocity error of motor with ID
-    1005: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1005)
-            xBee.tx(",")
-            xBee.dec(pid.GetDeltaVel(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get PI out of motor with ID
-    1006: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1006)
-            xBee.tx(",")
-            xBee.dec(pid.GetPIDOut(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get P out of motor with ID
-    1007: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1007)
-            xBee.tx(",")
-            xBee.dec(pid.GetPIDOut(req_id) - pid.GetIbuf(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get I out of motor with ID
-    1008: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1008)
-            xBee.tx(",")
-            xBee.dec(pid.GetIbuf(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get D of motor with ID
-    1009: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1009)
-            xBee.tx(",")
-            xBee.dec(pid.GetD(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get MAE of motor with ID
-    1010: req_id:=sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1010)
-            xBee.tx(",")
-            xBee.dec(pid.GetMAEpos(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get FE of motor with ID
-    1011: req_id := sgetPar         
-          if req_id > -1 and req_id < 8
-            Xbee.tx("$")
-            Xbee.dec(1011)
-            xBee.tx(",")
-            xBee.dec(pid.GetFE(req_id))  
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get AlarmState and LastAlarm number
-    1012: Xbee.tx("$")
-          Xbee.dec(1012)
-          xBee.tx(",")
-          if not NoAlarm
-             xBee.dec(1)  
-          else
-             xBee.dec(0)  
-          xBee.tx(",") 
-          xBee.dec(LastAlarm)  
-          xBee.tx(",")
-          xBee.dec(connection_error_byte)
-          xBee.tx(",")
-          Xbee.tx(CR)
-
-    '=== Get All drive motor positions number
-    1013: Xbee.tx("$")
-          Xbee.dec(1013)
-          xBee.tx(",")
-          if pid.getEncSem
-            xBee.dec(pid.GetActEncPosDiff(0)) 
-            xBee.tx(",")
-            xBee.dec(pid.GetActEncPosDiff(2))  
-            xBee.tx(",")
-            xBee.dec(pid.GetActEncPosDiff(4)) 
-            xBee.tx(",")
-            xBee.dec(pid.GetActEncPosDiff(6)) 
-            xBee.tx(",")          
-            xBee.dec(pid.getEncClkDiff) 
-            xBee.tx(",") 
-            Xbee.tx(CR)
-            pid.resetActEncPosSem              
-          else
-            xBee.dec(0) 
-            xBee.tx(",")
-            xBee.dec(0)  
-            xBee.tx(",")
-            xBee.dec(0) 
-            xBee.tx(",")
-            xBee.dec(0) 
-            xBee.tx(",")          
-            xBee.dec(0) 
-            xBee.tx(",") 
-            Xbee.tx(CR)
-
-    '=== Get All status info
-    ' First all drive motor positions and clk difference
-    1014: Xbee.tx("$")
-          Xbee.dec(1014)
-          xBee.tx(",")
-          
-          repeat while not pid.getEncSem and (Cnt-t1)/80000 < 1000           ' Timeout in [ms]
-          if pid.getEncSem                
-            xBee.dec(pid.GetActEncPosDiff(0)) 
-            xBee.tx(",")
-            xBee.dec(pid.GetActEncPosDiff(2))  
-            xBee.tx(",")
-            xBee.dec(pid.GetActEncPosDiff(4)) 
-            xBee.tx(",")
-            xBee.dec(pid.GetActEncPosDiff(6)) 
-            xBee.tx(",")          
-            xBee.dec(pid.getEncClkDiff)               
-          else
-            xBee.dec(0) 
-            xBee.tx(",")
-            xBee.dec(0)  
-            xBee.tx(",")
-            xBee.dec(0) 
-            xBee.tx(",")
-            xBee.dec(0) 
-            xBee.tx(",")          
-            xBee.dec(0) 
-          pid.resetActEncPosSem  
-
-          xBee.tx(",") 
-          'Steer motors positions, absolute encoders
-          xBee.dec(pid.GetActPos(1))  
-          xBee.tx(",") 
-          xBee.dec(pid.GetActPos(3)) 
-          xBee.tx(",") 
-          xBee.dec(pid.GetActPos(5)) 
-          xBee.tx(",") 
-          xBee.dec(pid.GetActPos(7)) 
-          xBee.tx(",") 
- 
-          '=== Get AlarmState and LastAlarm number
-          if not NoAlarm
-             xBee.dec(1)  
-          else
-             xBee.dec(0)  
-          xBee.tx(",") 
-          xBee.dec(LastAlarm)  
-          xBee.tx(",")
-          xBee.dec(connection_error_byte)
-          xBee.tx(",")
-          Xbee.tx(CR)
-
-    other:Xbee.tx("$")
-          Xbee.dec(command)
-          xBee.tx(",")
-          xBee.str(string("Unkown command", 13)) 
-
-  XbeeTime:=cnt-t1
-  serial_cntr++    
-Return OK
-
-' ---------------- Send actual and max currents to PC -------------------------------
-PRI DoCurrents2PC | i
-  Xbee.tx("$")
-  Xbee.dec(command)        'Last command
-
-  repeat i from 0 to MotorCnt-1       'Send actual currents
-    xBee.tx(",")
-    xBee.dec(ActCurr[i])
-
-  repeat i from 0 to MotorCnt-1       'Send max actual currents
-    xBee.tx(",")
-    xBee.dec(MaxCurrent[i])
   
-  Xbee.tx(",")
-  Xbee.tx(CR)
+
+    ' === Set active or no brake mode, 2 is default
+    402: ser.str(rose_comm.getCommandStr(command)) 
+         if rose_comm.nrOfParametersCheck(1) 
+           global_brake_state  := rose_comm.getParam(1)         
+           ser.str(rose_comm.getDecStr(setBrakeState(global_brake_state)))
+         ser.str(rose_comm.getEOLStr) 
+
+    ' === Reset comm ===
+    403: initWatchdog
+         ser.str(rose_comm.getCommandStr(command)) 
+         ser.str(rose_comm.getEOLStr)
+         
+    ' === Reset alarm state ===
+    404: resetSafety        
+         ser.str(rose_comm.getCommandStr(command)) 
+         ser.str(rose_comm.getEOLStr)
+         
+    ' === Reset platform ===
+    405: ser.str(rose_comm.getCommandStr(command)) 
+         ser.str(rose_comm.getEOLStr)
+         ResetPfStatus
+    ' === Unkown command    
+    other:
+         ser.str(rose_comm.getUnkownCommandStr)
+         ser.str(rose_comm.getDecStr(command))
+         ser.str(rose_comm.getEOLStr)
+         
+  serial_time := cnt-t1
+  serial_cntr++    
+  return true
 
 ' ---------------- Reset platform -------------------------------
 PRI ResetPfStatus | i
@@ -981,93 +846,7 @@ PRI ResetPfStatus | i
 
   global_brake_state := 2               ' Default to no brake mode
   setBrakeState(global_brake_state)  
-
-' ---------------- Get next parameter from string ---------------------------------------
-PRI sGetPar | j, jj, lPar, lch
-  j:=0
-  Bytefill(@LastPar1,0,CmdLen)   'Clear buffer
-  lch:=sGetch                    'Get comma and point to first numeric char
-  jj:=0
-  repeat until lch=="," 'Get parameter until comma
-    if lch<>"," and j<CmdLen
-      LastPar1[j++]:=lch
-    lch:=sGetch           'skip next
- 
-  LPar:=Xbee.strtodec(@LastPar1)
-Return Lpar
-
-' ---------------- Get next character from string ---------------------------------------
-Pri sGetCh | lch 'Get next character from commandstring
-   lch:=Byte[@StrBuf][StrP++]
-Return lch
-
-' ---------------- Print program status to PC ---------------------------------------
-PRI DoStatus2PC
-  Xbee.tx("$")
-  Xbee.dec(command)        'Last command
-  Xbee.tx(",")
-  Xbee.dec(LastAlarm)     'Last error
-  Xbee.tx(",")
-  Xbee.dec(XbeeTime/80000)      'Time of Xbee comm in ms
-  Xbee.tx(",")
-  Xbee.dec(pid.getCntr)   'HB52 counter to check life
-  Xbee.tx(",")
-  Xbee.dec(Enabled)       'Platform Enabled
-  Xbee.tx(",")
-  Xbee.dec(PfStatus)     'Platform status
-  Xbee.tx(",")
-  Xbee.dec(MainCntr)     'Main loop counter
-  Xbee.tx(",")
-  Xbee.dec(SafetyCntr)   'Safety loop counter
-  Xbee.tx(",")
-  Xbee.dec(major_version)      'Software version
-  Xbee.tx(",")
-  Xbee.dec(minor_version)      'Software version
-  Xbee.tx(CR)
-
-  
-' ---------------- Send Wheel Positions and speeds to PC ---------------------------------------
-PRI DoPos2PC | i
-  i:=0
-  Xbee.tx("$")
-  Xbee.dec(command)
-  Xbee.tx(",")
-
-  i:=0
-  'Send actual positions of wheels
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(0))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(2))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(4))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(6))  
-  xBee.tx(",")
-  'Send actual positions of steer 
-  xBee.dec(pid.GetActPos(1))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(3))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(5))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActPos(7))
-    
-  'Send actual wheel velocities
-  xBee.tx(",")
-  xBee.dec(pid.GetActVel(0))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActVel(2))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActVel(4))  
-  xBee.tx(",")
-  xBee.dec(pid.GetActVel(6))  
-
-  Xbee.tx(",")
-    
-  Xbee.tx(CR)
-                                                                                                     
-                                                                
+                                         
 ' ----------------  Clear FE trip ---------------------------------------
 PRI ResetFE | i 
   PID.ResetAllFETrip
@@ -1076,8 +855,7 @@ PRI ResetFE | i
 ' ----------------  Toggle reporting ---------------------------------------
 PRI ToggleReport  
   !DoShowParameters
-
-
+  
 ' ----------------  Enable wheeluntis  ---------------------------------------
 PRI EnableWheelUnits
     Enabled:=true
@@ -1086,8 +864,8 @@ PRI EnableWheelUnits
     SetBit(@PfStatus,EnableBit)
 
 ' ----------------  Disable all wheels and steering ---------------------------------------
-PRI DisableWheelUnits 
-  global_brake_state := 2                
+PRI DisableWheelUnits   
+  global_brake_state := 2
   setBrakeState(global_brake_state)      ' Set to no brake mode
   DisableSteer
   ResetBit(@PfStatus,EnableBit)
@@ -1104,6 +882,7 @@ PRI EnableSteer
   PID.SetPIDMode(3,2)                     'Pos loop steering delayed direction change mode
   PID.SetPIDMode(5,2)                     'Pos loop steering delayed direction change mode
   PID.SetPIDMode(7,2)                     'Pos loop steering delayed direction change mode
+                                          '
 ' ----------------  Enable steer Active brake ---------------------------------------
 PRI EnableSteerActiveBrake
   PID.SetPIDMode(1,3)                     'Pos loop steering
@@ -1141,9 +920,7 @@ PRI DisableWheels
   PID.SetPIDMode(4,0)                     'Disable, open loop
   PID.SetPIDMode(6,0)                     'Disable, open loop
 
-
-  
-' Set drive motor control parameters
+' === Set drive motor control parameters ===
 PRI SetDrivePIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
     repeat i from 0 to MotorCnt-1 step 2         
       PID.SetKi(i,lKi)
@@ -1158,7 +935,7 @@ PRI SetDrivePIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, l
       PID.SetMaxCurr(i,lMaxCurr)       
       drive_pid_vals_set:=true
 
-' Set steer motor control parameters
+' === Set steer motor control parameters ===
 PRI SetSteerPIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, lFeMax, lMaxCurr) | i
     repeat i from 1 to MotorCnt-1 step 2         
       PID.SetKi(i,lKi)
@@ -1179,15 +956,11 @@ PRI SetSteerPIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, l
       MAEOffs[3] := MAEOffset  
       steer_pid_vals_set := true
 
-'=============================================================================
-
-
 '---------------- 'Set rotation limits to steer motors to about +-(3/4)*pi --------
 PRI setRotationLimits | i
   repeat i from 1 to MotorCnt-1 step 2                  
     PID.SetSetpMaxMin(i, -MAEOffset/2)
-    PID.SetSetpMaxPlus(i, MAEOffset/2)                         
-         
+    PID.SetSetpMaxPlus(i, MAEOffset/2)                                  
 
 ' ----------------  MAE absolute encoder sense ---------------------------------------
 PRI MAESense | t1 , lMAE0Pin, lMAE1Pin, lMAE2Pin, lMAE3Pin
@@ -1208,7 +981,7 @@ PRI MAESense | t1 , lMAE0Pin, lMAE1Pin, lMAE2Pin, lMAE3Pin
     
 ' --------------------- Return PID Time in us -----------------------------
 PUB GetPIDCTime
-Return PIDConnTime/80
+  return PIDConnTime/80
 
 ' ----------------  Show P    ID parameters ---------------------------------------
 PRI ShowParameters | i
@@ -1297,41 +1070,6 @@ PRI ShowParameters | i
         ser.tx("|")
       ser.str(string(CR,"======================================================================="))  
 
-' ---------------- Dump PID settigns to Xbee ---------------------------------------
-PRI DoPIDSettings | i
-  Xbee.tx("$")
-  Xbee.dec(command)        'Last command
-  Xbee.tx(",")
-  xBee.str(string(CR,"MAEOffs: $0"))
-  repeat i from 0 to MAECnt-1   'Copy working values to buffer
-    xBee.tx(",")
-    xBee.dec(MAEOffs[i])
-  
-  xBee.str(string(CR,"K: $1"))
-  repeat i from 0 to MotorCnt-1       'Copy control parameters to storage
-    xBee.dec(PID.GetK(i))
-
-  xBee.str(string(CR,"Kp: $2"))
-  repeat i from 0 to MotorCnt-1       'Copy control parameters to storage
-    xBee.tx(",")
-    xBee.dec(PID.GetKp(i))
-
-  xBee.str(string(CR,"Ki: $3"))
-  repeat i from 0 to MotorCnt-1       'Copy control parameters to storage
-    xBee.tx(",")
-    xBee.dec(PID.GetKi(i))
-
-  xBee.str(string(CR,"Ilim: $4"))
-  repeat i from 0 to MotorCnt-1       'Copy control parameters to storage
-    xBee.tx(",")
-    xBee.dec(PID.GetIlimit(i))
-
-  xBee.str(string(CR,"PosScale: $5"))
-  repeat i from 0 to MotorCnt-1       'Copy control parameters to storage
-    xBee.tx(",")
-    xBee.dec(PID.GetPosScale(i))
-    xBee.tx("#")
-        
 ' ----------------  Show actual value screen ---------------------------------------
 PRI ShowScreen | i
   if SerCog > -1
@@ -1473,26 +1211,19 @@ PRI ShowScreen | i
     ser.dec(PID.GetConnectionError(6))
     ser.str(string(", "))
     ser.dec(PID.GetConnectionError(7))
-    ser.str(string(" Xbee Time ms: "))
-    ser.dec(XbeeTime/80000)
-    ser.str(string(" Xbee Stat: "))
-    ser.dec(XbeeStat)
+    ser.str(string(" serial Time ms: "))
+    ser.dec(serial_time/80000)
     ser.str(string(" serial_cntr: "))
     ser.dec(serial_cntr)
     ser.str(string(" Last Alarm: "))
     ser.dec(LastAlarm)
     ser.str(string(" Watchdog cnt: "))
     ser.dec(wd_cnt)
-    ser.tx(" ")
-    ser.str(@cStrBuf)
     
     ser.str(string(CE,CR, " Enabled: "))
     ser.str(n.dec(Enabled))
     ser.str(string(" PfStatus: "))
     ser.str(n.ibin(PfStatus,16))
-       
-    ser.str(string(CE,CR," command: "))
-    ser.str(n.decf(command,4))
 
 ' ---------------- 'Set bit in 32 bit Long var -------------------------------
 PRI SetBit(VarAddr,Bit) | lBit, lMask
