@@ -360,6 +360,9 @@ PUB turnOnDefaultOuput
 PUB setSwitch(N, req_state)
   switch_state[N] := req_state
 
+PUB getSwitch(N)
+  return switch_state[N]
+  
 PRI updateSwitches | i
 
   updateOkOutput
@@ -537,6 +540,7 @@ PUB getOneMScounter
   
 PUB setAutoBatterySelect(state)
   auto_battery_switch := state
+  return auto_battery_switch
 
 PUB getAutoBatterySelect
   return auto_battery_switch
@@ -561,24 +565,28 @@ PUB getSwitchVin
   
 PUB setChargingVin(value)
   charging_Vin := value
+  return charging_Vin
      
 PUB getChargingVin
   return charging_Vin
   
 PUB setBatterySwitchSound(state)
   battery_switch_sound := state
+  return battery_switch_sound
 
 PUB getBatterySwitchSound
   return battery_switch_sound  
 
 PUB setAlarmSound(state)
   alarm_sound := state
+  return alarm_sound
 
 PUB getAlarmSound
   return alarm_sound    
 
 PUB setAlarmInterval(time)
-  alarm_interval := time
+  alarm_interval := 1000 #> time
+  return alarm_interval
 
 PUB getAlarmInterval
   return alarm_interval 

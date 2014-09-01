@@ -133,52 +133,32 @@ OBJ
   num             : "simple_numbers"                      ' Number to string conversion
   STRs            : "STRINGS2hk"
   f               : "FloatMath1_1"                        ' Floating point library
-  
+  rose_comm       : "rose_communication"
   
 VAR
-  LONG ADCCog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], io_manager_cog
-  LONG PLCCog, PLCStack[50], LinMotCog
-  Long ADCRaw[NCh], ADCRawMin[NCh], ADCRawMax[NCh], ADCRawAvg[NCh]  ' Raw bit values
-  Long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]      ' Volt
-  Long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
-  LONG Switchstate, MainCnt, MaxCh, ADCTime, ADCCnt, DoMotorCnt, ScalingCnt, ScalingTime
+  long ADCCog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], io_manager_cog
+  long PLCCog, PLCStack[50], LinMotCog
+  long ADCRaw[NCh], ADCRawMin[NCh], ADCRawMax[NCh], ADCRawAvg[NCh]  ' Raw bit values
+  long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]      ' Volt
+  long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
+  long Switchstate, MainCnt, MaxCh, ADCTime, ADCCnt, DoMotorCnt, ScalingCnt, ScalingTime
 
   ' Safety related vars
-  Long AllOK, s5VOK, s3V3OK, sVInOK, OutofRange, PlcCnt
+  long AllOK, s5VOK, s3V3OK, sVInOK, OutofRange, PlcCnt
 
-  Long Scale[Nch]   '' array with scaling factors
-
-  ' Vars for command handling and processing
-  Long ConnectCnt, ConnectTime    
-  byte data[bytebuffersize]     'Receive buffer
-  long DataLen                  'Buffer len
-  Byte StrMiscReport[lMaxStr]   'Report string various other data
-  Long CommandTime, ConnectionTime
-  Long command 
-  
-  byte last_parameter[CmdLen]
-  
-  ' Input string handling
-  Byte StrBuf[lMaxStr]  'String buffer for receiving chars from serial port
-  Long StrSP, StrP, StrLen        'Instring semaphore, counter, Stringpointer, String length
-  Byte Ch
-  long MaxWaitTime
-
-  ' Debug
-  LONG Debug
+  ' ADC
+  long Scale[Nch]   '' array with scaling factors
 
   ' Watchdog
-  long expected_wd, wd, wd_cnt
+  long received_wd, expected_wd, wd, wd_cnt, watchdog_treshold
   
   ' Safety
   long SafetyCog, SafetyStack[40], SafetyCntr, no_alarm, last_alarm
   
   ' Debug
+  byte Debug
   long DebugCog, DebugStack[40]
-  
-  ' Errors
-  long watchdog_treshold
- 
+
 
 PUB Main
   Init
@@ -213,11 +193,12 @@ PUB Main
       io_manager.setLedIntervalTimer(0)
 
 PRI handleCommunication
-  ser.StrInMaxTime(@StrBuf, lMaxStr, MaxWaitTime)   'Non blocking max wait time
-  
-  if Strsize(@StrBuf) > 3                         'Received string must be larger than 3 char's skip rest (noise)
-    DoCommand   'Execute command in received string
-
+    ' Read data from serial
+    ser.StrInMaxTime(rose_comm.getStringBuffer, rose_comm.getMaxStringLength, rose_comm.getMaxWaitTime)  
+      
+    if(rose_comm.checkForCommand)
+      DoCommand
+      
 ' === Main initialization === 
 PRI Init
   Debug   := false 
@@ -317,8 +298,28 @@ PRI shutdown
   ser.str(string("Should really shutdown now!", CR))
 
 ' === Startup sequence ===   
-PRI startup | selected_battery
-  
+PRI startup | selected_battery 
+  ser.str(string("Measureing battery voltages")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".", CR)) 
+  t.Pause1ms(500)
+  !OUTA[Led]
   ser.str(string("Selecting fullest battery, bat1: "))  
   ser.dec(io_manager.getBatteryVoltageAvg(1))
   ser.str(string("mV | bat2: "))
@@ -339,10 +340,8 @@ PRI reset_communication
   
 ' === Init serial communication ===
 PRI InitSer
-  MaxWaitTime   := 5                    'ms wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
+  rose_comm.initialize
   
-  ByteFill(@StrBuf,0, lMaxStr)
-
   if SerCog > 0
     ser.Stop
   SerCog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
@@ -359,10 +358,11 @@ PRI InitSer
 '=== Init Watchdog ===
 PRI InitWatchDog
   ' Error tresholds (timing 1 count is 1*ms) default values
-  watchdog_treshold                   := 1000  
-  expected_wd   := 0                     
-  wd            := 0
-  wd_cnt        := 0
+  watchdog_treshold := 1000  
+  received_wd       := 0   
+  expected_wd       := 0                     
+  wd                := 0
+  wd_cnt            := 0
 
 PRI handleWatchdogError | i
   i := 0
@@ -372,416 +372,299 @@ PRI handleWatchdogError | i
     i++
   
 '***************************************  Handle command string received from client
-PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, temp, temp2
-  t1:=cnt
-  commandOK:=1
+PRI DoCommand | i, command
+  command := rose_comm.getCommand  
 
-  StrP:=0                       'Reset line pointer
-  command:=0                     'Reset received command
-  StrLen:=strsize(@StrBuf)      'Determine length of string in the buffer
-  temp:=0
-  temp2:=0
-
-  if StrLen > (lMaxStr-1)       'Check max len
-    commandOK:=-1                 'Error: String too long
-  elseif StrLen == 0            'Check zero length
-    commandOK:=-2                 'Error: Null string
-  else
-    'Get command
-    command:=sGetPar  
+  case command
+    ' === Default 100 range communication ===
+    ' === Communicate controller id ===
+    100 : ser.str(rose_comm.getCommandStr(command))
+          ser.str(rose_comm.getDecStr(CONTROLLER_ID))
+          ser.str(rose_comm.getEOLStr) 
     
-    if Debug
-      ser.str(string("Received command: ")) 
-      ser.dec(command)
-      ser.str(CR)   
-
-    Case command
-        '--- Communicate controller id ---
-        100 : ser.str(string("$100,"))
-              ser.dec(CONTROLLER_ID)
-              ser.tx(",")  
-              ser.tx(CR) 
-        '--- Communicate software version ---
-        101 : ser.str(string("$101,"))
-              ser.dec(major_version)
-              ser.tx(",")  
-              ser.dec(minor_version)
-              ser.tx(",")  
-              ser.tx(CR) 
-        '--- WATCHDOG ---
-        111: received_wd := sGetPar
-             ' Check value
-             if received_wd <> expected_wd
-                handleWatchdogError
-                ser.tx("$")
-                ser.dec(111)
-                ser.tx(",")
-                ser.dec(-1)
-                ser.tx(",")  
-                ser.dec(wd_cnt)
-                ser.tx(",")            
-                ser.dec(received_wd)
-                ser.tx(",")   
-                ser.dec(expected_wd)
-                ser.tx(",")   
-                ser.tx(CR)  
-             else    
-                ser.tx("$")
-                ser.dec(111)
-                ser.tx(",")
-                ser.dec(wd)
-                ser.tx(",")  
-                ser.dec(wd_cnt)
-                ser.tx(",")                
-                ser.dec(received_wd)
-                ser.tx(",")   
-                ser.dec(expected_wd)
-                ser.tx(",")   
-                ser.tx(CR)  
-
-                if expected_wd == 1
-                   expected_wd := 0             
-                else
-                   expected_wd := 1
-
-                if wd == 1
-                   wd := 0             
-                else
-                   wd := 1                                 
- 
-                'Reset the watchdog counter
-                wd_cnt := 0 
-        ' === Set watchdog timer ==         
-        112: ser.str(rose_comm.getCommandStr(command))
-             if rose_comm.nrOfParametersCheck(1)
-               watchdog_treshold := 0 #> rose_comm.getParam(1)
-               ser.str(rose_comm.getDecStr(watchdog_treshold))
-             ser.str(rose_comm.getEOLStr) 
-        
-        ' === Get watchdog timer ==        
-        113: ser.str(rose_comm.getCommandStr(command))
-             ser.str(rose_comm.getDecStr(watchdog_treshold))
-             ser.str(rose_comm.getEOLStr)   
-                
-        ' === Get commands ===        
-        ' Get power output states
-        200: ser.str(string("$200,"))
-             ser.dec(io_manager.GetCONTR)
-             ser.str(string(","))
-             ser.dec(io_manager.GetPC1)
-             ser.str(string(","))
-             ser.dec(io_manager.GetPC2)
-             ser.str(string(","))
-             ser.dec(io_manager.GetDR1)
-             ser.str(string(","))
-             ser.dec(io_manager.GetDR2)
-             ser.str(string(","))
-             ser.dec(io_manager.GetAUX)
-             ser.str(string(",", CR))
-        
-        ' Get selected battery
-        201: ser.str(string("$201,"))
-             ser.dec(io_manager.getActiveBattery)
-             ser.str(string(",", CR))
-        
-        ' Get auto switch voltage
-        202: ser.str(string("$202,"))
-             ser.dec(io_manager.getSwitchVin)
-             ser.str(string(",", CR))
-             
-        ' Get warning voltage 
-        203: ser.str(string("$203,"))
-             ser.dec(io_manager.getWarningVin)
-             ser.str(string(",", CR))
-        
-        ' Get minimal voltage
-        204: ser.str(string("$204,"))
-             ser.dec(io_manager.getMinimalVin)
-             ser.str(string(",", CR))
-             
-        ' Get safety EMER input state 
-        205: ser.str(string("$205,"))
-             ser.dec(io_manager.GetEMERin)
-             ser.str(string(",", CR))
-             
-        ' Get extra IN0 input state
-        206: ser.str(string("$206,"))
-             ser.dec(io_manager.GetIN0)
-             ser.str(string(",", CR))
-             
-        ' Get ADC raw values
-        207: ser.str(string("$207,"))
-             i := 0
-             repeat NCh
-               ser.dec(ADCRaw[i])
-               ser.str(string(","))
-               ser.dec(ADCRawAVG[i])
-               ser.str(string(","))
-               ser.dec(ADCRawMIN[i])
-               ser.str(string(","))
-               ser.dec(ADCRawMAX[i])
-               ser.str(string(","))
-               i++
-             ser.char(CR)
-             
-        ' Get ADC voltage values
-        208: ser.str(string("$208,"))
-             i := 0
-             repeat NCh
-               ser.dec(ADCch[i])
-               ser.str(string(","))
-               ser.dec(ADCchAVG[i])
-               ser.str(string(","))
-               ser.dec(ADCchMIN[i])
-               ser.str(string(","))
-               ser.dec(ADCchMAX[i])
-               ser.str(string(","))
-             ser.char(CR)
-             
-        ' Get ADC engineering values
-        209: ser.str(string("$209,"))
-             i := 0
-             repeat NCh
-               ser.dec(engADCch[i])
-               ser.str(string(","))
-               ser.dec(engADCchAVG[i])
-               ser.str(string(","))
-               ser.dec(engADCchMIN[i])
-               ser.str(string(","))
-               ser.dec(engADCchMAX[i])
-               ser.str(string(","))
-               i++
-             ser.char(CR)
-             
-        ' TODO Get ADC integrated engineering values
-        210: ser.str(string("$210,"))
-             i := 0
-             repeat NCh
-               ser.dec(0)
-               ser.str(string(","))
-               ser.dec(0)
-               ser.str(string(","))
-               i++
-             ser.char(CR)
-        
-        ' Get RAW battery voltages
-        211: ser.str(string("$211,"))
-             ser.dec(engADCch[cVBAT1])
-             ser.str(string(","))
-             ser.dec(engADCch[cVBAT2])
-             ser.str(string(",", CR))
-             
-        ' Get AVG battery voltages
-        212: ser.str(string("$212,"))
-             ser.dec(engADCchAVG[cVBAT1])
-             ser.str(string(","))
-             ser.dec(engADCchAVG[cVBAT2])
-             ser.str(string(",", CR))
-             
-        ' Get battery switch sound state
-        213: ser.str(string("$213,"))
-             if io_manager.getBatterySwitchSound == true     
-                ser.dec(1)
-             else
-                ser.dec(0)             
-             ser.str(string(",", CR))
-             
-        ' Get alarm sound state
-        214: ser.str(string("$214,"))
-             if io_manager.getAlarmSound == true     
-                ser.dec(1)
-             else
-                ser.dec(0)    
-             ser.str(string(",", CR))
-             
-        ' Get alarm sound interval
-        215: ser.str(string("$215,"))
-             ser.dec(io_manager.getAlarmInterval)
-             ser.str(string(",", CR))
-             
-        ' Get charging_Vin
-        217: ser.str(string("$217,"))
-             ser.dec(io_manager.getChargingVin)
-             ser.str(string(",", CR))
-                                    
-        ' === Set commands ===
-        ' Set auto switch voltage
-        300: temp := sGetPar    ' Voltage to set
-     
-             io_manager.setSwitchVin(temp)
-             ser.str(string("$300,"))
-             ser.dec(temp)
-             ser.str(string(",", CR))
-        
-        ' Set warning voltage
-        301: temp := sGetPar    ' Voltage to set
-             
-             io_manager.setWarningVin(temp)
-             ser.str(string("$301,"))
-             ser.dec(temp)
-             ser.str(string(",", CR))
-        
-        ' Set minimal voltage
-        302: temp := cMinVin #> sGetPar    ' Voltage to set
-                            
-             io_manager.setMinimalVin(temp)
-             ser.str(string("$302,"))
-             ser.dec(temp)
-             ser.str(string(",", CR))     
-             
-        ' Set extra OUT0 output state
-        303: temp := sGetPar    ' State to set
-             
-             ser.str(string("$303,"))
-             if temp == 1               
-              ser.dec(io_manager.requestOUT0OutputState(true))
-             else
-              ser.dec(io_manager.requestOUT0OutputState(false))
-             ser.str(string(",", CR)) 
-             
-        ' Turn on/off auto battery selecting mode
-        304: temp := sGetPar        ' Which battery to select
-             
-             ' Turn off or on the auto battery selecting mode  (default on) 
-             if temp == 0
-                io_manager.setAutoBatterySelect(false)
-             else
-                io_manager.setAutoBatterySelect(true)    
-             
-             ser.str(string("$304,"))
-             if io_manager.getAutoBatterySelect
-                ser.dec(1)
-             else
-                ser.dec(0)
-             ser.str(string(",", CR))  
-             
-        ' Turn on/off a specified output
-        305: temp  := sGetPar        ' Which output 
-             temp2 := sGetPar        ' On or off
-                 
-             ser.str(string("$305,"))
-             ' Check output number
-             if temp => 0 and temp =< 5   
-                 ' Turn on or off the specified ouput
-                 if temp2 == 1     
-                    io_manager.setSwitch(temp, true)
-                 else
-                    io_manager.setSwitch(temp, false)    
-                 ser.dec(temp)
-                 ser.str(string(","))
-                 ser.dec(temp2)
-             else 'Error unkown output number)
-                 ser.dec(-1)
-                 ser.str(string(","))
-                 ser.dec(0)
-                 
-             ser.str(string(",", CR))  
-             
-        
-        ' On/off battery change sound
-        306: temp := sGetPar        ' Sound on or off
-             
-             ser.str(string("$306,"))
-             ' Turn on or off the battery change sound
-             if temp == 1
-               io_manager.setBatterySwitchSound(true)
-             else 
-               io_manager.setBatterySwitchSound(false)
-             
-             ser.dec(temp)                                                ' 
-             ser.str(string(",", CR))  
-                
-        ' Set battery low alarm sound state
-        307: temp := 0 #> sGetPar <# 1      ' on/off
-             
-             ser.str(string("$307,"))
-             io_manager.setAlarmSound(temp)             
-             ser.dec(io_manager.getAlarmSound)                                                ' 
-             ser.str(string(",", CR))
-        
-        ' Set battery low alarm interval
-        308: temp := 1000 #> sGetPar        ' interval
-             
-             ser.str(string("$308,"))
-             io_manager.setAlarmInterval(temp)             
-             ser.dec(io_manager.getAlarmInterval)                                                ' 
-             ser.str(string(",", CR))
+    ' === Communicate software version ===
+    101 : ser.str(rose_comm.getCommandStr(command))
+          ser.str(rose_comm.getDecStr(major_version))
+          ser.str(rose_comm.getDecStr(minor_version))
+          ser.str(rose_comm.getEOLStr) 
     
-        ' Set charging voltage
-        310: temp := sGetPar    ' Voltage to set
-                            
-             io_manager.setChargingVin(temp)
-             ser.str(string("$310,"))
-             ser.dec(io_manager.getChargingVin)
-             ser.str(string(",", CR))     
+    ' === WATCHDOG ===
+    111: received_wd := rose_comm.getParam(1)
+         ser.str(rose_comm.getCommandStr(command))
+         ' Check value
+         if received_wd <> expected_wd
+            handleWatchdogError
+            ser.str(rose_comm.getDecStr(-1))
+            ser.str(rose_comm.getDecStr(wd_cnt))
+            ser.str(rose_comm.getDecStr(received_wd))
+            ser.str(rose_comm.getDecStr(expected_wd))                
+         else    
+            ser.str(rose_comm.getDecStr(wd))
+            ser.str(rose_comm.getDecStr(wd_cnt))
+            ser.str(rose_comm.getDecStr(received_wd))
+            ser.str(rose_comm.getDecStr(expected_wd))
+            if expected_wd == 1
+               expected_wd := 0             
+            else
+               expected_wd := 1
+               
+            if wd == 1
+               wd := 0             
+            else
+               wd := 1                                 
+         
+            'Reset the watchdog counter
+            wd_cnt := 0 
+         ser.str(rose_comm.getEOLStr)    
       
-        ' === Other commands ===
-        ' Enable/reset watchdog
-        400: reset_communication
-             ser.str(string("$400,", CR))
-             
-        ' Initiate shutdown   
-        401: shutdown
-             ser.str(string("$401,", CR))
-        
-        'Enable/disable serial debug mode    
-        402: temp := sGetPar        
-             if temp == 1
-               Debug := true
-             elseif temp == 0
-               Debug := false
-             
-             ser.str(string("$402,"))
-             ser.dec(temp)
-             ser.str(string(",", CR))
-     
-        'Reset specified ADC min/max values
-        403: temp := sGetPar   
-             
-             resetADCVals(temp)
-                          
-             ser.str(string("$403,"))
-             ser.dec(temp)
-             ser.str(string(",", CR))
-             
-        'Reset ALL ADC min/max values
-        404: resetAllADCVals
-                          
-             ser.str(string("$404,", CR))
-             
-        'Select fullest battery
-        405: ser.str(string("$405,"))
-             ser.dec(io_manager.selectFullestBattery)
-             ser.str(string(",", CR))
-             
-        ' Force select battery
-        406: temp := 0 #> sGetPar <# 2        ' Which battery to select
-             
+    ' === Set watchdog timer ==         
+    112: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           watchdog_treshold := 0 #> rose_comm.getParam(1)
+           ser.str(rose_comm.getDecStr(watchdog_treshold))
+         ser.str(rose_comm.getEOLStr) 
+    
+    ' === Get watchdog timer ==        
+    113: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(watchdog_treshold))
+         ser.str(rose_comm.getEOLStr)   
+            
+    ' === Get commands ===        
+    ' Get power output states
+    200: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.GetCONTR))
+         ser.str(rose_comm.getDecStr(io_manager.GetPC1))
+         ser.str(rose_comm.getDecStr(io_manager.GetPC2))
+         ser.str(rose_comm.getDecStr(io_manager.GetDR1))
+         ser.str(rose_comm.getDecStr(io_manager.GetDR2))
+         ser.str(rose_comm.getDecStr(io_manager.GetAUX))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Get selected battery
+    201: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.getActiveBattery))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Get auto switch voltage
+    202: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.getSwitchVin))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get warning voltage 
+    203: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.getWarningVin))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Get minimal voltage
+    204: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.getMinimalVin))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get safety EMER input state 
+    205: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.GetEMERin))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get extra IN0 input state
+    206: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.GetIN0))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get ADC raw values
+    207: ser.str(rose_comm.getCommandStr(command))
+         i := 0
+         repeat NCh
+           ser.str(rose_comm.getDecStr(ADCRaw[i]))
+           ser.str(rose_comm.getDecStr(ADCRawAVG[i]))
+           ser.str(rose_comm.getDecStr(ADCRawMIN[i]))
+           ser.str(rose_comm.getDecStr(ADCRawMAX[i]))
+           i++
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get ADC voltage values
+    208: ser.str(rose_comm.getCommandStr(command))
+         i := 0
+         repeat NCh
+           ser.str(rose_comm.getDecStr(ADCch[i]))
+           ser.str(rose_comm.getDecStr(ADCchAVG[i]))
+           ser.str(rose_comm.getDecStr(ADCchMIN[i]))
+           ser.str(rose_comm.getDecStr(ADCchMAX[i]))
+           i++
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get ADC engineering values
+    209: ser.str(rose_comm.getCommandStr(command))
+         i := 0
+         repeat NCh
+           ser.str(rose_comm.getDecStr(engADCch[i]))
+           ser.str(rose_comm.getDecStr(engADCchAVG[i]))
+           ser.str(rose_comm.getDecStr(engADCchMIN[i]))
+           ser.str(rose_comm.getDecStr(engADCchMAX[i]))
+           i++
+         ser.str(rose_comm.getEOLStr)
+         
+    ' TODO Get ADC integrated engineering values
+    210: ser.str(rose_comm.getCommandStr(command))
+         i := 0
+         repeat NCh
+           ser.str(rose_comm.getDecStr(0))
+           ser.str(rose_comm.getDecStr(0))
+           i++
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Get RAW battery voltages
+    211: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(engADCch[cVBAT1]))
+         ser.str(rose_comm.getDecStr(engADCch[cVBAT2]))             
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get AVG battery voltages
+    212: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(engADCchAVG[cVBAT1]))
+         ser.str(rose_comm.getDecStr(engADCchAVG[cVBAT2]))             
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get battery switch sound state
+    213: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getBoolStr(io_manager.getBatterySwitchSound))        
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get alarm sound state
+    214: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getBoolStr(io_manager.getAlarmSound))        
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get alarm sound interval
+    215: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.getAlarmInterval))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get charging_Vin
+    216: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.getChargingVin))
+         ser.str(rose_comm.getEOLStr)
+                                
+    ' === Set commands ===
+    ' Set auto switch voltage
+    300: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           io_manager.setSwitchVin(rose_comm.getParam(1))
+           ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Set warning voltage
+    301: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           io_manager.setWarningVin(rose_comm.getParam(1))
+           ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Set minimal voltage
+    302: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           io_manager.setMinimalVin(cMinVin #> rose_comm.getParam(1))
+           ser.str(rose_comm.getDecStr(io_manager.getMinimalVin))
+         ser.str(rose_comm.getEOLStr)      
+         
+    ' Set extra OUT0 output state
+    303: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getBoolStr( io_manager.requestOUT0OutputState( rose_comm.getBoolParam(1) ) ))
+         ser.str(rose_comm.getEOLStr)
+
+    ' Turn on/off auto battery selecting mode
+    304: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getBoolStr( io_manager.setAutoBatterySelect( rose_comm.getBoolParam(1) ) ))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Turn on/off a specified output
+    305: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(2)
+           if rose_comm.getParam(1) > -1 AND rose_comm.getParam(1) < 6
+             io_manager.setSwitch(rose_comm.getParam(1), rose_comm.getBoolParam(2))
+             ser.str(rose_comm.getBoolStr( io_manager.getSwitch(rose_comm.getParam(1)) ))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' On/off battery change sound
+    306: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getBoolStr( io_manager.setBatterySwitchSound( rose_comm.getBoolParam(1) ) ))
+         ser.str(rose_comm.getEOLStr)    
+            
+    ' Set battery low alarm sound state
+    307: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getBoolStr( io_manager.setAlarmSound( rose_comm.getBoolParam(1) ) ))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Set battery low alarm interval
+    308: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getDecStr( io_manager.setAlarmInterval( rose_comm.getParam(1) ) ))
+         ser.str(rose_comm.getEOLStr)
+
+    ' Set charging voltage
+    309: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getDecStr( io_manager.setChargingVin( rose_comm.getParam(1) ) ))
+         ser.str(rose_comm.getEOLStr)
+
+    ' === Other commands ===
+    ' Enable/reset watchdog
+    400: reset_communication
+         ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Initiate shutdown   
+    401: shutdown
+         ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getEOLStr)
+    
+    'Enable/disable serial debug mode    
+    402: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           debug := rose_comm.getBoolParam(1)
+           ser.str(rose_comm.getBoolStr( debug ) )
+         ser.str(rose_comm.getEOLStr)
+ 
+    'Reset specified ADC min/max values
+    403: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           if rose_comm.getParam(1) > -1 AND rose_comm.getParam(1) < 16
+             ser.str(rose_comm.getDecStr( resetADCVals(rose_comm.getParam(1)) ))
+         ser.str(rose_comm.getEOLStr)
+         
+    'Reset ALL ADC min/max values
+    404: resetAllADCVals
+         ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getEOLStr)
+         
+    'Select fullest battery
+    405: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(io_manager.selectFullestBattery))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Force select battery
+    406: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) < 3
              ' Turn off auto battery selecting mode   
              io_manager.setAutoBatterySelect(false) 
-                                                 ' 
-             ser.str(string("$406,"))
-             ser.dec(io_manager.requestBattery(temp))
-             ser.str(string(",", CR)) 
-        
-        ' Is battery charging
-        407: temp := 0 #> sGetPar <# 2        ' Which battery 
-
-             ser.str(string("$407,"))
-             if io_manager.isBatteryCharging(temp) == true
-               ser.dec(1)
-             else
-               ser.dec(0)
-             ser.str(string(",", CR)) 
-                 
-                  
-        other:ser.tx("$")
-              ser.dec(command)
-              ser.tx(",")
-              ser.str(string("Unkown command", CR)) 
-              commandOK:=-3
+             ser.str(rose_comm.getDecStr( io_manager.requestBattery(rose_comm.getParam(1)) ))
+         ser.str(rose_comm.getEOLStr)  
+    
+    ' Is battery charging
+    407: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) < 3
+             ser.str(rose_comm.getBoolStr( io_manager.isBatteryCharging(rose_comm.getParam(1)) ))
+         ser.str(rose_comm.getEOLStr)     
               
-Return commandOK
+    other:
+         ser.str(rose_comm.getUnkownCommandStr)
+         ser.str(rose_comm.getDecStr(command))
+         ser.str(rose_comm.getEOLStr)
 
 
 PRI resetSafety 
@@ -844,6 +727,7 @@ PRI resetAllADCVals | ii
     ii:=0
     repeat NCh 
         resetADCVals(ii++)
+        
     
 ' === Reset Min Max values of specific ADC channel === 
 PRI resetADCVals(i)
@@ -1282,26 +1166,6 @@ PRI DoADCScaling | T1, i
       
     ScalingCnt++
     ScalingTime:=(CNT-T1)/80
-
-' -----------------Command handling section ---------------------------------------------
-' ---------------- Get next parameter from string ---------------------------------------
-PRI sGetPar | i, j, lch
-  j:=0
-  i:=0
-  Bytefill(@last_parameter,0,CmdLen)   'Clear buffer
-    
-  lch:=sGetch                    'Get comma and point to first numeric char
-  repeat while lch <> "," and lch <> 0 'Get parameter until comma or unexpected end
-    if lch <> "$" and lch <> "," and j<CmdLen
-      last_parameter[j++]:=lch
-    lch:=sGetch           'get next
-
-Return ser.strtodec(@last_parameter)
-
-' ---------------- Get next character from string ---------------------------------------
-Pri sGetCh | lch 'Get next character from commandstring
-   lch:=Byte[@StrBuf][StrP++]
-Return lch
 
 ' Symbols      
 DAT
