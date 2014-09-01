@@ -27,12 +27,11 @@ CON
   n_switches   = 6
   
   default_auto_battery_switch_timeout = 2000
-  
-  default_output = 1         ' PC1 turns on automatically at startup 
 
 OBJ
   sound         : "sound"
   t             : "Timing"
+  eeprom        : "eeprom"
 
 VAR
   ' Cog variables
@@ -74,6 +73,8 @@ VAR
   long switch_state[6]
   long ok_output_state
   long out0_output_state
+  
+  byte default_output[6]        ' Default outputs
 
 PUB start
 '' Start driver - starts a cog
@@ -294,7 +295,7 @@ PRI selectBattery(N)
   if not isBatteryVoltageOK(N) 'active_battery == 0 OR N == 0 
     SwitchAllOff         ' Switch off all outputs
   else
-    turnOnDefaultOuput   ' Always turn on the default output
+    turnOnDefaultOuputs   ' Always turn on the default output(s)
   
   ' Store the voltage a battery had before toggeling it off
   if N <> active_battery
@@ -350,12 +351,43 @@ PRI SwitchAllOff
   setSwitch(4, false) 
   setSwitch(5, false) 
   
+PUB turnOffNonDefaultOutputs | i
+  i := 0
+  repeat n_switches
+    if NOT default_output[i]
+      setSwitch(i, false)      
+    i++
+      
+PUB turnOffDefaultOutputs | i
+  i := 0
+  repeat n_switches
+    if default_output[i]
+      setSwitch(i, false)      
+    i++
   
-PUB turnOffDefaultOutput
-  setSwitch(default_output, false)
+PUB turnOnDefaultOuputs | i
+  i := 0
+  repeat n_switches
+    if default_output[i]
+      setSwitch(i, true)      
+    i++
+
+PUB setDefaultOutput(i, state) ' 1-6
+  i := i - 1
+  default_output[i] := state
+  eeprom.VarBackup(@default_output, @default_output + n_switches)
+  return default_output[i]
   
-PUB turnOnDefaultOuput
-  setSwitch(default_output, true)
+PUB getDefaultOutput(i) ' 1-6
+  i := i - 1
+  return default_output[i]
+  
+PUB getNrOfSwitches
+  return n_switches
+  
+PRI loadDefaultOutputsFromEEPROM
+  'Restore a previous snapshot of variables in main RAM.
+  eeprom.VarRestore(@default_output, @default_output + n_switches)
 
 PUB setSwitch(N, req_state)
   switch_state[N] := req_state
@@ -404,7 +436,7 @@ PRI SwitchOn(N)
        OUTA[PWRAUX]:=1
   
   'Ensure that not all outputs can be turned on at the same time (to limit peak currents)
-  t.Pause10us(10)
+  t.Pause1ms(500)
 
 PRI SwitchOff(N)
   Case N
@@ -517,9 +549,6 @@ PUB GetAUX
     Return 0         
         
 ' ====== getters and setters ======
-PUB getDefaultOutput
-  return default_output
-
 PUB getBatteriesLow
   return batteries_low
   

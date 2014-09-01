@@ -20,7 +20,7 @@ CON
   StringSize      = lMaxStr-1
   bytebuffersize  = 2048
   LineLen         = bytebuffersize  ' Buffer size for incoming line
-  MaxWaitTime     = 5               ' [ms] wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
+  MaxWaitTime     = 5000              ' [ms] wait time for incoming string 'TODO take this lower (5ms when comm with PC) 
    
   ' Command handling
   max_parameters        = 50

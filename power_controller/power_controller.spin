@@ -134,6 +134,8 @@ OBJ
   STRs            : "STRINGS2hk"
   f               : "FloatMath1_1"                        ' Floating point library
   rose_comm       : "rose_communication"
+  eeprom          : "eeprom"
+  
   
 VAR
   long ADCCog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], io_manager_cog
@@ -158,6 +160,7 @@ VAR
   ' Debug
   byte Debug
   long DebugCog, DebugStack[40]
+  
 
 
 PUB Main
@@ -317,6 +320,12 @@ PRI startup | selected_battery
   ser.str(string(".")) 
   t.Pause1ms(500)
   !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
+  ser.str(string(".")) 
+  t.Pause1ms(500)
+  !OUTA[Led]
   ser.str(string(".", CR)) 
   t.Pause1ms(500)
   !OUTA[Led]
@@ -365,11 +374,7 @@ PRI InitWatchDog
   wd_cnt            := 0
 
 PRI handleWatchdogError | i
-  i := 0
-  repeat 6
-    if i <> io_manager.getDefaultOutput
-      io_manager.setSwitch(i, false)
-    i++
+  io_manager.turnOffNonDefaultOutputs
   
 '***************************************  Handle command string received from client
 PRI DoCommand | i, command
@@ -582,6 +587,7 @@ PRI DoCommand | i, command
     305: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(2)
            if rose_comm.getParam(1) > -1 AND rose_comm.getParam(1) < 6
+             ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
              io_manager.setSwitch(rose_comm.getParam(1), rose_comm.getBoolParam(2))
              ser.str(rose_comm.getBoolStr( io_manager.getSwitch(rose_comm.getParam(1)) ))
          ser.str(rose_comm.getEOLStr)
@@ -660,7 +666,23 @@ PRI DoCommand | i, command
            if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) < 3
              ser.str(rose_comm.getBoolStr( io_manager.isBatteryCharging(rose_comm.getParam(1)) ))
          ser.str(rose_comm.getEOLStr)     
-              
+    
+    ' Store a specific default output state in EEPROM (outputs that get automatically turned on at boot or reset)  (output numbers: 1-6)
+    408: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(2)
+           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) =< io_manager.getNrOfSwitches
+             ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
+             ser.str(rose_comm.getBoolStr( io_manager.setDefaultOutput(rose_comm.getParam(1), rose_comm.getBoolParam(2)) ))
+         ser.str(rose_comm.getEOLStr)     
+    
+    ' Get specific EEPROM saved default output state  (output numbers: 1-6)
+    409: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) =< io_manager.getNrOfSwitches
+             ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
+             ser.str(rose_comm.getBoolStr( io_manager.getDefaultOutput(rose_comm.getParam(1)) ))
+         ser.str(rose_comm.getEOLStr)  
+           
     other:
          ser.str(rose_comm.getUnkownCommandStr)
          ser.str(rose_comm.getDecStr(command))
