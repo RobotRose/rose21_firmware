@@ -54,8 +54,7 @@ Read commands:
 	- Get battery switch sound   	: $213 -> bool 							(on/off)
 	- Get alarm sound 				: $214 -> bool 							(on/off)
 	- Get alarm sound interval   	: $215 -> int 							(interval [ms])
-	- Get watchdog counter treshold : $216 -> int 							(interval [ms])
-	- Get charging voltage  		: $217 -> int 							(charging voltage [mV])
+	- Get charging voltage  		: $216 -> int 							(charging voltage [mV])
 
 Set commands:
 	- Set auto switch voltage 		: $300, int 							-> int (set switch voltage)
@@ -67,8 +66,7 @@ Set commands:
 	- Set battery switch sound	 	: $306, bool (on/off)					-> bool (on/off)
 	- Set alarm sound			 	: $307, bool (on/off)					-> bool (on/off)
 	- Set alarm sound interval		: $308, int 							-> int (interval [ms])
-	- Set watchdog counter treshold : $309, int 							-> int (interval [ms])
-	- Set charging voltage 			: $310, int ([mV])						-> int (set charging voltage [mV]) // The value to check if a battery is charging
+	- Set charging voltage 			: $309, int ([mV])						-> int (set charging voltage [mV]) // The value to check if a battery is charging
 
 Other commands:
 	- Enable 					: $400 									-> bool								// Mainly reset's watchdog
