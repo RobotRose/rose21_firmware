@@ -28,10 +28,13 @@ ADC's:
 	cV3V3      = 14
 	cV5V       = 15
 
-Device commands:
-	- Get controlller ID 			: $100 -> int 									(controlller id)
-	- Software version 				: $101 -> int, int 								(major version, minor version) 
-	- Watchdog 						: $111, int	(wd_value) -> int, int, int, int 	(wd_value, wd_counter, received_wd, expected_wd)
+Hardware controller commands:
+    - Get controlller ID            : $100                      -> int      (controlller id)
+    - Software version              : $101                      -> 2x int   (major version, minor version) 
+    - Unkown command                : $102                      -> int      (received command) 
+    - Watchdog                      : $111, int (wd_value)      -> 4x int   (wd_value, wd_counter, received_wd, expected_wd)
+    - Set watchdog treshold         : $112, int (wd_treshold)   -> int      (set wd treshold)
+    - Get watchdog treshold         : $113                      -> int      (wd treshold)
 
 Read commands:
 	- Get output states				: $200 -> bool, bool, bool, bool, bool, bool 	(output 0, 1, 2, 3, 4, 5)

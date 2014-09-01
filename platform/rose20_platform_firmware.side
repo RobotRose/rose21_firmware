@@ -9,7 +9,9 @@ timing.spin
 PID_4A.spin
 eeprom.spin
 simple_numbers.spin
-parallax_serial_terminal.spin
-timing.spin
 full_duplex_serial_005.spin
+STRINGS2hk.spin
+rose_communication.spin
+full_duplex_serial_005.spin
+timing.spin
 >compiler=SPIN
