@@ -35,7 +35,7 @@ DAT
 CON
    ' Version
    major_version    = 1
-   minor_version    = 0 
+   minor_version    = 1 
    CONTROLLER_ID    = 3
 
 'Set 80Mhz
@@ -177,7 +177,7 @@ VAR
   long DebugCog, DebugStack[40]
   
   ' Errors
-  long wd_cnt_threshold
+  long watchdog_treshold
  
 
 PUB Main
@@ -357,6 +357,11 @@ PRI InitSer
 
 '=== Init Watchdog ===
 PRI InitWatchDog
+<<<<<<< Updated upstream
+=======
+  ' Error tresholds (timing 1 count is 1*ms) default values
+  watchdog_treshold                   := 1000  
+>>>>>>> Stashed changes
   expected_wd   := 0                     
   wd            := 0
   wd_cnt        := 0
@@ -448,6 +453,17 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
  
                 'Reset the watchdog counter
                 wd_cnt := 0 
+        ' === Set watchdog timer ==         
+        112: ser.str(rose_comm.getCommandStr(command))
+             if rose_comm.nrOfParametersCheck(1)
+               watchdog_treshold := 0 #> rose_comm.getParam(1)
+               ser.str(rose_comm.getDecStr(watchdog_treshold))
+             ser.str(rose_comm.getEOLStr) 
+        
+        ' === Get watchdog timer ==        
+        113: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(watchdog_treshold))
+             ser.str(rose_comm.getEOLStr)   
                 
         ' === Get commands ===        
         ' Get power output states
@@ -585,11 +601,6 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              ser.dec(io_manager.getAlarmInterval)
              ser.str(string(",", CR))
              
-        ' Get watchdog treshold counter
-        216: ser.str(string("$216,"))
-             ser.dec(wd_cnt_threshold)
-             ser.str(string(",", CR))
-             
         ' Get charging_Vin
         217: ser.str(string("$217,"))
              ser.dec(io_manager.getChargingVin)
@@ -697,13 +708,7 @@ PRI DoCommand | commandOK, i, j, Par1, Par2, lCh, t1, c1, req_id, received_wd, t
              io_manager.setAlarmInterval(temp)             
              ser.dec(io_manager.getAlarmInterval)                                                ' 
              ser.str(string(",", CR))
-             
-        ' Set watchdog treshold counter
-        309: wd_cnt_threshold := 0 #> sGetPar
-             ser.str(string("$309,"))
-             ser.dec(wd_cnt_threshold)
-             ser.str(string(",", CR))
-             
+    
         ' Set charging voltage
         310: temp := sGetPar    ' Voltage to set
                             
@@ -796,7 +801,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
     '-- Watchdog -- 
     wd_cnt++
 
-    if wd_cnt > wd_cnt_threshold    
+    if wd_cnt > watchdog_treshold    
       last_alarm := 1
       no_alarm   := false
       handleWatchdogError
