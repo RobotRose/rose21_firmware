@@ -202,11 +202,11 @@ PRI InitMain
   stop_a_err        := 200
   stopstart_a_err   := start_a_err
 
-  ' Error tresholds (timing 1 count is 200ms) default values
-  following_error_counter_treshold   := 15    
-  current_error_counter_threshold    := 4     
-  connection_error_counter_threshold := 20     
-  watchdog_treshold                   := 5    
+  ' Error tresholds (timing 1 count is 1ms) default values
+  following_error_counter_treshold   := 3000    
+  current_error_counter_threshold    := 800     
+  connection_error_counter_threshold := 4000     
+  watchdog_treshold                  := 1000  
     
   following_error_counter   := 0   
   current_error_counter     := 0
@@ -357,15 +357,10 @@ PRI DoSafety | i, ConnectionError, bitvalue
       ResetBit(@PfStatus,NoAlarmBit)
       SetBit(@PfStatus,MAEBit)
       LastAlarm := 5
+      NoAlarm   := false
       DisableWheelUnits
     pMAECntr    := MAECntr  
-      
-
-    t.Pause1ms(200)
-    
-' ---------------- Add error to log ---------------------------------------
-PRI AddError2Log(ErCode)
-
+     
 ' ---------------- Enable or disable the controller ---------------------------------------
 PRI setControllerState(enable)
   if enable AND not( drive_pid_vals_set AND steer_pid_vals_set )
@@ -502,13 +497,13 @@ PRI DoCommand | t1, i, command
     
     ' === Get velocity of motor with ID
     200:  ser.str(rose_comm.getCommandStr(command)) 
-          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) > -1 AND rose_comm.getParam(1) < 8)
             ser.str(rose_comm.getDecStr(pid.GetActVel(rose_comm.getParam(1))))
           ser.str(rose_comm.getEOLStr)
           
     ' === Get position of motor with ID
     201:  ser.str(rose_comm.getCommandStr(command)) 
-          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
+          if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) > -1 AND rose_comm.getParam(1) < 8)
             if rose_comm.getParam(1) == 0 OR rose_comm.getParam(1) == 2 OR rose_comm.getParam(1) == 4 OR rose_comm.getParam(1) == 6                                                                                                                            '
               ser.str(rose_comm.getDecStr(pid.GetActEncPos(rose_comm.getParam(1))))  ' Drive motor, normal encoders         
             else
@@ -589,9 +584,10 @@ PRI DoCommand | t1, i, command
             ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(0)))
             ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(2)))
             ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(4)))
-            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(6)))
-            
+            ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(6)))  
+            ser.str(rose_comm.getDecStr(pid.getEncClkDiff))          
           else
+            ser.str(rose_comm.getDecStr(0))
             ser.str(rose_comm.getDecStr(0))
             ser.str(rose_comm.getDecStr(0))
             ser.str(rose_comm.getDecStr(0))
@@ -608,7 +604,9 @@ PRI DoCommand | t1, i, command
             ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(2)))
             ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(4)))
             ser.str(rose_comm.getDecStr(pid.GetActEncPosDiff(6)))
+            ser.str(rose_comm.getDecStr(pid.getEncClkDiff))
           else
+            ser.str(rose_comm.getDecStr(0))
             ser.str(rose_comm.getDecStr(0))
             ser.str(rose_comm.getDecStr(0))
             ser.str(rose_comm.getDecStr(0))
@@ -616,10 +614,10 @@ PRI DoCommand | t1, i, command
           pid.resetActEncPosSem  
 
           'Steer motors positions, absolute encoders
-          ser.str(rose_comm.getDecStr(pid.GetActPos(1)))
-          ser.str(rose_comm.getDecStr(pid.GetActPos(3)))
-          ser.str(rose_comm.getDecStr(pid.GetActPos(5)))
-          ser.str(rose_comm.getDecStr(pid.GetActPos(7)))
+          ser.str(rose_comm.getDecStr( pid.GetActPos(1)) )
+          ser.str(rose_comm.getDecStr( pid.GetActPos(3)) )
+          ser.str(rose_comm.getDecStr( pid.GetActPos(5)) )
+          ser.str(rose_comm.getDecStr( pid.GetActPos(7)) )
 
           '=== Get AlarmState and LastAlarm number
           ser.str(rose_comm.getBoolStr(!NoAlarm))
