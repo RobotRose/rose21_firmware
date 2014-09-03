@@ -30,7 +30,7 @@ Read commands:
 	- Get integrated current 		: $208 -> 8x int, int  					(integration time, integrated current mA)				// Maybe later?
 	- Get position error 			: $209 -> int 							(position error 200-3400)
 	- Get motor pos 				: $210 -> int 							(position 200-3400)
-	- Get watchdog treshold 		: $211 -> int 							(watchdog timeout [mS])
+
 	- Get is in Position 			: $212 -> bool 							(is the lift at its setpoint)
 	- Get is moving 				: $213 -> bool 							(is the lift moving)
 	- Get serial debug mode 		: $214 -> bool 							(serial debug enabled)
@@ -44,7 +44,6 @@ Set variables commands:
 	- Set OUT0 relay output 		: $301, bool 								-> bool (set value)
 	- Set min/max motor pos 		: $302, int, int (200-3400, 200-3400)		-> int, int (set values)
 	- Set min/max motor speed 		: $303, int, int (0-255, 0-255)				-> int, int (set values)
-	- Set watchdog treshold 		: $304, int (watchdog timout [mS]) 			-> int (set value)
 
 Other commands:
 	- Enable/Disable controller			: $400, bool (enabled/disabled)					-> bool (enabled/disabled)
