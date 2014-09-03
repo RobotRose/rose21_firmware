@@ -116,9 +116,7 @@ PUB stop
   return 0
     
 PUB disable
-  SwitchAllOff
-  requestBattery(0)
-  enabled := false
+  enabled := false     
   return enabled
 
 PUB enable
@@ -203,7 +201,11 @@ PRI manage | t1
     if enabled
       managePowerOutputs
       manageBatteries
- 
+    else
+     SwitchAllOff  
+     requestBattery(0)
+     managePowerOutputs
+     
     io_manager_counter++  
     
 
