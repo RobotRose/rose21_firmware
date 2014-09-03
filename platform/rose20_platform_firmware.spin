@@ -63,9 +63,11 @@ CON
   ' Error logging
   ErrorCnt = 100
    
+  ' Led
+  main_led_interval = 250
 
   ' Debugging
-  DEBUG = FALSE
+  debug = false
 
   ' Platform status bits
   Serialbit     = 0              ' 0= Serial Debug of 1= Serial pdebug port on
@@ -79,6 +81,14 @@ CON
   MAEBit        = 10             ' MAE encoder alarm
   NoAlarmBit    = 15             ' No alarm present   
 
+  ' TIMERS
+  nr_timers             = 5
+  LED_TIMER             = 0
+  WATCHDOG_TIMER        = 1 
+  FOLLOWING_ERROR_TIMER = 2
+  CURRENT_ERROR_TIMER   = 3
+  CONN_ERROR_TIMER      = 4
+  
 OBJ
   ser           : "full_duplex_serial_005"              ' Full duplex serial communication 
   t             : "timing"                              ' Timing functions
@@ -87,8 +97,14 @@ OBJ
   n             : "simple_numbers"                      ' Number to string conversion
   eprom         : "eeprom"                              ' Routines for saving and reloading settings
   rose_comm     : "rose_communication"                  ' Rose communication
+  timer         : "timer"
   
-Var Long DoShowParameters
+Var 
+  ' Timers
+  long timer_current[nr_timers]
+  long timer_set_value[nr_timers]
+  byte timer_running[nr_timers]
+  long timer_cog
 
     ' Motors
     long PIDCog
@@ -144,22 +160,10 @@ Var Long DoShowParameters
  
     ' Safety
     long SafetyCog, SafetyStack[50], SafetyCntr, NoAlarm, CurrError
-    long following_error_counter
-    long current_error_counter 
-    long connection_error_counter
     
     ' Watchdog
-    long received_wd
-    long expected_wd 
-    long wd
-    long wd_cnt
-    long wd_cnt_threshold
+    long received_wd, expected_wd, wd
     
-    ' Errors
-    long following_error_counter_treshold
-    long current_error_counter_threshold
-    long connection_error_counter_threshold
-    long watchdog_treshold
     
 ' ---------------- Main program CONTROLLER_ID---------------------------------------
 PUB main | T1, lch 
@@ -181,7 +185,10 @@ PUB main | T1, lch
     '  if (MainCntr//8)==0   'Dump debug info only once per 8 cycles
     '    ShowScreen
 
-    '!outa[Led]                           'Toggle I/O Pin for debug
+    ' Indicate that the main loop is running   
+    if timer.checkAndResetTimer(LED_TIMER)
+      !OUTA[Led]    
+      
     MainTime := (cnt-T1)/80000
     MainCntr++
 
@@ -191,7 +198,6 @@ PRI InitMain
   rose_comm.initialize
   repeat while not rose_comm.isInitialized
   
-  !outa[Led]                             ' Toggle I/O Pin for debug
   DisableWheelUnits
 
   dira[Led]~~                            'Set I/O pin for LED to output…
@@ -201,43 +207,34 @@ PRI InitMain
   start_a_err       := 10
   stop_a_err        := 200
   stopstart_a_err   := start_a_err
-
-  ' Error tresholds (timing 1 count is 1ms) default values
-  following_error_counter_treshold   := 3000    
-  current_error_counter_threshold    := 800     
-  connection_error_counter_threshold := 4000     
-  watchdog_treshold                  := 1000  
-    
-  following_error_counter   := 0   
-  current_error_counter     := 0
-  connection_error_counter  := 0
   
   if SerCog > 0
     cogstop(SerCog~ - 1)  
   SerCog := ser.start(cRXD, cTXD, 0, cBaud)
   
-  if SerCog
+  if SerCog AND debug
     ser.str(string("Started SerCog("))
     ser.dec(SerCog)
     ser.str(string(")", CR))
-  else
+  elseif debug
     ser.str(string("Unable to start SerCog", CR))
       
-  !outa[Led]                               'Toggle I/O Pin for debug
-
   ResetPfStatus
-
-  !outa[Led]                                'Toggle I/O Pin for debug
 
 '=== Init Watchdog Stuff ===
 PRI InitWatchDog
-  received_wd       := 0
-  expected_wd       := 0
+  timer.setTimer(WATCHDOG_TIMER, 1000)
+  timer.startTimer(WATCHDOG_TIMER)
+  received_wd       := 0   
+  expected_wd       := 0                     
   wd                := 0
-  wd_cnt            := 0
-  wd_cnt_threshold  := 1000
   
 PRI handleWatchdogError
+  ResetBit(@PfStatus,NoAlarm)
+  SetBit(@PfStatus,CurrBit)
+  LastAlarm := 3
+  NoAlarm   := false
+  connection_error_byte := 0
   DisableWheelUnits
   
 PRI resetCommunication
@@ -249,11 +246,7 @@ PRI resetSafety
   
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
-  PID.ResetCurrentStatus
-  wd_cnt                   := 0
-  following_error_counter  := 0
-  current_error_counter    := 0
-  connection_error_counter := 0   
+  PID.ResetCurrentStatus  
   PfStatus                 := 0
   NoAlarm                  := true                'Reset global alarm var
   LastAlarm                := 0                   'Reset last alarm message
@@ -264,6 +257,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
   repeat i from 0 to MotorCnt-1
     ResetBit(@connection_error_byte, i)
 
+  ' Wait for PID cog to be started
   repeat while PIDCog == 0
     t.Pause1ms(10)
 
@@ -279,12 +273,11 @@ PRI DoSafety | i, ConnectionError, bitvalue
           SetBit(@connection_error_byte, i)
         else
           ResetBit(@connection_error_byte, i + 1)
-      following_error_counter := following_error_counter + 1
       pid.ResetAllFETrip
     else
-      following_error_counter := 0
+      timer.resetTimer(FOLLOWING_ERROR_TIMER)
 
-    if following_error_counter > following_error_counter_treshold              
+    if timer.checkTimer(FOLLOWING_ERROR_TIMER)             
       ResetBit(@PfStatus, NoAlarmBit)
       SetBit(@PfStatus, FeBit)
       LastAlarm := 1
@@ -292,12 +285,11 @@ PRI DoSafety | i, ConnectionError, bitvalue
       DisableWheelUnits
 
     if PID.GetAnyCurrError == true
-      current_error_counter := current_error_counter + 1
       PID.ClearAnyCurrError
     else
-      current_error_counter := 0  
+      timer.resetTimer(CURRENT_ERROR_TIMER)
 
-    if current_error_counter > current_error_counter_threshold      
+    if timer.checkTimer(CURRENT_ERROR_TIMER)  
       ResetBit(@PfStatus, NoAlarmBit)
       SetBit(@PfStatus, CurrBit)
       LastAlarm := 2
@@ -311,19 +303,10 @@ PRI DoSafety | i, ConnectionError, bitvalue
           ResetBit(@connection_error_byte, i + 1)   
       DisableWheelUnits
 
-    '-- Watchdog -- 
-    if Enabled 
-      wd_cnt++
-    else
-      wd_cnt := 0
-
-    if wd_cnt > watchdog_treshold    
-      ResetBit(@PfStatus,NoAlarm)
-      SetBit(@PfStatus,CurrBit)
-      LastAlarm := 3
-      NoAlarm   := false
-      connection_error_byte := 0
+    '-- Watchdog --
+    if timer.checkTimer(WATCHDOG_TIMER)
       handleWatchdogError
+
 
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
@@ -334,12 +317,11 @@ PRI DoSafety | i, ConnectionError, bitvalue
         ResetBit(@connection_error_byte, i + 1)
  
     if ConnectionError == 1
-      connection_error_counter := connection_error_counter + 1
       PID.ResetConnectionErrors 'reset errors because we counted this one
     else
-      connection_error_counter := 0  
+      timer.resetTimer(CONN_ERROR_TIMER)
          
-    if connection_error_counter > connection_error_counter_threshold
+    if timer.checkTimer(CONN_ERROR_TIMER)
       'Disable
       DisableWheelUnits     ' Probably does nothing due to connection error
       ResetBit(@PfStatus, NoAlarm)
@@ -360,7 +342,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
       NoAlarm   := false
       DisableWheelUnits
     pMAECntr    := MAECntr  
-     
+        
 ' ---------------- Enable or disable the controller ---------------------------------------
 PRI setControllerState(enable)
   if enable AND not( drive_pid_vals_set AND steer_pid_vals_set )
@@ -459,12 +441,12 @@ PRI DoCommand | t1, i, command
          if received_wd <> expected_wd
             handleWatchdogError
             ser.str(rose_comm.getDecStr(-1))
-            ser.str(rose_comm.getDecStr(wd_cnt))
+            ser.str(rose_comm.getDecStr(timer.getTimer(WATCHDOG_TIMER)))
             ser.str(rose_comm.getDecStr(received_wd))
             ser.str(rose_comm.getDecStr(expected_wd))                
          else    
             ser.str(rose_comm.getDecStr(wd))
-            ser.str(rose_comm.getDecStr(wd_cnt))
+            ser.str(rose_comm.getDecStr(timer.getTimer(WATCHDOG_TIMER)))
             ser.str(rose_comm.getDecStr(received_wd))
             ser.str(rose_comm.getDecStr(expected_wd))
             if expected_wd == 1
@@ -477,21 +459,21 @@ PRI DoCommand | t1, i, command
             else
                wd := 1                                 
          
-            'Reset the watchdog counter
-            wd_cnt := 0 
-         ser.str(rose_comm.getEOLStr)    
+            'Reset the watchdog timer
+            timer.resetTimer(WATCHDOG_TIMER)
+         ser.str(rose_comm.getEOLStr)  
          
     ' === Set watchdog timer ==         
     112: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(1)
-           watchdog_treshold := 0 #> rose_comm.getParam(1)
-           ser.str(rose_comm.getDecStr(watchdog_treshold))
+           timer.setTimer(WATCHDOG_TIMER, rose_comm.getParam(1))
+           ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
          ser.str(rose_comm.getEOLStr) 
     
     ' === Get watchdog timer ==        
     113: ser.str(rose_comm.getCommandStr(command))
-         ser.str(rose_comm.getDecStr(watchdog_treshold))
-         ser.str(rose_comm.getEOLStr)   
+         ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
+         ser.str(rose_comm.getEOLStr)    
     
     ' === GETTERS ===
     
@@ -693,13 +675,13 @@ PRI DoCommand | t1, i, command
          ser.str(rose_comm.getEOLStr)  
     ' === Set error tresholds
     303: ser.str(rose_comm.getCommandStr(command)) 
-         if rose_comm.nrOfParametersCheck(3) 
-           following_error_counter_treshold   := 0 #> rose_comm.getParam(1)
-           current_error_counter_threshold    := 0 #> rose_comm.getParam(2)  
-           connection_error_counter_threshold := 0 #> rose_comm.getParam(3)        
-           ser.str(rose_comm.getDecStr(following_error_counter_treshold)) 
-           ser.str(rose_comm.getDecStr(current_error_counter_threshold)) 
-           ser.str(rose_comm.getDecStr(connection_error_counter_threshold))
+         if rose_comm.nrOfParametersCheck(3)
+           timer.setTimer(FOLLOWING_ERROR_TIMER,  0 #> rose_comm.getParam(1))
+           timer.setTimer(CURRENT_ERROR_TIMER,    0 #> rose_comm.getParam(2))
+           timer.setTimer(CONN_ERROR_TIMER,       0 #> rose_comm.getParam(3))       
+           ser.str(rose_comm.getDecStr(timer.getTimerSetValue(FOLLOWING_ERROR_TIMER))) 
+           ser.str(rose_comm.getDecStr(timer.getTimerSetValue(CURRENT_ERROR_TIMER))) 
+           ser.str(rose_comm.getDecStr(timer.getTimerSetValue(CONN_ERROR_TIMER)))
          ser.str(rose_comm.getEOLStr) 
  
     ' === ACTIONS ===
@@ -774,27 +756,90 @@ PRI DoCommand | t1, i, command
   serial_time := cnt-t1
   serial_cntr++    
   return true
+  
+' === Setup timers ===
+PRI setupTimers
+  timer.setTimer(LED_TIMER, main_led_interval)
+  timer.startTimer(LED_TIMER)
+  
+  ' Error timers  default values
+  timer.setTimer(FOLLOWING_ERROR_TIMER, 3000)
+  timer.startTimer(FOLLOWING_ERROR_TIMER)
+  
+  timer.setTimer(CURRENT_ERROR_TIMER, 800)
+  timer.startTimer(CURRENT_ERROR_TIMER)
+  
+  timer.setTimer(CONN_ERROR_TIMER, 4000)
+  timer.startTimer(CONN_ERROR_TIMER)     
+   
+  return true
 
 ' ---------------- Reset platform -------------------------------
 PRI ResetPfStatus | i
+  ' Start Timer cog
+  if timer_cog > 0
+    timer.stop 
+  timer_cog := timer.start(@timer_current, @timer_set_value, @timer_running, nr_timers)
+  
+  ' Wait for the timer cog to have initialized the memory
+  repeat while not timer.isReady
+  
+  ' Setup the timers
+  setupTimers
+
+  if debug
+    if timer_cog
+      ser.str(string("Started TimerCog("))
+      ser.dec(timer_cog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start TimerCog", CR))
+      
   if MAECog > 0
     cogstop(MAECog~ - 1)
     t.Pause1ms(1)
   MAECog := CogNew(MAESense, @MAEStack) + 1                  'Start MAE sensing
 
+  if debug
+    if MAECog
+      ser.str(string("Started MAECog("))
+      ser.dec(MAECog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start MAECog", CR))
+      
   if PIDcog > 0
     pid.ResetCurrentStatus
     pid.ClearErrors
     PID.Stop
     t.Pause1ms(1)
   PIDCog  := PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
+  
+   ' Wait while PID initializes
+  repeat while PID.GetPIDStatus <> 3                    
 
-  repeat while PID.GetPIDStatus <> 3                     ' Wait while PID initializes
+  if debug
+    if PIDCog
+      ser.str(string("Started PIDCog("))
+      ser.dec(PIDCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start PIDCog", CR))
+
+
 
   if SafetyCog > 0
     cogstop(SafetyCog~ - 1)  
     t.Pause1ms(1)
   SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
+  
+  if debug
+    if SafetyCog
+      ser.str(string("Started SafetyCog("))
+      ser.dec(SafetyCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start SafetyCog", CR))
 
   repeat i from 0 to MotorCnt-1
     Setp[i] := 0
@@ -820,10 +865,6 @@ PRI ResetPfStatus | i
 PRI ResetFE | i 
   PID.ResetAllFETrip
   ResetBit(@PfStatus,FEbit)
-
-' ----------------  Toggle reporting ---------------------------------------
-PRI ToggleReport  
-  !DoShowParameters
   
 ' ----------------  Enable wheeluntis  ---------------------------------------
 PRI EnableWheelUnits
@@ -1187,7 +1228,7 @@ PRI ShowScreen | i
     ser.str(string(" Last Alarm: "))
     ser.dec(LastAlarm)
     ser.str(string(" Watchdog cnt: "))
-    ser.dec(wd_cnt)
+    ser.dec(timer.getTimer(WATCHDOG_TIMER))
     
     ser.str(string(CE,CR, " Enabled: "))
     ser.str(n.dec(Enabled))

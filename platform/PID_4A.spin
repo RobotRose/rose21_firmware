@@ -32,8 +32,6 @@ CON
 
   FIRMWARE_VERSION = 60
   
-  PIDLed = 27         'PID test led
-
   PIDCnt = 8          'Max PID loop count
 
   _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -169,9 +167,6 @@ PUB Stop
 ' ----------------  PID loop ---------------------------------------
 PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address ' Cycle runs every Period ms
 
-    'Set I/O pin for LED to output
-    dira[PIDLed]~~      
-
     Period              := 1 #> Period <# 1000000   'Limit PID period 
     PIDStatus           := 1
     
@@ -207,8 +202,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
     T1          := Cnt
     Tspeed      := Cnt
 
-    !outa[PIDLed]                        ' Toggle I/O Pin for debug
-                                         
+                                 
     PIDStatus := 3                       ' PID running      
 
     Repeat                               ' Main PID loop
@@ -393,7 +387,6 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         enc_clk_prev    := enc_clk
         enc_clk         := cnt
         enc_semaphore   := TRUE
-        !outa[PIDLed]                    'Toggle I/O Pin for debug      
 
       PIDCntr++                                         'Update PIDCounter               
       PIDTime       := (Cnt-T1)/80000                   'Measure actual loop time in [ms] 
