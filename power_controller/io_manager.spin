@@ -31,6 +31,9 @@ CON
   ' Timers 
   SWITCH_TIMER = 4
   
+  ' Default outputs
+  DEFAULT_DEFAULT_OUTPUT = 1 ' PC1 always on
+  
 
 OBJ
   sound         : "sound"
@@ -165,6 +168,9 @@ PRI initialize | i
   repeat while not timer.isMemorySet
   timer.setTimer(SWITCH_TIMER, default_auto_battery_switch_timeout)
   timer.startTimer(SWITCH_TIMER)
+  
+  ' Ser default default_outputs (PC1 on)
+  default_output[DEFAULT_DEFAULT_OUTPUT]   := true
     
 PUB updateBatteryVoltages(v1_raw, v2_raw, v1_avg, v2_avg)
   v_bat1_raw              := v1_raw
