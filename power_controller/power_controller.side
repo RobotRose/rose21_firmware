@@ -7,6 +7,8 @@ eeprom.spin
 Timing.spin
 sound.spin
 Timing.spin
+Timing.spin
+timer.spin
 io_manager.spin
 simple_numbers.spin
 full_duplex_serial_005.spin
@@ -16,4 +18,6 @@ full_duplex_serial_005.spin
 Timing.spin
 sound.spin
 Timing.spin
+Timing.spin
+timer.spin
 >compiler=SPIN

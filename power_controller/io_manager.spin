@@ -27,22 +27,23 @@ CON
   n_switches   = 6
   
   default_auto_battery_switch_timeout = 2000
+  
+  ' Timers 
+  SWITCH_TIMER = 4
+  
 
 OBJ
   sound         : "sound"
   t             : "Timing"
   eeprom        : "eeprom"
+  timer         : "timer"
 
 VAR
   ' Cog variables
   long cog
-  long cog_stack[100]
+  long cog_stack[75]
   long io_manager_counter
   
-  ' Timers
-  long oneMScounter
-  long alarmIntervalTimer
-  long ledIntervalTimer
 
   ' Battery management
   long auto_battery_switch  '1: enables local auto battery switch
@@ -50,9 +51,6 @@ VAR
   long requested_battery    '0: all batteries off, 1: Battery 1 on 2: battery 2 on
   long battery_switch_sound
   long alarm_sound
-  long alarm_interval
-  long battery_switch_time
-  long auto_battery_switch_timeout
   long v_bat1_raw
   long v_bat2_raw
   long v_bat1_avg
@@ -62,6 +60,7 @@ VAR
   long battery_shutdown_voltage[3]
   long battery_shutdown_hysteresis_voltage[3]
   byte battery_update_received
+  byte enabled
 
   ' Voltage tresholds
   long minimal_Vin               ' Minimal Vin supply
@@ -88,34 +87,51 @@ PUB start
   
   battery_update_received := false
   repeat while not battery_update_received
-  
-  ' Wait for average battery voltage values to stabalize
-  t.Pause1ms(500)
-                               
+                              
   return cog
 
+PUB setTimerMemory(new_timer_address, new_timer_value_address, new_timer_running_address, new_nr_timers)
+  return timer.setMemory(new_timer_address, new_timer_value_address, new_timer_running_address, new_nr_timers)
+ 
+PUB getTimerAddress
+  return timer.getTimerAddress
+  
+PUB getTimerSetValueAddress
+  return timer.getTimerSetValueAddress
+  
+PUB getTimerRunningAddress
+  return timer.getTimerRunningAddress
+  
 PUB stop
   '' Stop driver - frees a cog
+  if enabled
+    disable
+    
   if cog
     cogstop(cog~ - 1)
+  
+  return 0
+    
+PUB disable
+  SwitchAllOff
+  requestBattery(0)
+  enabled := false
+  return enabled
 
-PRI initialize | i  
+PUB enable
+  enabled := true
+  return enabled
+
+PRI initialize | i     
+  enabled     := true
   new_request := false
   io_manager_counter := 0
-  
-  ' Timers
-  oneMScounter       := 0
-  alarmIntervalTimer := 0
-  ledIntervalTimer   := 0
   
   ' Default values
   batteries_low               := false
   battery_switch_sound        := true
   alarm_sound                 := true
-  alarm_interval              := 5000
   auto_battery_switch         := false
-  auto_battery_switch_timeout := 1000
-  battery_switch_time         := 0 
   active_battery              := 0
   requested_battery           := 0
   battery_shutdown_voltage[0] := 9999999             '[mV]
@@ -130,9 +146,6 @@ PRI initialize | i
   v_bat2_avg                  := 0 '[mV] 
   battery_update_received     := false
   
-  ' Set default auto_battery_switch_timeout
-  auto_battery_switch_timeout := default_auto_battery_switch_timeout
-  
   ' Set default Vin voltage tresholds
   minimal_Vin   := 22000
   warning_Vin   := 24000
@@ -142,9 +155,22 @@ PRI initialize | i
   ' Reset switch states
   i := 0
   repeat n_switches
-    switch_state[i++] := false
+    switch_state[i] := false
+    default_output[i++] := false
+    
+  
     
   sound.init(BUZZ)
+   
+  ' Timers
+  ' Wait for the main cog to have set the memory adresses of the timer cog
+  repeat while not timer.isMemorySet
+  timer.setTimer(SWITCH_TIMER, default_auto_battery_switch_timeout)
+  timer.startTimer(SWITCH_TIMER)
+  
+  ' Placing this before the prev wait (timer.isMemorySet) causes FREEZE!
+  loadDefaultOutputsFromEEPROM
+
     
 PUB updateBatteryVoltages(v1_raw, v2_raw, v1_avg, v2_avg)
   v_bat1_raw              := v1_raw
@@ -172,22 +198,13 @@ PUB requestBattery(N)
 PRI manage | t1
   initialize
   t1 := cnt
-  repeat
-  
-    managePowerOutputs
-    manageBatteries
-    
-    if ||(cnt - t1) => (clkfreq/1000)
-      oneMScounter++
-      alarmIntervalTimer++
-      ledIntervalTimer++
-      t1 := cnt
-    
-    ' Wrap!! TODO nicer way to do this 1ms timer?
-    if oneMScounter < 0 
-      oneMScounter := 0
-      
-    io_manager_counter++
+ 
+  repeat    
+    if enabled
+      managePowerOutputs
+      manageBatteries
+ 
+    io_manager_counter++  
     
 
 PRI managePowerOutputs
@@ -204,9 +221,8 @@ PRI manageBatteries | switch_time_diff
   ' Battery management and automatic switch from Bat1 to Bat 2
   ' WARNING!  Can only work if battery properties of both batteries are properly set!!
   if auto_battery_switch == true AND getBatteryVoltageRaw(active_battery) < switch_Vin
-    ' Prevent fast back and forth switching by checking if the difference of the voltages is larger than a certain hysteresis value
-    switch_time_diff := (oneMScounter - battery_switch_time) '[ms]
-    if switch_time_diff => auto_battery_switch_timeout
+    ' Prevent fast back and forth switching by checking the switch timer
+    if timer.checkTimer(SWITCH_TIMER)
       selectFullestBattery
   else
     ' if not auto switching 
@@ -293,7 +309,7 @@ PRI selectBattery(N)
   ' If the selected battery is below the minimal voltage switch off the outputs
   ' This also ensures that the outputs are not being left in an on state
   if not isBatteryVoltageOK(N) 'active_battery == 0 OR N == 0 
-    SwitchAllOff         ' Switch off all outputs
+    SwitchAllOff          ' Switch off all outputs
   else
     turnOnDefaultOuputs   ' Always turn on the default output(s)
   
@@ -337,13 +353,14 @@ PRI selectBattery(N)
          sound.BeepHz(BUZZ, 0, 1000000/32)
          sound.BeepHz(BUZZ, NOTE_E5, 1000000/32)
   
-  battery_switch_time := oneMScounter
+  ' Reset the battery switch timer
+  timer.resetTimer(SWITCH_TIMER)
     
   return N
 
 ' ====== POWER OUTPUTS ======
 ' Switch output 0 to 5. 0= all off
-PRI SwitchAllOff
+PUB SwitchAllOff
   setSwitch(0, false)
   setSwitch(1, false)
   setSwitch(2, false)
@@ -375,9 +392,13 @@ PUB turnOnDefaultOuputs | i
 PUB setDefaultOutput(i, state) ' 1-6
   i := i - 1
   default_output[i] := state
-  eeprom.VarBackup(@default_output, @default_output + n_switches)
+  eeprom.FromRam(@default_output[0], @default_output[n_switches], $7000)
   return default_output[i]
   
+PRI loadDefaultOutputsFromEEPROM
+  'Restore a previous snapshot of variables in main RAM.
+  eeprom.ToRam(@default_output[0], @default_output[n_switches], $7000)
+    
 PUB getDefaultOutput(i) ' 1-6
   i := i - 1
   return default_output[i]
@@ -385,10 +406,6 @@ PUB getDefaultOutput(i) ' 1-6
 PUB getNrOfSwitches
   return n_switches
   
-PRI loadDefaultOutputsFromEEPROM
-  'Restore a previous snapshot of variables in main RAM.
-  eeprom.VarRestore(@default_output, @default_output + n_switches)
-
 PUB setSwitch(N, req_state)
   switch_state[N] := req_state
 
@@ -436,7 +453,7 @@ PRI SwitchOn(N)
        OUTA[PWRAUX]:=1
   
   'Ensure that not all outputs can be turned on at the same time (to limit peak currents)
-  t.Pause1ms(500)
+  t.Pause1ms(10)
 
 PRI SwitchOff(N)
   Case N
@@ -557,15 +574,6 @@ PUB getIOManagerCounter
 
 PUB getActiveBattery
   return active_battery
-
-PUB setBatterySwitchTime(time)
-  battery_switch_time := time
-    
-PUB getBatterySwitchTime
-  return battery_switch_time
-  
-PUB getOneMScounter
-  return oneMScounter
   
 PUB setAutoBatterySelect(state)
   auto_battery_switch := state
@@ -612,38 +620,13 @@ PUB setAlarmSound(state)
 
 PUB getAlarmSound
   return alarm_sound    
-
-PUB setAlarmInterval(time)
-  alarm_interval := 1000 #> time
-  return alarm_interval
-
-PUB getAlarmInterval
-  return alarm_interval 
        
-PUB setBatterySwitchTimeout(timeout)
-  auto_battery_switch_timeout := timeout
-
-PUB getBatterySwitchTimeout
-  return auto_battery_switch_timeout 
-  
 PUB setBatteryShutdownHysteresisVoltage(voltage)
   battery_shutdown_hysteresis_voltage := voltage
 
 PUB getBatteryShutdownHysteresisVoltage
   return battery_shutdown_hysteresis_voltage   
 
-PUB setAlarmIntervalTimer(value)
-  alarmIntervalTimer := value
-     
-PUB getAlarmIntervalTimer
-  return alarmIntervalTimer
-
-PUB setLedIntervalTimer(value)
-  ledIntervalTimer := value
-  
-PUB getLedIntervalTimer
-  return ledIntervalTimer
-  
 DAT   
     NOTE_B0  WORD 31
     NOTE_C1  WORD 33

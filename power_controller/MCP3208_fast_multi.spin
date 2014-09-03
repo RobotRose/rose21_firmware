@@ -76,6 +76,7 @@ PUB stop
 
   if cog
     cogstop(cog~ - 1)
+  return 0
 
     
 PUB in(channel, chip)

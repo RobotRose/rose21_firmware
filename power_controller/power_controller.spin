@@ -38,7 +38,7 @@ CON
    minor_version    = 1 
    CONTROLLER_ID    = 3
 
-'Set 80Mhz
+  ' Set 80Mhz
    _clkmode = xtal1+pll16x
    _xinfreq = 5000000
 
@@ -122,7 +122,16 @@ CON
 
   main_led_interval = 250    ' [ms]       
   
-  averaging_samples = 40     ' Number of samples to average the ADC values with                    
+  averaging_samples = 40     ' Number of samples to average the ADC values with  
+
+  ' TIMERS
+  nr_timers       = 6
+  LED_TIMER       = 0
+  SHUTDOWN_TIMER  = 1
+  RESTART_TIMER   = 2       
+  ALARM_TIMER     = 3          
+  SWITCH_TIMER    = 4  
+  WATCHDOG_TIMER  = 5 
   
 OBJ
   ADC             : "MCP3208_fast_multi"                  ' ADC
@@ -135,46 +144,45 @@ OBJ
   f               : "FloatMath1_1"                        ' Floating point library
   rose_comm       : "rose_communication"
   eeprom          : "eeprom"
+  timer           : "timer"
   
   
 VAR
-  long ADCCog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], io_manager_cog
+  ' Timers
+  long timer_current[nr_timers]
+  long timer_set_value[nr_timers]
+  byte timer_running[nr_timers]
+  
+  ' Cogs 
+  long ADCCog, ADC2Cog, SerCog, ADCMCog, ADCMStack[50], io_manager_cog, timer_cog
   long PLCCog, PLCStack[50], LinMotCog
+  long MainCnt, MaxCh, ADCTime, ADCCnt, DoMotorCnt
+  
+  ' ADC
+  long Scale[Nch]   '' array with scaling factors
   long ADCRaw[NCh], ADCRawMin[NCh], ADCRawMax[NCh], ADCRawAvg[NCh]  ' Raw bit values
   long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]      ' Volt
   long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
-  long Switchstate, MainCnt, MaxCh, ADCTime, ADCCnt, DoMotorCnt, ScalingCnt, ScalingTime
+  
 
   ' Safety related vars
   long AllOK, s5VOK, s3V3OK, sVInOK, OutofRange, PlcCnt
 
-  ' ADC
-  long Scale[Nch]   '' array with scaling factors
-
   ' Watchdog
-  long received_wd, expected_wd, wd, wd_cnt, watchdog_treshold
+  long received_wd, expected_wd, wd
   
   ' Safety
-  long SafetyCog, SafetyStack[40], SafetyCntr, no_alarm, last_alarm
+  long SafetyCntr, no_alarm, last_alarm
   
   ' Debug
   byte Debug
   long DebugCog, DebugStack[40]
   
-
-
 PUB Main
-  Init
-
-  sound.BeepHz(BUZZ, NOTE_A4, 1000000/16)
-  sound.BeepHz(BUZZ, NOTE_A5, 1000000/16)
-  sound.BeepHz(BUZZ, NOTE_A6, 1000000/16)
-  sound.BeepHz(BUZZ, NOTE_A7, 1000000/16)
-  sound.BeepHz(BUZZ, NOTE_F7, 1000000/20)
-  sound.BeepHz(BUZZ, NOTE_G7, 1000000/16)
-  
+ 
   ' Run startup sequence
   startup
+  
   
   ' Main loop
   repeat
@@ -183,18 +191,20 @@ PUB Main
     handleCommunication 
     
     ' Check if batteries and low and give alarm singal with a certain interval
-    if io_manager.getBatteriesLow AND io_manager.getAlarmSound
-      if io_manager.getAlarmIntervalTimer => io_manager.getAlarmInterval
-        sound.lowVoltageWarning(BUZZ)
-        io_manager.setAlarmIntervalTimer(0)      
-    else
-      io_manager.setAlarmIntervalTimer(0)
-     
+    if io_manager.getBatteriesLow AND io_manager.getAlarmSound AND timer.checkAndResetTimer(ALARM_TIMER)
+      sound.lowVoltageWarning(BUZZ)      
+      
+    ' Shutdown/restart
+    if timer.checkTimer(SHUTDOWN_TIMER)
+      shutdown
+      
+    if timer.checkTimer(RESTART_TIMER)
+      restart
+       
     ' Indicate that the main loop is running   
-    if io_manager.getLedIntervalTimer => main_led_interval
-      !OUTA[Led]
-      io_manager.setLedIntervalTimer(0)
-
+    if timer.checkAndResetTimer(LED_TIMER)
+      !OUTA[Led]    
+    
 PRI handleCommunication
     ' Read data from serial
     ser.StrInMaxTime(rose_comm.getStringBuffer, rose_comm.getMaxStringLength, rose_comm.getMaxWaitTime)  
@@ -209,28 +219,38 @@ PRI Init
   s3V3OK  := 1
   s5VOK   := 1
   AllOK   := 1
-
-  'Reset all min/max values
-  resetAllADCVals
-  
-  InitWatchDog
   
   'Initialize serial communication 
   InitSer
   
-  ser.str(string("Main Cog running in cog: "))
-  ser.dec(cogid + 1)
-  ser.char(CR)
+  if debug
+    ser.str(string("Main Cog running in cog: "))
+    ser.dec(cogid + 1)
+    ser.char(CR)
 
   if ADCCog > 0
     ADC.stop
   ADCCog:= ADC.Start(dpin1, cpin1, spin1, dpin2, cpin2, spin2, dpin3, cpin3, spin3)
-  if ADCCog
-    ser.str(string("Started ADCCog("))
-    ser.dec(ADCCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start ADCCog", CR))
+  
+  if debug
+    if ADCCog
+      ser.str(string("Started ADCCog("))
+      ser.dec(ADCCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start ADCCog", CR))
+      
+  if ADCMCog > 0
+    cogstop(ADCMCog~ - 1)
+  ADCMCog:=cognew(DoADC,@ADCMStack) + 1
+    
+  if debug
+    if ADCMCog
+      ser.str(string("Started ADCMCog("))
+      ser.dec(ADCMCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start ADCMCog", CR))
     
   MaxCh:= NCh-1
 
@@ -239,109 +259,141 @@ PRI Init
 
   sound.init(BUZZ)  
 
-  SwitchState:=0
-
-  if ADCMCog > 0
-    cogstop(ADCMCog~ - 1)
-  ADCMCog:=cognew(DoADC,@ADCMStack) + 1
+  ' Start Timer cog
+  if timer_cog > 0
+    timer.stop 
+  timer_cog := timer.start(@timer_current, @timer_set_value, @timer_running, nr_timers)
   
-  if ADCMCog
-    ser.str(string("Started ADCMCog("))
-    ser.dec(ADCMCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start ADCMCog", CR))
+  ' Wait for the timer cog to have initialized the memory
+  repeat while not timer.isReady
+  
+  ' Setup the timers
+  setupTimers
+
+  if debug
+    if timer_cog
+      ser.str(string("Started TimerCog("))
+      ser.dec(timer_cog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start TimerCog", CR))
+
+
   
   if PlcCog > 0
     cogstop(PlcCog~ - 1) 
-  PlcCog:=cognew(DoPLC,@PLCStack) + 1            'Start PLC cog
+  PlcCog:=cognew(DoPLC,@PLCStack) + 1            'Start PLC/safety cog
   
-  if PlcCog
-    ser.str(string("Started PlcCog("))
-    ser.dec(PlcCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start PlcCog", CR))
+  if debug
+    if PlcCog
+      ser.str(string("Started PlcCog("))
+      ser.dec(PlcCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start PlcCog", CR))
       
   if DebugCog > 0
     cogstop(DebugCog~ - 1)  
   DebugCog := CogNew(DoDisplay, @DebugStack) + 1
   
-  if DebugCog
-    ser.str(string("Started DebugCog("))
-    ser.dec(DebugCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start DebugCog", CR))
+  if debug
+    if DebugCog
+      ser.str(string("Started DebugCog("))
+      ser.dec(DebugCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start DebugCog", CR))
   
+  if debug 
+    ser.str(string("Starting io manager...", CR)) 
   io_manager_cog := io_manager.start
-  if io_manager_cog
-    ser.str(string("Started io_managerCog("))
-    ser.dec(io_manager_cog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start io_managerCog", CR))
+  io_manager.setTimerMemory(timer.getTimerAddress, timer.getTimerSetValueAddress, timer.getTimerRunningAddress, timer.getNrOfTimers)
+  
+  if debug
+    if io_manager_cog
+      ser.str(string("Started io_managerCog("))
+      ser.dec(io_manager_cog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start io_managerCog", CR))
     
   io_manager.setBatterySwitchSound(true)
   io_manager.setAutoBatterySelect(true)
   
-  if SafetyCog > 0
-    cogstop(SafetyCog~ - 1)  
-  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
-  
-  if SafetyCog
-    ser.str(string("Started SafetyCog("))
-    ser.dec(SafetyCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start SafetyCog", CR))
- 
+   
+
 ' === Shutdown sequence ===  
 PRI shutdown
-  ser.str(string("Should really shutdown now!", CR))
-
-' === Startup sequence ===   
-PRI startup | selected_battery 
-  ser.str(string("Measureing battery voltages")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".")) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string(".", CR)) 
-  t.Pause1ms(500)
-  !OUTA[Led]
-  ser.str(string("Selecting fullest battery, bat1: "))  
-  ser.dec(io_manager.getBatteryVoltageAvg(1))
-  ser.str(string("mV | bat2: "))
-  ser.dec(io_manager.getBatteryVoltageAvg(2))
-  ser.str(string("mV -> "))
-  selected_battery := io_manager.selectFullestBattery
-  ser.dec(selected_battery)
-  ser.char(CR)
-  if selected_battery <> 0
-    ser.str(string("Battery selected.", CR))
-  else
-    ser.str(string("Batteries not charged!", CR))
+  ' Turn off all outputs, select no battery
+  ' Stop io_manager cog
+  io_manager_cog := io_manager.stop
+   
+  ' Stop debug cog
+  if DebugCog > 0
+    cogstop(DebugCog~ - 1)  
+    DebugCog := 0
+  
+  ' Stop PLC/safety cog
+  if PlcCog > 0
+    cogstop(PlcCog~ - 1) 
+    PlcCog := 0  
     
+  ' Stop ADC conversion cog  
+  if ADCMCog > 0
+    cogstop(ADCMCog~ - 1)  
+    ADCMCog := 0
+    
+  ' Stop ADC measurement cog
+  if ADCCog > 0
+    ADC.stop
+    ADCCog := 0
+    
+' === restart sequence ===
+PRI restart
+  REBOOT
+  
+  
+' === Startup sequence ===   
+PRI startup | selected_battery
+
+  Init
+  
+  sound.BeepHz(BUZZ, NOTE_A4, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A5, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A6, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_A7, 1000000/16)
+  sound.BeepHz(BUZZ, NOTE_F7, 1000000/20)
+  sound.BeepHz(BUZZ, NOTE_G7, 1000000/16)
+
+  if debug
+    ser.str(string("Measureing battery voltages")) 
+  
+    !OUTA[Led]
+    ser.str(string("Selecting fullest battery, bat1: "))  
+    ser.dec(io_manager.getBatteryVoltageAvg(1))
+    ser.str(string("mV | bat2: "))
+    ser.dec(io_manager.getBatteryVoltageAvg(2))
+    ser.str(string("mV -> "))
+    selected_battery := io_manager.selectFullestBattery
+    ser.dec(selected_battery)
+    ser.char(CR)
+    if selected_battery <> 0
+      ser.str(string("Battery selected.", CR))
+    else
+      ser.str(string("Batteries not charged!", CR))
+  else
+    io_manager.selectFullestBattery
+    
+        
+PRI setupTimers
+  timer.setTimer(LED_TIMER, main_led_interval)
+  timer.startTimer(LED_TIMER)
+  
+  timer.setTimer(ALARM_TIMER, 5000)
+  timer.startTimer(ALARM_TIMER)
+  
+  return true
+   
 ' === Reset communication ===
 PRI reset_communication
   InitWatchDog
@@ -355,23 +407,23 @@ PRI InitSer
     ser.Stop
   SerCog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
   
-  if SerCog
-    ser.str(string("Started SerCog("))
-    ser.dec(SerCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start SerCog", CR))
+  if debug
+    if SerCog
+      ser.str(string("Started SerCog("))
+      ser.dec(SerCog)
+      ser.str(string(")", CR))
+    else
+      ser.str(string("Unable to start SerCog", CR))
 
   return SerCog
 
 '=== Init Watchdog ===
 PRI InitWatchDog
-  ' Error tresholds (timing 1 count is 1*ms) default values
-  watchdog_treshold := 1000  
+  timer.setTimer(WATCHDOG_TIMER, 1000)
+  timer.startTimer(WATCHDOG_TIMER)
   received_wd       := 0   
   expected_wd       := 0                     
   wd                := 0
-  wd_cnt            := 0
 
 PRI handleWatchdogError | i
   io_manager.turnOffNonDefaultOutputs
@@ -383,15 +435,15 @@ PRI DoCommand | i, command
   case command
     ' === Default 100 range communication ===
     ' === Communicate controller id ===
-    100 : ser.str(rose_comm.getCommandStr(command))
-          ser.str(rose_comm.getDecStr(CONTROLLER_ID))
-          ser.str(rose_comm.getEOLStr) 
+    100: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(CONTROLLER_ID))
+         ser.str(rose_comm.getEOLStr) 
     
     ' === Communicate software version ===
-    101 : ser.str(rose_comm.getCommandStr(command))
-          ser.str(rose_comm.getDecStr(major_version))
-          ser.str(rose_comm.getDecStr(minor_version))
-          ser.str(rose_comm.getEOLStr) 
+    101: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(major_version))
+         ser.str(rose_comm.getDecStr(minor_version))
+         ser.str(rose_comm.getEOLStr) 
     
     ' === WATCHDOG ===
     111: received_wd := rose_comm.getParam(1)
@@ -400,12 +452,12 @@ PRI DoCommand | i, command
          if received_wd <> expected_wd
             handleWatchdogError
             ser.str(rose_comm.getDecStr(-1))
-            ser.str(rose_comm.getDecStr(wd_cnt))
+            ser.str(rose_comm.getDecStr(timer.getTimer(WATCHDOG_TIMER)))
             ser.str(rose_comm.getDecStr(received_wd))
             ser.str(rose_comm.getDecStr(expected_wd))                
          else    
             ser.str(rose_comm.getDecStr(wd))
-            ser.str(rose_comm.getDecStr(wd_cnt))
+            ser.str(rose_comm.getDecStr(timer.getTimer(WATCHDOG_TIMER)))
             ser.str(rose_comm.getDecStr(received_wd))
             ser.str(rose_comm.getDecStr(expected_wd))
             if expected_wd == 1
@@ -418,20 +470,20 @@ PRI DoCommand | i, command
             else
                wd := 1                                 
          
-            'Reset the watchdog counter
-            wd_cnt := 0 
+            'Reset the watchdog timer
+            timer.resetTimer(WATCHDOG_TIMER)
          ser.str(rose_comm.getEOLStr)    
       
     ' === Set watchdog timer ==         
     112: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(1)
-           watchdog_treshold := 0 #> rose_comm.getParam(1)
-           ser.str(rose_comm.getDecStr(watchdog_treshold))
+           timer.setTimer(WATCHDOG_TIMER, 0 #> rose_comm.getParam(1))
+           ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
          ser.str(rose_comm.getEOLStr) 
     
     ' === Get watchdog timer ==        
     113: ser.str(rose_comm.getCommandStr(command))
-         ser.str(rose_comm.getDecStr(watchdog_treshold))
+         ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
          ser.str(rose_comm.getEOLStr)   
             
     ' === Get commands ===        
@@ -541,12 +593,34 @@ PRI DoCommand | i, command
          
     ' Get alarm sound interval
     215: ser.str(rose_comm.getCommandStr(command))
-         ser.str(rose_comm.getDecStr(io_manager.getAlarmInterval))
+         ser.str(rose_comm.getDecStr(timer.getTimerSetValue(ALARM_TIMER)))
          ser.str(rose_comm.getEOLStr)
          
     ' Get charging_Vin
     216: ser.str(rose_comm.getCommandStr(command))
          ser.str(rose_comm.getDecStr(io_manager.getChargingVin))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get shutdown_time
+    217: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(timer.getTimer(SHUTDOWN_TIMER)))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Get restart_time
+    218: ser.str(rose_comm.getCommandStr(command))
+         ser.str(rose_comm.getDecStr(timer.getTimer(RESTART_TIMER)))
+         ser.str(rose_comm.getEOLStr)
+         
+    ' Get set timer value (send timer ID)
+    219: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getDecStr( timer.getTimerSetValue(rose_comm.getParam(1)) ))
+         ser.str(rose_comm.getEOLStr)
+    
+    ' Get current timer value (send timer ID)
+    220: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(1)
+           ser.str(rose_comm.getDecStr( timer.getTimer(rose_comm.getParam(1)) ))
          ser.str(rose_comm.getEOLStr)
                                 
     ' === Set commands ===
@@ -607,7 +681,8 @@ PRI DoCommand | i, command
     ' Set battery low alarm interval
     308: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(1)
-           ser.str(rose_comm.getDecStr( io_manager.setAlarmInterval( rose_comm.getParam(1) ) ))
+           timer.setTimer(ALARM_TIMER, rose_comm.getParam(1))  
+           ser.str(rose_comm.getDecStr( timer.getTimerSetValue(ALARM_TIMER) ))
          ser.str(rose_comm.getEOLStr)
 
     ' Set charging voltage
@@ -622,10 +697,19 @@ PRI DoCommand | i, command
          ser.str(rose_comm.getCommandStr(command))
          ser.str(rose_comm.getEOLStr)
          
-    ' Initiate shutdown   
-    401: shutdown
-         ser.str(rose_comm.getCommandStr(command))
+    ' Initiate shutdown , provide timeout and restart time in [ms] provide -1 for restart timeout if no restart needed
+    401: ser.str(rose_comm.getCommandStr(command))
+         if rose_comm.nrOfParametersCheck(2)
+           timer.setTimer(SHUTDOWN_TIMER, rose_comm.getParam(1))
+           timer.setTimer(RESTART_TIMER, rose_comm.getParam(2))           
+           ser.str(rose_comm.getDecStr( timer.getTimerSetValue(SHUTDOWN_TIMER) ))   
+           ser.str(rose_comm.getDecStr( timer.getTimerSetValue(RESTART_TIMER) ))
+           
+           ' Start timer, initiate shutdown procedure
+           timer.startTimer(SHUTDOWN_TIMER)
+           timer.startTimer(RESTART_TIMER)      
          ser.str(rose_comm.getEOLStr)
+         
     
     'Enable/disable serial debug mode    
     402: ser.str(rose_comm.getCommandStr(command))
@@ -695,29 +779,20 @@ PRI resetSafety
 
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, ConnectionError, bitvalue
-  resetSafety
-
   ' Main safety loop    
-  repeat
-    SafetyCntr++
+  SafetyCntr++
 
-    '-- Watchdog -- 
-    wd_cnt++
-
-    if wd_cnt > watchdog_treshold    
-      last_alarm := 1
-      no_alarm   := false
-      handleWatchdogError
-      
-    t.Pause1ms(1)
-   
+  '-- Watchdog --
+  if timer.checkTimer(WATCHDOG_TIMER)
+    last_alarm := 1
+    no_alarm   := false
+    handleWatchdogError
        
 ' === Do logic tasks and safety tasks ===
 PRI DoPLC 
+  reset_communication  
+  
   Repeat
-   'Update battery voltages at io_manager with current values
-    io_manager.updateBatteryVoltages(engADCch[cVBAT1], engADCch[cVBAT2], engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
-    
     ' Check safety related values
     if engADCchAVG[cV5V] < c5V
       s5VOK :=0
@@ -739,7 +814,9 @@ PRI DoPLC
       io_manager.requestOkOutputState(0)      
       AllOK:=0
       
-
+    ' Run safety routines
+    DoSafety
+    
     PlcCnt++
     
     
@@ -801,44 +878,6 @@ PRI ReportMIN | i
     ser.tx(",")  
     ser.tx(CR)  
 
-PRI ReportLabels
-    ser.str(string("Labels,"))   ' Parameter name
-    ser.dec(NCh)                   ' Number of values
-    ser.tx(",")  
-    ser.str(@s_NTC)
-    ser.tx(",")  
-    ser.str(@s_NC)
-    ser.tx(",")  
-    ser.str(@s_Vcontrol)
-    ser.tx(",")  
-    ser.str(@s_iAux)
-    ser.tx(",")  
-    ser.str(@s_iDrive2)
-    ser.tx(",")  
-    ser.str(@s_iDrive1)
-    ser.tx(",")  
-    ser.str(@s_ipc2)
-    ser.tx(",")  
-    ser.str(@s_ipc1)
-    ser.tx(",")  
-    ser.str(@s_iControl)
-    ser.tx(",")  
-    ser.str(@s_ibat2)
-    ser.tx(",")  
-    ser.str(@s_ibat1)
-    ser.tx(",")  
-    ser.str(@s_V24b)     
-    ser.tx(",")  
-    ser.str(@s_vbat1)
-    ser.tx(",")  
-    ser.str(@s_vbat2)
-    ser.tx(",")  
-    ser.str(@s_3V3)             
-    ser.tx(",")  
-    ser.str(@s_5V)
-    ser.tx(",")  
-    ser.tx(CR)  
-
 ' ------------------------ Show debug output -----------------------------
 PRI DoDisplay  | i
     repeat 
@@ -858,20 +897,16 @@ PRI DoDisplay  | i
         
         ser.str(string(" Selected Battery: "))
         ser.dec(io_manager.getActiveBattery)
-        
-        ser.str(string(" time since battery switch: "))
-        ser.dec(io_manager.getOneMScounter - io_manager.getBatterySwitchTime)
-        ser.str(string("ms "))
-        
+                
         ser.tx(CR)
-        ser.str(string(" oneMScounter: "))
-        ser.dec(io_manager.getOneMScounter)
-        ser.str(string("ms "))
         ser.str(string(" LedIntervalTimer: "))
-        ser.dec(io_manager.getLedIntervalTimer)
+        ser.dec(timer.getTimer(LED_TIMER))
         ser.str(string("ms "))
         ser.str(string(" AlarmIntervalTimer: "))
-        ser.dec(io_manager.getAlarmIntervalTimer)
+        ser.dec(timer.getTimer(ALARM_TIMER))
+        ser.str(string("ms "))
+        ser.str(string(" SwitchTimer: "))
+        ser.dec(timer.getTimer(SWITCH_TIMER))
         ser.str(string("ms "))
         
         ser.tx(CR)
@@ -1024,12 +1059,6 @@ PRI DoDisplay  | i
         ser.tx(" ")
         ser.str(string(" ADC cnt: "))
         ser.dec(ADCCnt)
-        ser.str(string(" Scaling time: "))
-        ser.dec(ScalingTime)
-        ser.tx(" ")
-        ser.str(string(" Scaling cnt: "))
-        ser.dec(ScalingCnt)
-        ser.tx(" ")
         ser.str(string(" PLC cnt: "))
         ser.dec(PLCCnt)
         ser.tx(" ")
@@ -1068,6 +1097,7 @@ PRI DoDisplay  | i
 
 ' Display IO status on screen
 PRI DisplayIO
+
   ser.tx(cr)
   ser.str(string("    "))
   ser.str(@s_CON)
@@ -1100,27 +1130,6 @@ PRI DisplayIO
   ser.tx(cr)
   ser.tx(ce)
 
-
-'Measure ADC channels. 
-{PRI DoADC | i, j, T1
-
-   repeat
-     T1:=cnt
-
-     i:=0
-     j:=0
-     repeat 8 ' NCh
-       ADCRaw[i]:= ADC1.in(i)      
-       ADCRawAVG[i]:= (ADCRawAVG[i] *9 + ADCRaw[i] )/10
-       ADCRawMIN[i] <#= ADCRawAVG[i]         'save min value
-       ADCRawMAX[i] #>= ADCRawAVG[i]         'save max value
-       i++
-       j++
-
-     ADCCnt++
-        
-     ADCTime:=(CNT-T1)/80   }
-  
 'MeasureADC channels.
 PRI DoADC | i, T1
 
@@ -1141,53 +1150,51 @@ PRI DoADC | i, T1
   Scale[13]:= mVBat             ' V24b
   Scale[14]:= 1.0               ' V3V3
   Scale[15]:= 2.05              ' V5V
-   
+                                 
+  ' Reset all min/max values
+  resetAllADCVals
+ 
   ' Pre-set AVG value with one measurement
+  i := 0
   repeat NCh
-    if i<8
-      ADCRaw[i] := ADC.in(i,chip1)       ' First 8 channels from ADC1 
+    if i < 8
+      ADCRaw[i] := ADC.in(i, chip1)       ' First 8 channels from ADC1 
     else
-      ADCRaw[i] := ADC.in(i-8,chip2)     ' And next 8 from ADC2  
+      ADCRaw[i] := ADC.in(i - 8, chip2)     ' And next 8 from ADC2  
     ADCRawAVG[i] := ADCRaw[i]
+    i++
   
   repeat
-     T1:=cnt
-     i:=0
+     T1 := cnt
+     i  := 0
      repeat NCh
-       if i<8
-         ADCRaw[i]:= ADC.in(i,chip1)       ' First 8 channels from ADC1 
+       if i < 8
+         ADCRaw[i] := ADC.in(i,chip1)       ' First 8 channels from ADC1 
        else
-         ADCRaw[i]:= ADC.in(i-8,chip2)     ' And next 8 from ADC2  
+         ADCRaw[i] := ADC.in(i-8,chip2)     ' And next 8 from ADC2  
        
-       ADCRawAVG[i]:= (ADCRawAVG[i] *(averaging_samples - 1) +  ADCRaw[i] )/averaging_samples
+       ADCRawAVG[i]  := (ADCRawAVG[i] *(averaging_samples - 1) +  ADCRaw[i] )/averaging_samples
        ADCRawMIN[i] <#= ADCRaw[i]            'save min value
        ADCRawMAX[i] #>= ADCRaw[i]            'save max value
+           
+       ' Do scaling
+       ADCch[i]   := f.fround(f.fmul(f.Ffloat(ADCRaw[i]), cADCbits2mV)) 'Calculate mV
+       ADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCRawAVG[i]), cADCbits2mV)) 'Calculate mV
+       ADCchMax[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMax[i]), cADCbits2mV)) 'Calculate mV
+       ADCchMin[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMin[i]), cADCbits2mV)) 'Calculate mV
+
+       engADCch[i]   := f.fround(f.fmul(f.Ffloat(ADCch[i]), Scale[i])) 'Calculate RAW mV
+       engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate AVG mV
+       engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i])) 'Calculate MAX mV
+       engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i])) 'Calculate MIN mV
        i++
        
-     ' Do scaling from counts to engineering values * 1000
-     DoADCScaling
+     ' Update battery voltages at io_manager with current values
+     io_manager.updateBatteryVoltages(engADCch[cVBAT1], engADCch[cVBAT2], engADCchAVG[cVBAT1], engADCchAVG[cVBAT2])    
 
      ADCCnt++        
      ADCTime:=(CNT-T1)/80
 
-' Do scaling from counts to engineering values * 1000
-PRI DoADCScaling | T1, i
-    T1:=cnt
-    i:=0
-    Repeat NCh
-      ADCch[i]:= f.fround(f.fmul(f.Ffloat(ADCRaw[i]), cADCbits2mV)) 'Calculate mV
-      ADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCRawAVG[i]), cADCbits2mV)) 'Calculate mV
-      ADCchMax[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMax[i]), cADCbits2mV)) 'Calculate mV
-      ADCchMin[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMin[i]), cADCbits2mV)) 'Calculate mV
-
-      engADCch[i]:= f.fround(f.fmul(f.Ffloat(ADCch[i]), Scale[i])) 'Calculate RAW mV
-      engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i])) 'Calculate AVG mV
-      engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i])) 'Calculate MAX mV
-      engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i])) 'Calculate MIN mV
-      i++
-      
-    ScalingCnt++
-    ScalingTime:=(CNT-T1)/80
 
 ' Symbols      
 DAT
