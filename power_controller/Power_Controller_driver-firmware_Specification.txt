@@ -55,6 +55,10 @@ Read commands:
 	- Get alarm sound 				: $214 -> bool 							(on/off)
 	- Get alarm sound interval   	: $215 -> int 							(interval [ms])
 	- Get charging voltage  		: $216 -> int 							(charging voltage [mV])
+	- Get shutdown time  			: $217 -> int 							(time)
+	- Get restart time  			: $218 -> int 							(time)
+	- Get set timer value 			: $219, int (timer id) -> int 			(set timer value)
+    - Get current timer value 		: $220, int (timer id) -> int 			(current timer value)
 
 Set commands:
 	- Set auto switch voltage 		: $300, int 							-> int (set switch voltage)
@@ -69,15 +73,15 @@ Set commands:
 	- Set charging voltage 			: $309, int ([mV])						-> int (set charging voltage [mV]) // The value to check if a battery is charging
 
 Other commands:
-	- Enable 					: $400 									-> bool								// Mainly reset's watchdog
-	- Shutdown 					: $401									-> bool (ok/not ok)
-	- Serial debug mode 		: $402, bool (on/off)					-> bool (on/off)
-	- Reset min/max vals		: $403, int (adc 0-15)					-> int (adc 0-15 reset)
-	- Reset all min/max vals	: $404									-> bool (succes)
-	- Select fullest battery	: $405 									-> int (selected battery 0,1,2)		// Selects highest voltage battery
-	- Select battery force 		: $406, int	(battery index)				-> int (selected battery 0,1,2)		// Turn off auto switch mode and force switcht to selected battery
-	- Is battery charging 		: $407, int	(battery index)				-> bool (charging or not)
-	- Store EEPROM default output state : $408, int, bool (output nr 1-6, state) -> int,bool (output nr 1-6, state)
-	- Get EEPROM default output state  	: $409, int, bool (output nr 1-6, state) -> int,bool (output nr 1-6, state)
+	- Enable 					: $400 												-> bool								// Mainly reset's watchdog
+	- Shutdown 					: $401, 2x int (shutdown timeout, restart timeout) 	-> 2x int (set vals) 				// Initiate shutdown , provide timeout and restart time in [ms] provide -1 for restart timeout if no restart needed
+	- Serial debug mode 		: $402, bool (on/off)								-> bool (on/off)
+	- Reset min/max vals		: $403, int (adc 0-15)								-> int (adc 0-15 reset)
+	- Reset all min/max vals	: $404												-> bool (succes)
+	- Select fullest battery	: $405 												-> int (selected battery 0,1,2)		// Selects highest voltage battery
+	- Select battery force 		: $406, int	(battery index)							-> int (selected battery 0,1,2)		// Turn off auto switch mode and force switcht to selected battery
+	- Is battery charging 		: $407, int	(battery index)							-> bool (charging or not)
+	- Store EEPROM default output state : $408, int, bool (output nr 1-6, state) 	-> int,bool (output nr 1-6, state)
+	- Get EEPROM default output state  	: $409, int, bool (output nr 1-6, state) 	-> int,bool (output nr 1-6, state)
 
 Bij opstarten de PC aan die de controle neemt over de power controller, PC1.
