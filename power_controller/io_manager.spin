@@ -155,11 +155,9 @@ PRI initialize | i
   ' Reset switch states
   i := 0
   repeat n_switches
-    switch_state[i] := false
-    default_output[i++] := false
-    
-  
-    
+    switch_state[i++] := false
+    'default_output[i++] := false  DO NOT DO THIS BECAUSE THIS WILL OVERWRITE THE VALUES STORED USING VarBackup
+ 
   sound.init(BUZZ)
    
   ' Timers
@@ -167,10 +165,6 @@ PRI initialize | i
   repeat while not timer.isMemorySet
   timer.setTimer(SWITCH_TIMER, default_auto_battery_switch_timeout)
   timer.startTimer(SWITCH_TIMER)
-  
-  ' Placing this before the prev wait (timer.isMemorySet) causes FREEZE!
-  loadDefaultOutputsFromEEPROM
-
     
 PUB updateBatteryVoltages(v1_raw, v2_raw, v1_avg, v2_avg)
   v_bat1_raw              := v1_raw
@@ -392,12 +386,13 @@ PUB turnOnDefaultOuputs | i
 PUB setDefaultOutput(i, state) ' 1-6
   i := i - 1
   default_output[i] := state
-  eeprom.FromRam(@default_output[0], @default_output[n_switches], $7000)
+  eeprom.VarBackup(@default_output, @default_output + n_switches)
   return default_output[i]
   
 PRI loadDefaultOutputsFromEEPROM
   'Restore a previous snapshot of variables in main RAM.
-  eeprom.ToRam(@default_output[0], @default_output[n_switches], $7000)
+  'eeprom.VarRestore(@default_output, @default_output + n_switches)
+  ' FOR SOME REASON THIS DOES NOT, I REPEATED, NOT WORK
     
 PUB getDefaultOutput(i) ' 1-6
   i := i - 1
