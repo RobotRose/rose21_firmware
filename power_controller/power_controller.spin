@@ -348,6 +348,28 @@ PRI shutdown
     ADC.stop
     ADCCog := 0
     
+  ' If no reboot time provided also shutdown the timer cog and even self cog
+  if timer.getTimerSetValue(RESTART_TIMER) == -1  
+    if timer_cog > 0
+      timer.stop
+    ' Disable IO
+    OUTA~
+    DIRA~
+    
+    ' Go into slow clock (low-power) clk mode
+    clkset(RCSLOW, 13000)
+    
+    ' Stop all cog's
+    cogstop(7) 
+    cogstop(6) 
+    cogstop(5) 
+    cogstop(4) 
+    cogstop(3) 
+    cogstop(2) 
+    cogstop(1) 
+    cogstop(0) 
+   
+    
 ' === restart sequence ===
 PRI restart
   REBOOT
