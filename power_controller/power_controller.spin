@@ -477,7 +477,7 @@ PRI DoCommand | i, command
     ' === Set watchdog timer ==         
     112: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(1)
-           timer.setTimer(WATCHDOG_TIMER, 0 #> rose_comm.getParam(1))
+           timer.setTimer(WATCHDOG_TIMER, rose_comm.getParam(1))
            ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
          ser.str(rose_comm.getEOLStr) 
     

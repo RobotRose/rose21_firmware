@@ -106,9 +106,9 @@ PRI updateTimers | t1, clk_cycles, i
     
 PUB setTimer(i, delay)
   if i => 0 AND i < nr_timers
-    long[timer_value_address][i] := delay
+    long[timer_value_address][i] := 0 #> delay <# 2_147_483_647
     return true
-
+    
   return false
   
 ' Get the actual counting down value
