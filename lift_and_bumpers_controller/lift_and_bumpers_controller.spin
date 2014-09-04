@@ -132,6 +132,11 @@ CON
   averaging_samples = 40      ' Number of samples to average the ADC values with    
   averaging_samples_motor = 4 ' Number of samples to average the ADC values with   
 
+  ' Timers
+  nr_timers       = 2
+  LED_TIMER       = 0
+  WATCHDOG_TIMER  = 1
+  
 OBJ
   ADC           : "MCP3208_fast"                       ' ADC
   ser           : "full_duplex_serial_005"             ' Full duplex serial communication 
@@ -141,16 +146,22 @@ OBJ
   num           : "simple_numbers"                     ' Number to string conversion
   f             : "FloatMath1_1"                       ' Floating point library
   rose_comm     : "rose_communication"                 ' Rose communication framework
+  timer         : "timer"
   
 VAR
-  long ADCCog, PWMCog, ADCMCog, ADCStack[50], LinMotCog, LinMotStack[50], PLCCog, PLCStack[50], DebugCog, DebugStack[50], SafetyCog, SafetyStack[50], serial_cog
-  long MaxCh, ADCTime, ADCCnt, DoMotorCnt, PlcCnt
+  ' Timers
+  long timer_current[nr_timers]
+  long timer_set_value[nr_timers]
+  byte timer_running[nr_timers]
+  
+  long timer_cog, ADCCog, PWMCog, ADCStack[50], LinMotCog, LinMotStack[50], PLCCog, PLCStack[50], DebugCog, DebugStack[50], serial_cog
+  long MaxCh, DoMotorCnt
 
   long ADCRaw[NCh], ADCRawMin[NCh], ADCRawAVG[NCh], ADCRawMax[NCh]         ' Bits
   long ADCch[NCh], ADCchAVG[NCh], ADCchMAX[NCh], ADCchMIN[NCh]             ' Volt
   long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
   long ADCConvCog
-  long Scale[Nch], ScalingCnt, ScalingTime  ' array with scaling factors
+  long Scale[Nch] ' array with scaling factors
   
   ' Motor control
   long lift_motor_setpoint, MoveDir
@@ -172,23 +183,13 @@ VAR
   ' Button state
   long Button1
   
-  ' Timers
-  long timer_cnt
-  long led_interval_timer
-  long oneMScounter
-  
   ' Safety
   byte AllVOK, s5VOK, s3V3OK, sVInOK
   byte no_alarm
   long last_alarm
   
   ' Watchdog
-  long received_wd
-  long expected_wd 
-  long wd
-  long wd_cnt
-  long wd_cnt_threshold
-  
+  long received_wd, expected_wd, wd
   
   ' Controller state
   byte controller_enabled
@@ -214,9 +215,8 @@ PUB Main | T1, NewCh
       ser.char(CR)
       
     ' Indicate that the main loop is running   
-    if led_interval_timer => main_led_interval
+    if timer.checkAndResetTimer(LED_TIMER)
       !OUTA[Led]
-      led_interval_timer := 0
 
 PRI displayCommand | i
   ser.str(string("["))
@@ -231,7 +231,13 @@ PRI displayCommand | i
       ser.str(string(", "))
     
   ser.str(string("]"))
+
+PRI setupTimers
+  timer.setTimer(LED_TIMER, main_led_interval)
+  timer.startTimer(LED_TIMER)
   
+  return true
+    
 PRI Init
   DirA[Led] ~~                              ' Set led pin as output
   OUTA[Led] := 1                            ' Turn on the led
@@ -254,6 +260,17 @@ PRI Init
   rose_comm.initialize
   repeat while not rose_comm.isInitialized
   
+  if DebugCog > 0
+    cogstop(DebugCog~ - 1)  
+  DebugCog := CogNew(DoDisplay, @DebugStack) + 1
+  
+  if DebugCog
+    ser.str(string("Started DebugCog("))
+    ser.dec(DebugCog)
+    ser.str(string(")", CR))
+  else
+    ser.str(string("Unable to start DebugCog", CR))
+    
   if ADCCog > 0
     cogstop(ADCCog~ - 1)
   ADCCog := ADC.Start(dpin1, cpin1, spin1,Mode1) ' Start ADC low level
@@ -266,38 +283,28 @@ PRI Init
   else
     ser.str(string("Unable to start ADCCog", CR))
     
-  if DebugCog > 0
-    cogstop(DebugCog~ - 1)  
-  DebugCog := CogNew(DoDisplay, @DebugStack) + 1
+ 
+  ' Start Timer cog
+  if timer_cog > 0
+    timer.stop 
+  timer_cog := timer.start(@timer_current, @timer_set_value, @timer_running, nr_timers)
   
-  if DebugCog
-    ser.str(string("Started DebugCog("))
-    ser.dec(DebugCog)
+  ' Wait for the timer cog to have initialized the memory
+  repeat while not timer.isReady
+  
+  ' Setup the timers
+  setupTimers
+  
+  if PLCcog > 0
+    cogstop(PLCcog~ - 1)  
+  PLCcog := CogNew(DoPLC, @PLCstack) + 1
+  
+  if PLCcog
+    ser.str(string("Started PLCcog("))
+    ser.dec(PLCcog)
     ser.str(string(")", CR))
   else
-    ser.str(string("Unable to start DebugCog", CR))
-   
-  if ADCMCog > 0
-    cogstop(ADCMCog~ - 1)
-  ADCMCog:=cognew(DoADC, @ADCStack)                 ' Start Measurement cog
-  
-  if ADCMCog
-    ser.str(string("Started ADCMCog("))
-    ser.dec(ADCMCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start ADCMCog", CR))
-    
-  if SafetyCog > 0
-    cogstop(SafetyCog~ - 1)  
-  SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
-  
-  if SafetyCog
-    ser.str(string("Started SafetyCog("))
-    ser.dec(SafetyCog)
-    ser.str(string(")", CR))
-  else
-    ser.str(string("Unable to start SafetyCog", CR))
+    ser.str(string("Unable to start PLCcog", CR))
     
   if PwmCog > 0
     cogstop(PwmCog~ - 1)  
@@ -313,7 +320,7 @@ PRI Init
 
   if LinMotCog > 0
     cogstop(LinMotCog~ - 1) 
-  LinMotCog := cognew(Do_Motor, @LinMotStack)       ' Start Lin motor controller
+  LinMotCog := cognew(Do_Motor, @LinMotStack) + 1       ' Start Lin motor controller
                                                    
   if LinMotCog
     ser.str(string("Started LinMotCog("))
@@ -332,12 +339,11 @@ PRI toggleControllerState(enable)
 
 '=== Init Watchdog ===
 PRI InitWatchDog
-  ' Error tresholds (timing 1 count is 1*ms) default values
-  wd_cnt_threshold  := 1000 
-  received_wd       := 0 
+  timer.setTimer(WATCHDOG_TIMER, 4000)
+  timer.startTimer(WATCHDOG_TIMER)
+  received_wd       := 0   
   expected_wd       := 0                     
   wd                := 0
-  wd_cnt            := 0
 
 PRI handleWatchdogError | i
   if last_alarm == 0
@@ -378,109 +384,12 @@ PRI setAlarm(new_alarm_number) | changed_alarm
   last_alarm             := new_alarm_number  
   return changed_alarm
       
-' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
-  DIRA[pButton1] := 0     ' Set button as input  
-  resetSafety
-  resetVoltageSafety 
-  
-  timer_cnt     := cnt
-  oneMScounter  := 0
-  
-  ' Main safety loop    
-  repeat
-    DoPLC
-    
-    '-- Watchdog @ 1ms -- 
-    if oneMScounter > prev_oneMScounter
-      wd_cnt++
-      prev_oneMScounter := oneMScounter
-
-    if wd_cnt > wd_cnt_threshold    
-      handleWatchdogError
-      
-    ' Voltages   
-    if engADCchAVG[V5V] < c5V
-      s5VOK  := false
-
-    if engADCchAVG[V3V3] < c3V3
-      s3V3OK := false
-
-    if engADCchAVG[Vin] < cVin
-      sVinOK := false
-      
-    AllVOK := s5VOK AND s3V3OK AND sVinOK
-      
-    
-    
 ' === Do logic tasks and safety tasks ===
 PRI DoPLC
-  ' Forward emergency   
-  If GetEMERin AND AllVOK ' Process emergency alarms to OK output
-    SetOK(true)
-  else
-    SetOK(false)
-
-  ' Read the button input state
-  Button1 := GetButton
-  if Button1
-    button_enable_override := true
-    resetVoltageSafety                      ' Try really hard
-    setMotorSpeedPercentage(50)            ' Set speed
-    setMotorSetpoint(retract_position)
-
-  ' Timers
-  if ||(cnt - timer_cnt) => (clkfreq/1000)
-    oneMScounter++
-    led_interval_timer++
-    timer_cnt := cnt
-    
-  PlcCnt++
-
-' === Reset AllMin Max values of specific ADC channel === 
-PRI resetAllADCVals | ii
-    ii:=0
-    repeat NCh 
-     resetADCVals(ii++)
-    
-' === Reset Min Max values of specific ADC channel === 
-PRI resetADCVals(i)
-    if i => 0 and i =< NCh
-      ADCRawMIN[i]:=999999
-      ADCRawMAX[i]:=0
-      ADCRawAVG[i]:=0
-      return i
-    else 
-      return -1 
-               
-'Measuring cog. Runs continuously
-PRI DoADC  | i, T1
-   repeat
-     T1 :=cnt
-
-     i := 0
-     repeat NCh
-       case i
-         5:          ' Motor pos ADC uses other moving average filter
-           ADCRaw[i]    := ADC.in(i)
-           ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples_motor - 1) + ADCRaw[i]) / (averaging_samples_motor)
-           ADCRawMax[i] #>= ADCRaw[i]               'save max value
-           ADCRawMIN[i] <#= ADCRaw[i]               'save min value
-         other:     ' Other ADC's
-           ADCRaw[i]    := ADC.in(i)
-           ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples - 1) + ADCRaw[i]) / (averaging_samples)
-           ADCRawMax[i] #>= ADCRaw[i]               'save max value
-           ADCRawMIN[i] <#= ADCRaw[i]               'save min value
-       i++
-       
-     ADCCnt++
-        
-     ADCTime:=(CNT-T1)/80
-     
-     DoADCScaling
-
-PRI DoADCScaling | T1, i
-  T1 := cnt
+  DIRA[pButton1] := 0     ' Set button as input  
+  resetSafety
+  resetVoltageSafety
+  InitWatchDog
   
   ' Fill calibration table
   Scale[0]:= V5VFactor          ' 5V
@@ -490,12 +399,43 @@ PRI DoADCScaling | T1, i
   Scale[4]:= sVin               ' Vin
   Scale[5]:= 1.0                ' FBPM
   Scale[6]:= 1.0                ' POTM1
-  Scale[7]:= 1.0              ' POTM2
+  Scale[7]:= 1.0                ' POTM2  
+  
+  repeat
+    DoADC
+    DoSafety
+    
+    ' Forward emergency   
+    If GetEMERin AND AllVOK ' Process emergency alarms to OK output
+      SetOK(true)
+    else
+      SetOK(false)
+  
+    ' Read the button input state
+    Button1 := GetButton
+    if Button1
+      button_enable_override := true
+      resetVoltageSafety                      ' Try really hard
+      setMotorSpeedPercentage(50)            ' Set speed
+      setMotorSetpoint(retract_position)
 
-  i:=0
-  Repeat NCh
-    ADCch[i]:= f.fround(f.fmul(f.Ffloat(ADCRaw[i]), cADCbits2mV))       'Calculate mV
-
+'Measuring cog. Rs continuously
+PRI DoADC  | i
+  i := 0
+  repeat NCh
+    case i
+      5:          ' Motor pos ADC uses other moving average filter
+        ADCRaw[i]    := ADC.in(i)
+        ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples_motor - 1) + ADCRaw[i]) / (averaging_samples_motor)
+        ADCRawMax[i] #>= ADCRaw[i]               'save max value
+        ADCRawMIN[i] <#= ADCRaw[i]               'save min value
+      other:     ' Other ADC's
+        ADCRaw[i]    := ADC.in(i)
+        ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples - 1) + ADCRaw[i]) / (averaging_samples)
+        ADCRawMax[i] #>= ADCRaw[i]               'save max value
+        ADCRawMIN[i] <#= ADCRaw[i]               'save min value
+     
+    ADCch[i]   := f.fround(f.fmul(f.Ffloat(ADCRaw[i]), cADCbits2mV))       'Calculate mV
     ADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCRawAVG[i]), cADCbits2mV)) 'Calculate mV
     ADCchMax[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMax[i]), cADCbits2mV)) 'Calculate mV
     ADCchMin[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMin[i]), cADCbits2mV)) 'Calculate mV
@@ -513,9 +453,43 @@ PRI DoADCScaling | T1, i
         engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i]))  'Calculate MAX mV
         engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i]))  'Calculate MIN mV  
     i++
+
+
+' === Reset AllMin Max values of specific ADC channel === 
+PRI resetAllADCVals | ii
+    ii:=0
+    repeat NCh 
+      resetADCVals(ii++)
     
-  ScalingCnt++
-  ScalingTime:=(CNT-T1)/80
+' === Reset Min Max values of specific ADC channel === 
+PRI resetADCVals(i)
+    if i => 0 and i =< NCh
+      ADCRawMIN[i]:=999999
+      ADCRawMAX[i]:=0
+      ADCRawAVG[i]:=0
+      return i
+    else 
+      return -1 
+
+' ---------------- Check safety of platform and put in safe condition when needed ---------
+PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
+
+  '-- Watchdog --
+  if timer.checkTimer(WATCHDOG_TIMER)
+    handleWatchdogError
+    
+  ' Voltages   
+  if engADCchAVG[V5V] < c5V
+    s5VOK  := false
+
+  if engADCchAVG[V3V3] < c3V3
+    s3V3OK := false
+
+  if engADCchAVG[Vin] < cVin
+    sVinOK := false
+    
+  AllVOK := s5VOK AND s3V3OK AND sVinOK
+      
 
 ' === Handle command string received from client ===
 PRI DoCommand | i, command
@@ -524,28 +498,31 @@ PRI DoCommand | i, command
 
     Case command
         '== Default 100 range communication ===
-        '--- Communicate controller id ---
-        100 : ser.str(rose_comm.getCommandStr(command))
-              ser.str(rose_comm.getDecStr(CONTROLLER_ID))
-              ser.str(rose_comm.getEOLStr) 
-        '--- Communicate software version ---
-        101 : ser.str(rose_comm.getCommandStr(command))
-              ser.str(rose_comm.getDecStr(major_version))
-              ser.str(rose_comm.getDecStr(minor_version))
-              ser.str(rose_comm.getEOLStr) 
-        '--- WATCHDOG ---
+        ' === Default 100 range communication ===
+        ' === Communicate controller id ===
+        100: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(CONTROLLER_ID))
+             ser.str(rose_comm.getEOLStr) 
+        
+        ' === Communicate software version ===
+        101: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(major_version))
+             ser.str(rose_comm.getDecStr(minor_version))
+             ser.str(rose_comm.getEOLStr) 
+        
+        ' === WATCHDOG ===
         111: received_wd := rose_comm.getParam(1)
              ser.str(rose_comm.getCommandStr(command))
              ' Check value
              if received_wd <> expected_wd
                 handleWatchdogError
                 ser.str(rose_comm.getDecStr(-1))
-                ser.str(rose_comm.getDecStr(wd_cnt))
+                ser.str(rose_comm.getDecStr(timer.getTimer(WATCHDOG_TIMER)))
                 ser.str(rose_comm.getDecStr(received_wd))
                 ser.str(rose_comm.getDecStr(expected_wd))                
              else    
                 ser.str(rose_comm.getDecStr(wd))
-                ser.str(rose_comm.getDecStr(wd_cnt))
+                ser.str(rose_comm.getDecStr(timer.getTimer(WATCHDOG_TIMER)))
                 ser.str(rose_comm.getDecStr(received_wd))
                 ser.str(rose_comm.getDecStr(expected_wd))
                 if expected_wd == 1
@@ -558,9 +535,22 @@ PRI DoCommand | i, command
                 else
                    wd := 1                                 
              
-                'Reset the watchdog counter
-                wd_cnt := 0 
-             ser.str(rose_comm.getEOLStr)  
+                'Reset the watchdog timer
+                timer.resetTimer(WATCHDOG_TIMER)
+             ser.str(rose_comm.getEOLStr)    
+             
+        ' === Set watchdog timer ==         
+        112: ser.str(rose_comm.getCommandStr(command))
+             if rose_comm.nrOfParametersCheck(1)
+               timer.setTimer(WATCHDOG_TIMER, rose_comm.getParam(1))
+               ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
+             ser.str(rose_comm.getEOLStr) 
+        
+        ' === Get watchdog timer ==        
+        113: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
+             ser.str(rose_comm.getEOLStr) 
+               
         ' Get bumper states        
         200: ser.str(rose_comm.getCommandStr(command))
              i := 1
@@ -620,6 +610,9 @@ PRI DoCommand | i, command
              ser.str(rose_comm.getEOLStr)
         ' Get integrated current TODO NOT IMPLEMENTED 
         208: ser.str(rose_comm.getCommandStr(command))
+             repeat NCh
+               ser.str(rose_comm.getDecStr(-1))
+               ser.str(rose_comm.getDecStr(-1))  
              ser.str(rose_comm.getEOLStr)
         ' Get current lift motor position error
         209: ser.str(rose_comm.getCommandStr(command))
@@ -628,10 +621,6 @@ PRI DoCommand | i, command
         ' Get lift motor position    
         210: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getDecStr(getMotorPos)) 
-             ser.str(rose_comm.getEOLStr)
-        ' Get watchdog treshold
-        211: ser.str(rose_comm.getCommandStr(command))
-             ser.str(rose_comm.getDecStr(wd_cnt_threshold))
              ser.str(rose_comm.getEOLStr)
         ' Is lift in position
         212: ser.str(rose_comm.getCommandStr(command))
@@ -691,13 +680,7 @@ PRI DoCommand | i, command
                max_motor_speed := rose_comm.getParam(2)
                ser.str(rose_comm.getDecStr(min_motor_speed)) 
                ser.str(rose_comm.getDecStr(max_motor_speed)) 
-             ser.str(rose_comm.getEOLStr) 
-        ' Set watchdog treshold
-        304: ser.str(rose_comm.getCommandStr(command)) 
-             if rose_comm.nrOfParametersCheck(1)
-               wd_cnt_threshold := rose_comm.getParam(1)
-               ser.str(rose_comm.getDecStr(wd_cnt_threshold))
-             ser.str(rose_comm.getEOLStr)         
+             ser.str(rose_comm.getEOLStr)        
              
         ' === Other commands ===
         ' Enable or disable the lift controller
@@ -738,7 +721,10 @@ PRI DoCommand | i, command
         407: ser.str(rose_comm.getCommandStr(command)) 
              resetCommunication
              ser.str(rose_comm.getEOLStr)        
-      
+        other:
+             ser.str(rose_comm.getUnkownCommandStr)
+             ser.str(rose_comm.getDecStr(command))
+             ser.str(rose_comm.getEOLStr)
 
 ' === Motor drive controller ===
 CON
@@ -825,7 +811,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
     InPos           := || (PosError) < InPosWindow                     ' Check is moto  r is in position
   
     ' Is error within hysteresis
-    if (PosError > -Hyst) AND (PosError < Hyst) AND MoveDir <> 0
+    if (PosError > -Hyst) AND (PosError < Hyst) AND MoveDir <> 0 AND current_duty_cycle < 10
       MoveDir                := 0
       current_duty_cycle     := 0       ' Always reset duty cycle when changing direction
       OUTA[sINA]             := 0   
@@ -856,10 +842,10 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       if (cnt - T2) > ramp_period_cycles
         T2 := cnt
         if current_duty_cycle < || wanted_motor_speed
-          current_duty_cycle++
+          current_duty_cycle := current_duty_cycle + 5
         
         if current_duty_cycle > || wanted_motor_speed
-          current_duty_cycle := || wanted_motor_speed
+          current_duty_cycle := current_duty_cycle - 5 ' := || wanted_motor_speed
         
       ' Set duty cycle
       'if button_enable_override   ' Move only when all is OK or button override
@@ -974,7 +960,12 @@ PRI DoDisplay |   i
      '  s_FBPM Byte "FBPM",0                 'ch5
      '  s_POTM1 Byte "POTM1",0               'ch6
      '  s_POTM2 Byte "POTM2",0               'ch7
-  
+
+      ser.char(CR)
+      ser.str(string("WD timer: "))
+      ser.dec(timer.getTimer(WATCHDOG_TIMER))
+      ser.char(CR)
+      
       ser.tx(CR)
       ser.str(string("        "))
       ser.str(@s_V5V)
@@ -985,6 +976,7 @@ PRI DoDisplay |   i
       ser.str(@s_FBPM)
       ser.str(@s_Potm1)
       ser.str(@s_Potm2)
+      
       
       ser.tx(CR)
       ser.str(string("  ADCRaw:"))
@@ -1101,20 +1093,9 @@ PRI DoDisplay |   i
   
       ser.tx(CR)
       ser.tx(CR)
-      ser.str(string("ADC time: "))
-      ser.dec(ADCTime)  
-      ser.tx(" ")
-      ser.str(string(" ADC cnt: "))
-      ser.dec(ADCCnt)   
+      ser.tx(" ") 
       ser.str(string(" DoMotor cnt: "))
-      ser.dec(DoMotorCnt)   
-      ser.str(string(" PLC cnt: "))
-      ser.dec(PLCCnt)   
-      ser.str(string(" Scaling time: "))
-      ser.dec(ScalingTime)
-      ser.tx(" ")
-      ser.str(string(" Scaling cnt: "))
-      ser.dec(ScalingCnt)
+      ser.dec(DoMotorCnt)    
       ser.tx(cr)
       ser.tx(ce)
   

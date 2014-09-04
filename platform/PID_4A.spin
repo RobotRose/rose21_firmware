@@ -30,9 +30,8 @@
 }
 CON
 
-
-  PIDLed = 27         'PID test led
-
+  FIRMWARE_VERSION = 60
+  
   PIDCnt = 8          'Max PID loop count
 
   _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -168,9 +167,6 @@ PUB Stop
 ' ----------------  PID loop ---------------------------------------
 PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address ' Cycle runs every Period ms
 
-    'Set I/O pin for LED to output
-    dira[PIDLed]~~      
-
     Period              := 1 #> Period <# 1000000   'Limit PID period 
     PIDStatus           := 1
     
@@ -195,7 +191,10 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
       vel_filter_index[i]   := 0                            ' Index of MAF
       repeat j from 0 to vel_filter_size
         ActVelFilter[i*vel_filter_size + j] := 0            ' Values of MAF
-
+      lActPos[i]            := 0
+      lActVelPos[i]         := 0
+      Setp[i]               := 0
+      
     ResetAllFETrip
     ResetCurrentStatus
 
@@ -203,8 +202,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
     T1          := Cnt
     Tspeed      := Cnt
 
-    !outa[PIDLed]                        ' Toggle I/O Pin for debug
-                                         
+                                 
     PIDStatus := 3                       ' PID running      
 
     Repeat                               ' Main PID loop
@@ -389,7 +387,6 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         enc_clk_prev    := enc_clk
         enc_clk         := cnt
         enc_semaphore   := TRUE
-        !outa[PIDLed]                    'Toggle I/O Pin for debug      
 
       PIDCntr++                                         'Update PIDCounter               
       PIDTime       := (Cnt-T1)/80000                   'Measure actual loop time in [ms] 
@@ -604,11 +601,11 @@ PUB GetActVel(i)
 ' ---------------------   Return Set Velocity Cnts/sec -----------------------------
 PUB GetSetVel(i)
   i:= 0 #> i <# PIDMax
-Return SetVel[i]
+  return SetVel[i]
 ' ---------------------  Return Position in cnts -----------------------------
 PUB GetActPos(i)
   i:= 0 #> i <# PIDMax
-Return lActPos[i]
+  return lActPos[i]
 
 ' ---------------------  Return Encoder Position in cnts -----------------------------
 PUB GetActEncPos(i)

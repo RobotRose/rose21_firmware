@@ -73,7 +73,7 @@ PUB start(base, mask, freq)
   fcb[2] := constant(1 << 29 | 1 << 28) | base << 6 | mask
   fcb[3] := pinmask
   fcb[4] := @pwmdata
-  cogno := cognew(@pwm, @fcb)' + 1
+  cogno := cognew(@pwm, @fcb) + 1
   return cogno
 
 PUB stop

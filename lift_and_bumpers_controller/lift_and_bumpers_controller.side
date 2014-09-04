@@ -9,4 +9,6 @@ STRINGS2hk.spin
 rose_communication.spin
 full_duplex_serial_005.spin
 Timing.spin
+Timing.spin
+timer.spin
 >compiler=SPIN
