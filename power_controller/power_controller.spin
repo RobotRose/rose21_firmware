@@ -48,8 +48,8 @@ CON
    LF = 10
    CS = 0
    CE = 11                 'CE: Clear to End of line
-   TXD = 30 '26 '30
-   RXD = 31 '27 '31
+   TXD = 26 '30
+   RXD = 27 '31
    Baud = 115200
    
    NumWidth = 5            ' Number of positions for debug array display
