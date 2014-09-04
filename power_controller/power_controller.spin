@@ -617,12 +617,7 @@ PRI DoCommand | i, command
     215: ser.str(rose_comm.getCommandStr(command))
          ser.str(rose_comm.getDecStr(timer.getTimerSetValue(ALARM_TIMER)))
          ser.str(rose_comm.getEOLStr)
-         
-    ' Get charging_Vin
-    216: ser.str(rose_comm.getCommandStr(command))
-         ser.str(rose_comm.getDecStr(io_manager.getChargingVin))
-         ser.str(rose_comm.getEOLStr)
-         
+ 
     ' Get shutdown_time
     217: ser.str(rose_comm.getCommandStr(command))
          ser.str(rose_comm.getDecStr(timer.getTimer(SHUTDOWN_TIMER)))
@@ -707,12 +702,6 @@ PRI DoCommand | i, command
            ser.str(rose_comm.getDecStr( timer.getTimerSetValue(ALARM_TIMER) ))
          ser.str(rose_comm.getEOLStr)
 
-    ' Set charging voltage
-    309: ser.str(rose_comm.getCommandStr(command))
-         if rose_comm.nrOfParametersCheck(1)
-           ser.str(rose_comm.getDecStr( io_manager.setChargingVin( rose_comm.getParam(1) ) ))
-         ser.str(rose_comm.getEOLStr)
-
     ' === Other commands ===
     ' Enable/reset watchdog
     400: reset_communication
@@ -765,13 +754,6 @@ PRI DoCommand | i, command
              io_manager.setAutoBatterySelect(false) 
              ser.str(rose_comm.getDecStr( io_manager.requestBattery(rose_comm.getParam(1)) ))
          ser.str(rose_comm.getEOLStr)  
-    
-    ' Is battery charging
-    407: ser.str(rose_comm.getCommandStr(command))
-         if rose_comm.nrOfParametersCheck(1)
-           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) < 3
-             ser.str(rose_comm.getBoolStr( io_manager.isBatteryCharging(rose_comm.getParam(1)) ))
-         ser.str(rose_comm.getEOLStr)     
     
     ' Store a specific default output state in EEPROM (outputs that get automatically turned on at boot or reset)  (output numbers: 1-6)
     408: ser.str(rose_comm.getCommandStr(command))

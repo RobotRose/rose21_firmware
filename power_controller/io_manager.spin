@@ -69,7 +69,6 @@ VAR
   long minimal_Vin               ' Minimal Vin supply
   long warning_Vin               ' Warning supply voltage    
   long switch_Vin                ' Switch supply voltage
-  long charging_Vin              ' Charging supply voltage
                                   
   ' Power outputs
   long switch_state[6]
@@ -151,8 +150,7 @@ PRI initialize | i
   minimal_Vin   := 22000
   warning_Vin   := 24000
   switch_Vin    := 24000
-  charging_Vin  := 27400
-  
+
   ' Reset switch states
   i := 0
   repeat n_switches
@@ -295,9 +293,6 @@ PRI checkBatteriesLow
 PUB isBatteryLow(i)
   return getBatteryVoltageAvg(i) =< warning_Vin
 
-PUB isBatteryCharging(i)
-  return getBatteryVoltageAvg(i) => charging_Vin
-    
 ' === Check if the shutdown voltage is minimally larger that the minimal voltage plus the treshold voltage ===
 ' To account for voltage drop with load
 PRI isBatteryVoltageHysteresisOK(i)   
@@ -602,13 +597,6 @@ PUB setSwitchVin(Vin)
 
 PUB getSwitchVin
   return switch_vin
-  
-PUB setChargingVin(value)
-  charging_Vin := value
-  return charging_Vin
-     
-PUB getChargingVin
-  return charging_Vin
   
 PUB setBatterySwitchSound(state)
   battery_switch_sound := state
