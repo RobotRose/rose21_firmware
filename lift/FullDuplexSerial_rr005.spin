@@ -21,7 +21,7 @@
 
 CON
 
-  bufsiz = 128 '16              'buffer size (16, 32, 64, 128, 256, 512) must be factor of 2, max is 256
+  bufsiz = 256 '16              'buffer size (16, 32, 64, 128, 256, 512) must be factor of 2, max is 256
   bufmsk = bufsiz - 1           'buffer mask used for wrap-around ($00F, $01F, $03F, $07F, $0FF, $1FF)
 
   ''    Control Character Constants
@@ -45,7 +45,6 @@ CON
   TB =  9  ''TB: TaB          
   BS =  8  ''BS: BackSpace          
            
-  BP =  7  ''BP: BeeP speaker 
 
 VAR
 
@@ -128,13 +127,6 @@ PUB rxtime(ms) : rxbyte | t
   t := cnt
   repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq / 1000) > ms
   
-PUB rxtime1(us) : rxbyte | t
-
-'' Wait us microseconds for a byte to be received
-'' returns -1 if no byte received, $00..$FF if byte
-
-  t := cnt
-  repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq) > us
 
 PUB rx : rxbyte
 
@@ -212,32 +204,12 @@ starting at stringptr.  Waits until either full string received, timed out, or m
       NL,-1:quit                                                                'Get chars until NL or -1
   byte[stringptr+(byte[stringptr-1] == NL)]~  
 
-PUB StrInMaxTimeUs(stringptr, maxcount,us)
-{{Receive a string of characters (either carriage return terminated or maxcount in length) and stores it (zero terminated)
-starting at stringptr.  Waits until either full string received, timed out, or maxcount characters received.
-  Parameters:
-    stringptr - pointer to memory in which to store received string characters.
-                Memory reserved must be large enough for all string characters plus a zero terminator (maxcount + 1).
-    maxcount  - maximum length of string to receive, or -1 for unlimited.}}
-    
-  repeat while (maxcount--)                                                     'While maxcount not reached
-    case  (byte[stringptr++] := CharInTimeUs(us))
-      NL,-1:quit                                                                'Get chars until NL or -1
-  byte[stringptr+(byte[stringptr-1] == NL)]~  
-
 PUB CharInTime(ms) : rxbyte | t      
 {{
   Receive byte with timeout
 }}
   t := cnt
   repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq / 1000) > ms
-
-PUB CharInTimeUs(us) : rxbyte | t      
-{{
-  Receive byte with timeout
-}}
-  t := cnt
-  repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq) > us
 
 PUB dec(value) | i, x
 
@@ -288,92 +260,6 @@ PUB StrToDec(stringptr) : value | lChar, index, multiply
     if byte[stringptr] == "-"
        value := - value
 Return Value
-
-PUB Clear
-{{Clear screen and place cursor at top-left.}}
-  
-  Char(CS)
-
-PUB ClearEnd
-{{Clear line from cursor to end of line.}}
-  
-  Char(CE)
-  
-PUB ClearBelow
-{{Clear all lines below cursor.}}
-  
-  Char(CB)
-  
-PUB Home
-{{Send cursor to home position (top-left).}}
-  
-  Char(HM)
-  
-PUB Position(x, y)
-{{Position cursor at column x, row y (from top-left).}}
-  
-  Char(PC)
-  Char(x)
-  Char(y)
-  
-PUB PositionX(x)
-{{Position cursor at column x of current row.}}
-  Char(PX)
-  Char(x)
-  
-PUB PositionY(y)
-{{Position cursor at row y of current column.}}
-  Char(PY)
-  Char(y)
-
-PUB NewLine
-{{Send cursor to new line (carriage return plus line feed).}}
-  
-  Char(NL)
-  
-PUB LineFeed
-{{Send cursor down to next line.}}
-  
-  Char(LF)
-  
-PUB MoveLeft(x)
-{{Move cursor left x characters.}}
-  
-  repeat x
-    Char(ML)
-  
-PUB MoveRight(x)
-{{Move cursor right x characters.}}
-  
-  repeat x
-    Char(MR)
-  
-PUB MoveUp(y)
-{{Move cursor up y lines.}}
-  
-  repeat y
-    Char(MU)
-  
-PUB MoveDown(y)
-{{Move cursor down y lines.}}
-  
-  repeat y
-    Char(MD)
-  
-PUB Tab
-{{Send cursor to next tab position.}}
-  
-  Char(TB)
-  
-PUB Backspace
-{{Delete one character to left of cursor and move cursor there.}}
-  
-  Char(BS)
-  
-PUB Beep
-{{Play bell tone on PC speaker.}}
-  
-  Char(BP)
 
 DAT
 

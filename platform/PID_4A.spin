@@ -30,8 +30,7 @@
 }
 CON
 
-  FIRMWARE_VERSION = 60
-  
+
   PIDLed = 27         'PID test led
 
   PIDCnt = 8          'Max PID loop count
@@ -196,10 +195,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
       vel_filter_index[i]   := 0                            ' Index of MAF
       repeat j from 0 to vel_filter_size
         ActVelFilter[i*vel_filter_size + j] := 0            ' Values of MAF
-      lActPos[i]            := 0
-      lActVelPos[i]         := 0
-      Setp[i]               := 0
-      
+
     ResetAllFETrip
     ResetCurrentStatus
 
@@ -608,11 +604,11 @@ PUB GetActVel(i)
 ' ---------------------   Return Set Velocity Cnts/sec -----------------------------
 PUB GetSetVel(i)
   i:= 0 #> i <# PIDMax
-  return SetVel[i]
+Return SetVel[i]
 ' ---------------------  Return Position in cnts -----------------------------
 PUB GetActPos(i)
   i:= 0 #> i <# PIDMax
-  return lActPos[i]
+Return lActPos[i]
 
 ' ---------------------  Return Encoder Position in cnts -----------------------------
 PUB GetActEncPos(i)

@@ -6,12 +6,10 @@ full_duplex_serial_005.spin
 timing.spin
 QiK_commands.spin
 timing.spin
-PID_4A.spin
+PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address.spin
 eeprom.spin
 simple_numbers.spin
-full_duplex_serial_005.spin
-STRINGS2hk.spin
-rose_communication.spin
-full_duplex_serial_005.spin
+parallax_serial_terminal.spin
 timing.spin
+full_duplex_serial_005.spin
 >compiler=SPIN
