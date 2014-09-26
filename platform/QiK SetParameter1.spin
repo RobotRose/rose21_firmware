@@ -65,6 +65,8 @@ PUB main | lSpeed, ch
   !outa[Led]                             ' Toggle I/O Pin for debug
   ListPars(ActDrive)                   ' List parameters
 
+  QiK.SetProtocol(1)
+  
   repeat
     ser.str(string(CR,"Actual Drive selected : "))
     ser.dec(ActDrive)
@@ -164,7 +166,7 @@ PRI SetSpeed(Address,Motor) | lSpeed
   lSpeed:=ser.DecIn
 
   Case Motor
-    0: QiK.SetSpeedM0(Address, lSpeed, 0)
+    0: QiK.SetSpeedM0(Address, lSpeed)
     1: QiK.SetSpeedM1(Address, lSpeed)
 
 

@@ -336,11 +336,11 @@ PRI DoSafety | i, ConnectionError, bitvalue
 
     ' Check for MAE error
     if pMAECntr == MAECntr
-      ResetBit(@PfStatus,NoAlarmBit)
-      SetBit(@PfStatus,MAEBit)
-      LastAlarm := 5
-      NoAlarm   := false
-      DisableWheelUnits
+      'ResetBit(@PfStatus,NoAlarmBit)
+      'SetBit(@PfStatus,MAEBit)
+      'LastAlarm := 5
+      'NoAlarm   := false
+      'DisableWheelUnits
     pMAECntr    := MAECntr  
         
 ' ---------------- Enable or disable the controller ---------------------------------------
@@ -357,7 +357,7 @@ PRI setControllerState(enable)
 '------------------ Move all wheels individually --------------------------------
 PRI Move | speed_margin
    
- 
+{{ 
   FR_a_err := wAngle[0] - pid.GetActPos(1)
   FL_a_err := wAngle[1] - pid.GetActPos(3)
   BR_a_err := wAngle[2] - pid.GetActPos(5)
@@ -390,33 +390,53 @@ PRI Move | speed_margin
     Setp[1] := wAngle[0]
     Setp[3] := wAngle[1]
     Setp[5] := wAngle[2]
-    Setp[7] := wAngle[3] 
-
-  'Active brake wheels if no speed command given to avoid lock up of wheels and battery drainage
-  if (Setp[0] <> 0 or Setp[1] <> 0 or Setp[2] <> 0 and Setp[3] <> 0)
-    setBrakeState(0)                  ' Enable drive mode
-  else
-    setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
-   
+    Setp[7] := wAngle[3]
+  
+  
+}} 
+  Setp[0] := wSpeed[0]    'Front right is 0
+  Setp[2] := -wSpeed[1]   'Front left is  2
+  Setp[4] := wSpeed[2]    'Back right is  4
+  Setp[6] := -wSpeed[3]   'Back left is   6
+  
+  Setp[1] := pid.GetActPos(1)
+  Setp[3] := pid.GetActPos(3)
+  Setp[5] := pid.GetActPos(5)
+  Setp[7] := pid.GetActPos(7)
+  
+  ' Return to the global (settable via ROS) brake state wheels if no speed command given to avoid lock up of wheels and battery drainage
+ ' if (Setp[0] <> 0 or Setp[3] <> 0 or Setp[5] <> 0 and Setp[7] <> 0)
+ '   setBrakeState(0)                   ' Passive brake drive mode 
+ ' else
+  'setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
+   setBrakeState(0)  'Set active or passive brake mode depending on settable variable
    
 ' -------------- Enable or disable wheels depending on the requested brake_state
 PRI setBrakeState(brake_state)
-
+    ' Check if valid brake state requested
+    if brake_state <> (0 #> brake_state <# 3)
+      return -1
+      
     if set_brake_state <> brake_state
-      set_brake_state := brake_state
-
-      if brake_state == 0                 ' Drive mode
-        if Enabled
-          EnableWheels          
-      elseif brake_state == 1             ' Active brake mode
-        if Enabled          
-          EnableWheelsActiveBrake
-      elseif brake_state == 2             ' No brake mode
-        DisableWheels
-        pid.BrakeWheels(1)                ' Zero does not work..
+      case brake_state
+        0: ' Passive brake drive mode
+          if Enabled
+            EnableWheelsPassiveBrake 
+            set_brake_state := brake_state         
+        1: ' Active brake drive mode
+          if Enabled          
+            EnableWheelsActiveBrake
+            set_brake_state := brake_state
+        2: ' No Drive, No brake mode
+          DisableWheels
+          pid.BrakeWheels(0)                ' No braking
+          set_brake_state := brake_state    
+        3: ' No Drive, full brake mode
+          DisableWheels
+          pid.BrakeWheels(127)              ' Full braking
+          set_brake_state := brake_state         
 
     return set_brake_state
-
 
 ' -------------- DoCommand: Get command parameters from rose communication and handle them -------------
 PRI DoCommand | t1, i, command
@@ -858,7 +878,7 @@ PRI ResetPfStatus | i
 
   InitWatchDog  
 
-  global_brake_state := 2               ' Default to no brake mode
+  global_brake_state := 2               ' Default to no drive, no brake mode
   setBrakeState(global_brake_state)  
                                          
 ' ----------------  Clear FE trip ---------------------------------------
@@ -870,13 +890,13 @@ PRI ResetFE | i
 PRI EnableWheelUnits
     Enabled:=true
     EnableSteerActiveBrake    
-    setBrakeState(0)                ' Drive, non braking, mode      
+    setBrakeState(0)                     ' Drive, passive braking, mode      
     SetBit(@PfStatus,EnableBit)
 
 ' ----------------  Disable all wheels and steering ---------------------------------------
 PRI DisableWheelUnits   
   global_brake_state := 2
-  setBrakeState(global_brake_state)      ' Set to no brake mode
+  setBrakeState(global_brake_state)      ' Set to no drive, no brake mode
   DisableSteer
   ResetBit(@PfStatus,EnableBit)
   wSpeed[0] := 0
@@ -907,25 +927,25 @@ PRI DisableSteer
   PID.SetPIDMode(5,0)                     'Disable, open loop
   PID.SetPIDMode(7,0)                     'Disable, open loop
 
-' ----------------  Enable wheels 2 ---------------------------------------
-PRI EnableWheels
+' ----------------  Enable passive brake mode ---------------------------------------
+PRI EnableWheelsPassiveBrake
   pid.BrakeWheels(0)
-  PID.SetPIDMode(0,2)                     'Enable vel wheel delayed direction change mode
-  PID.SetPIDMode(2,2)                     'Enable vel wheel delayed direction change mode
-  PID.SetPIDMode(4,2)                     'Enable vel wheel delayed direction change mode
-  PID.SetPIDMode(6,2)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(0,2)                     'Enable vel wheel passive brake mode
+  PID.SetPIDMode(2,2)                     'Enable vel wheel passive brake mode
+  PID.SetPIDMode(4,2)                     'Enable vel wheel passive brake mode
+  PID.SetPIDMode(6,2)                     'Enable vel wheel passive brake mode
 
-' ----------------  Enable wheels Active brake mode 1 ---------------------------------------
+' ----------------  Enable wheels active brake mode ---------------------------------------
 PRI EnableWheelsActiveBrake
   pid.BrakeWheels(0)
-  PID.SetPIDMode(0,1)                     'Enable vel wheel delayed direction change mode
-  PID.SetPIDMode(2,1)                     'Enable vel wheel delayed direction change mode
-  PID.SetPIDMode(4,1)                     'Enable vel wheel delayed direction change mode
-  PID.SetPIDMode(6,1)                     'Enable vel wheel delayed direction change mode
+  PID.SetPIDMode(0,1)                     'Enable vel wheel active brake mode
+  PID.SetPIDMode(2,1)                     'Enable vel wheel active brake mode
+  PID.SetPIDMode(4,1)                     'Enable vel wheel active brake mode
+  PID.SetPIDMode(6,1)                     'Enable vel wheel active brake mode
 
 ' ----------------  Disable wheels  ---------------------------------------
 PRI DisableWheels
-  PID.SetPIDMode(0,0)                     'Disable, open loop
+  'PID.SetPIDMode(0,0)                     'Disable, open loop
   PID.SetPIDMode(2,0)                     'Disable, open loop
   PID.SetPIDMode(4,0)                     'Disable, open loop
   PID.SetPIDMode(6,0)                     'Disable, open loop
