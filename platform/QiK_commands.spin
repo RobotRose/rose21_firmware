@@ -70,7 +70,8 @@ CON
 
   TimeOut = 1  'Timeout in ms for response by Qik on request
   
-  speed_hyst = 50
+  speed_hyst = 5
+  max_braking_effort = 25
       
 OBJ
   serial_interface  : "full_duplex_serial_005"       ' Standard serial communication
@@ -148,16 +149,22 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
       abs_req_eff := 0   
 }}
 
-  if setp => 0
+  if setp > 0 and measured_speed > -speed_hyst
     direction := cM0F
     if ReqEffort < 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
-  else
+  elseif setp < 0 and measured_speed < speed_hyst
     direction := cM0R
     if ReqEffort > 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
+  elseif || measured_speed > speed_hyst
+    abs_req_eff := 0
+    apply_brake_value := max_braking_effort
+  else
+    abs_req_eff := 0
+    apply_brake_value := 0
   
   ' Store direction for this address
   motor_prev_direction[Address - 10] := direction

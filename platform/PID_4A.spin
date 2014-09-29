@@ -220,28 +220,28 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
              lActVelPos[0]  := EncPos[0]                                    ' Velocity input loop 0
              Setp[0]        := long[SetpAddr][0]/1000                       ' Convert to pulses/ms from pulses/s
           1: lActPos[1]     := long[mMAEOffset][0] - long[mMAEPos][0]       ' PID 1 steer Front right
-             lActVelPos[1]  := EncPos[1]                                    ' Vel input steer FR
+             lActVelPos[1]  := long[mMAEPos][0]  'EncPos[1]                                    ' Vel input steer FR
              Setp[1]        := long[SetpAddr][1]
 
           2: lActPos[2]     := EncPos[2]                                    ' PID 2 Wheel Front Left 
              lActVelPos[2]  := EncPos[2]                                    ' Velocity input loop 2
              Setp[2]        := long[SetpAddr][2]/1000                       ' Convert to pulses/ms from pulses/s
           3: lActPos[3]     := long[mMAEOffset][1] - long[mMAEPos][1]       ' PID 3 Steer Front Left 
-             lActVelPos[3]  := EncPos[3]                                    ' Velocity input loop 3
+             lActVelPos[3]  := long[mMAEPos][1]  'EncPos[3]                                    ' Velocity input loop 3
              Setp[3]        := long[SetpAddr][3]
 
           4: lActPos[4]     := EncPos[4]                                    ' PID 4 Wheel Rear Right
              lActVelPos[4]  := EncPos[4]                                    ' Velocity input loop 4
              Setp[4]        := long[SetpAddr][4]/1000                       ' Convert to pulses/ms from pulses/s
           5: lActPos[5]     := long[mMAEOffset][2] - long[mMAEPos][2]       ' PID 5 Steer Rear Right
-             lActVelPos[5]  := EncPos[5]                                    ' Velocity input loop 5
+             lActVelPos[5]  := long[mMAEPos][2]  'EncPos[5]                                    ' Velocity input loop 5
              Setp[5]        := long[SetpAddr][5]
 
           6: lActPos[6]     := EncPos[6]                                    ' PID 6 Wheel Rear Left  
              lActVelPos[6]  := EncPos[6]                                    ' Velocity input loop 6
              Setp[6]        := long[SetpAddr][6]/1000                       ' Convert to pulses/ms from pulses/s
           7: lActPos[7]     := long[mMAEOffset][3] - long[mMAEPos][3]       ' PID 7 Steer Rear Left
-             lActVelPos[7]  := EncPos[7]                                    ' Velocity input loop 7 steer Rear left
+             lActVelPos[7]  := long[mMAEPos][3]  'EncPos[7]                                    ' Velocity input loop 7 steer Rear left
              Setp[7]        := long[SetpAddr][7]
         
         ' Moving Average Filter lActVel for drive motors      
@@ -296,7 +296,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         if PIDMode[i] > 0                               
           ' When in passive brake mode, prevent I windup 
           if PIDMode[i] == 2            
-            if SetVel[i] => 0
+            if lActVel[i] => 0
               lI[i] := 0 #> (lI[i] + DVT[i]) <# Ilimit[i]             'Limit I-action [0, Ilimit] 
             else
               lI[i] := -Ilimit[i] #> (lI[i] + DVT[i]) <# 0            'Limit I-action [-Ilimit, 0] 
@@ -346,12 +346,12 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
                      ActCurrent[i] := qik.GetCurrentM0(drive_address)      'Get motor 0 current
  
           1, 3, 5, 7: ' Steer motors
-                     if PIDMode[i] == 1
+                     'if PIDMode[i] == 1
                        ' Active brake mode (1)  
-                       qik.SetSpeedM1(drive_address, Output[i])
-                     elseif PIDMode[i] == 2  
+                     qik.SetSpeedM1(drive_address, Output[i])
+                     'elseif PIDMode[i] == 2  
                        ' Passive brake mode (2)
-                       qik.SetSpeedM1DelayedReverse(drive_address, Output[i], lActVel[i])
+                     '  qik.SetSpeedM1DelayedReverse(drive_address, Output[i], lActVel[i])
                      
 
                      ActCurrent[i] := qik.GetCurrentM1(drive_address)    'Get motor 1 current

@@ -204,7 +204,7 @@ PRI InitMain
   !outa[Led]                             'Toggle I/O Pin for debug
 
   ' Load movement schmitt start stop default values
-  start_a_err       := 10
+  start_a_err       := 20
   stop_a_err        := 200
   stopstart_a_err   := start_a_err
   
@@ -357,7 +357,7 @@ PRI setControllerState(enable)
 '------------------ Move all wheels individually --------------------------------
 PRI Move | speed_margin
    
-{{ 
+ 
   FR_a_err := wAngle[0] - pid.GetActPos(1)
   FL_a_err := wAngle[1] - pid.GetActPos(3)
   BR_a_err := wAngle[2] - pid.GetActPos(5)
@@ -392,24 +392,25 @@ PRI Move | speed_margin
     Setp[5] := wAngle[2]
     Setp[7] := wAngle[3]
   
+  setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
   
-}} 
+{{
   Setp[0] := wSpeed[0]    'Front right is 0
   Setp[2] := -wSpeed[1]   'Front left is  2
   Setp[4] := wSpeed[2]    'Back right is  4
   Setp[6] := -wSpeed[3]   'Back left is   6
   
-  Setp[1] := pid.GetActPos(1)
-  Setp[3] := pid.GetActPos(3)
-  Setp[5] := pid.GetActPos(5)
-  Setp[7] := pid.GetActPos(7)
-  
+  Setp[1] := wAngle[0]
+  Setp[3] := wAngle[1]
+  Setp[5] := wAngle[2]
+  Setp[7] := wAngle[3]
+ }}
   ' Return to the global (settable via ROS) brake state wheels if no speed command given to avoid lock up of wheels and battery drainage
  ' if (Setp[0] <> 0 or Setp[3] <> 0 or Setp[5] <> 0 and Setp[7] <> 0)
  '   setBrakeState(0)                   ' Passive brake drive mode 
  ' else
   'setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
-   setBrakeState(0)  'Set active or passive brake mode depending on settable variable
+  
    
 ' -------------- Enable or disable wheels depending on the requested brake_state
 PRI setBrakeState(brake_state)
