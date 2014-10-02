@@ -29,7 +29,7 @@ Set variables commands:
     - Set drive PID paramerets      : $300, 10x int (Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)     -> 10x int (set values)
     - Set steer PID paramerets      : $301, 10x int (Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)     -> 10x int (set values)
     - Set start/stop angle tresholds: $302, 2x int (start error, stop error)                                                -> 2x int (set values)
-    - Set error tresholds           : $303, 4x int (following_error, current_error, connection_error, wd_cnt_threshold)     -> 4x int (set values)
+    - Set error timers              : $303, 4x int (following_error, current, connection, MAE)                              -> 4x int (set values)
 
 Action commands:
     - Enable/Disable controller     : $400, bool (enabled/disabled)                 -> bool (enabled/disabled)

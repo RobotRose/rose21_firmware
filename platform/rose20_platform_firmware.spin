@@ -82,12 +82,13 @@ CON
   NoAlarmBit    = 15             ' No alarm present   
 
   ' TIMERS
-  nr_timers             = 5
+  nr_timers             = 6
   LED_TIMER             = 0
   WATCHDOG_TIMER        = 1 
   FOLLOWING_ERROR_TIMER = 2
   CURRENT_ERROR_TIMER   = 3
   CONN_ERROR_TIMER      = 4
+  MAE_ERROR_TIMER       = 5
   
 OBJ
   ser           : "full_duplex_serial_005"              ' Full duplex serial communication 
@@ -100,11 +101,11 @@ OBJ
   timer         : "timer"
   
 Var 
-  ' Timers
-  long timer_current[nr_timers]
-  long timer_set_value[nr_timers]
-  byte timer_running[nr_timers]
-  long timer_cog
+    ' Timers
+    long timer_current[nr_timers]
+    long timer_set_value[nr_timers]
+    byte timer_running[nr_timers]
+    long timer_cog
 
     ' Motors
     long PIDCog
@@ -118,7 +119,7 @@ Var
     word ConnCntr
     
     ' MAE encoder
-    long MAEPos[MAECnt], MAEState, MAETime, MainTime
+    long MAEPos[MAECnt], MAEState, MainTime
     long MAEOffs[MAECnt]  'Offset position for 0
     word MAECntr, pMAECntr
     long MAEStack[100]
@@ -239,23 +240,28 @@ PRI handleWatchdogError
   
 PRI resetCommunication
   InitWatchDog
-  resetSafety
   
-PRI resetSafety
-
-  
-' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | i, ConnectionError, bitvalue
+PRI resetSafety | i
   PID.ResetCurrentStatus  
   PfStatus                 := 0
   NoAlarm                  := true                'Reset global alarm var
   LastAlarm                := 0                   'Reset last alarm message
+  pMAECntr                 := MAECntr
 
   ResetBit(@PfStatus, USAlarm)         'Reset error bits in PfStatus
   ResetBit(@PfStatus, CommCntrBit)
   SetBit(@PfStatus, NoAlarmBit)
   repeat i from 0 to MotorCnt-1
     ResetBit(@connection_error_byte, i)
+    
+  timer.resetTimer(FOLLOWING_ERROR_TIMER)
+  timer.resetTimer(CURRENT_ERROR_TIMER)
+  timer.resetTimer(CONN_ERROR_TIMER)
+  timer.resetTimer(MAE_ERROR_TIMER)
+  
+' ---------------- Check safety of platform and put in safe condition when needed ---------
+PRI DoSafety | i, ConnectionError, bitvalue
+  resetSafety
 
   ' Wait for PID cog to be started
   repeat while PIDCog == 0
@@ -334,15 +340,20 @@ PRI DoSafety | i, ConnectionError, bitvalue
         NoAlarm   := true
         SetBit(@PfStatus, NoAlarm)
 
-    ' Check for MAE error
-    if pMAECntr == MAECntr
-      'ResetBit(@PfStatus,NoAlarmBit)
-      'SetBit(@PfStatus,MAEBit)
-      'LastAlarm := 5
-      'NoAlarm   := false
-      'DisableWheelUnits
-    pMAECntr    := MAECntr  
-        
+    ' Check for change of MAECntr 
+    if (pMAECntr <> MAECntr)
+      timer.resetTimer(MAE_ERROR_TIMER)
+      pMAECntr := MAECntr
+    
+    ' If no change was detected for the duration of the MAE_ERROR_TIMER, an MAE error occured.
+    elseif timer.checkTimer(MAE_ERROR_TIMER)
+      ResetBit(@PfStatus,NoAlarmBit)
+      SetBit(@PfStatus,MAEBit)
+      LastAlarm := 5
+      connection_error_byte := ||(pMAECntr - MAECntr )
+      NoAlarm   := false
+      DisableWheelUnits
+
 ' ---------------- Enable or disable the controller ---------------------------------------
 PRI setControllerState(enable)
   if enable AND not( drive_pid_vals_set AND steer_pid_vals_set )
@@ -355,9 +366,7 @@ PRI setControllerState(enable)
   return true     
 
 '------------------ Move all wheels individually --------------------------------
-PRI Move | speed_margin
-   
- 
+PRI Move | speed_margin 
   FR_a_err := wAngle[0] - pid.GetActPos(1)
   FL_a_err := wAngle[1] - pid.GetActPos(3)
   BR_a_err := wAngle[2] - pid.GetActPos(5)
@@ -393,24 +402,6 @@ PRI Move | speed_margin
     Setp[7] := wAngle[3]
   
   setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
-  
-{{
-  Setp[0] := wSpeed[0]    'Front right is 0
-  Setp[2] := -wSpeed[1]   'Front left is  2
-  Setp[4] := wSpeed[2]    'Back right is  4
-  Setp[6] := -wSpeed[3]   'Back left is   6
-  
-  Setp[1] := wAngle[0]
-  Setp[3] := wAngle[1]
-  Setp[5] := wAngle[2]
-  Setp[7] := wAngle[3]
- }}
-  ' Return to the global (settable via ROS) brake state wheels if no speed command given to avoid lock up of wheels and battery drainage
- ' if (Setp[0] <> 0 or Setp[3] <> 0 or Setp[5] <> 0 and Setp[7] <> 0)
- '   setBrakeState(0)                   ' Passive brake drive mode 
- ' else
-  'setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
-  
    
 ' -------------- Enable or disable wheels depending on the requested brake_state
 PRI setBrakeState(brake_state)
@@ -696,13 +687,15 @@ PRI DoCommand | t1, i, command
          ser.str(rose_comm.getEOLStr)  
     ' === Set error tresholds
     303: ser.str(rose_comm.getCommandStr(command)) 
-         if rose_comm.nrOfParametersCheck(3)
+         if rose_comm.nrOfParametersCheck(4)
            timer.setTimer(FOLLOWING_ERROR_TIMER,  0 #> rose_comm.getParam(1))
            timer.setTimer(CURRENT_ERROR_TIMER,    0 #> rose_comm.getParam(2))
            timer.setTimer(CONN_ERROR_TIMER,       0 #> rose_comm.getParam(3))       
+           timer.setTimer(MAE_ERROR_TIMER,        0 #> rose_comm.getParam(4))  
            ser.str(rose_comm.getDecStr(timer.getTimerSetValue(FOLLOWING_ERROR_TIMER))) 
            ser.str(rose_comm.getDecStr(timer.getTimerSetValue(CURRENT_ERROR_TIMER))) 
            ser.str(rose_comm.getDecStr(timer.getTimerSetValue(CONN_ERROR_TIMER)))
+           ser.str(rose_comm.getDecStr(timer.getTimerSetValue(MAE_ERROR_TIMER)))
          ser.str(rose_comm.getEOLStr) 
  
     ' === ACTIONS ===
@@ -792,6 +785,9 @@ PRI setupTimers
   
   timer.setTimer(CONN_ERROR_TIMER, 4000)
   timer.startTimer(CONN_ERROR_TIMER)     
+  
+  timer.setTimer(MAE_ERROR_TIMER, 100)
+  timer.startTimer(MAE_ERROR_TIMER)     
    
   return true
 
@@ -836,7 +832,7 @@ PRI ResetPfStatus | i
     t.Pause1ms(1)
   PIDCog  := PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
   
-   ' Wait while PID initializes
+  ' Wait while PID initializes
   repeat while PID.GetPIDStatus <> 3                    
 
   if debug
@@ -881,6 +877,8 @@ PRI ResetPfStatus | i
 
   global_brake_state := 2               ' Default to no drive, no brake mode
   setBrakeState(global_brake_state)  
+  
+  resetSafety
                                          
 ' ----------------  Clear FE trip ---------------------------------------
 PRI ResetFE | i 
@@ -889,10 +887,10 @@ PRI ResetFE | i
   
 ' ----------------  Enable wheeluntis  ---------------------------------------
 PRI EnableWheelUnits
-    Enabled:=true
     EnableSteerActiveBrake    
     setBrakeState(0)                     ' Drive, passive braking, mode      
     SetBit(@PfStatus,EnableBit)
+    Enabled:=true
 
 ' ----------------  Disable all wheels and steering ---------------------------------------
 PRI DisableWheelUnits   
@@ -1001,14 +999,12 @@ PRI MAESense | t1 , lMAE0Pin, lMAE1Pin, lMAE2Pin, lMAE3Pin
   lMAE3Pin:= MAE0Pin + 3
   
   Repeat
-    t1:=cnt
     MAEPos[0]:= MAE.Pos(lMAE0Pin)
     MAEPos[1]:= MAE.Pos(lMAE1Pin)
     MAEPos[2]:= MAE.Pos(lMAE2Pin)
     MAEPos[3]:= MAE.Pos(lMAE3Pin)
-
-    MAETime:=(cnt - t1)/80000      'Cycle time in us
-    MAECntr++                   'Update alive counter
+    
+    MAECntr++                      'Update alive counter
     
 ' --------------------- Return PID Time in us -----------------------------
 PUB GetPIDCTime
@@ -1198,8 +1194,6 @@ PRI ShowScreen | i
     ser.dec(PIDCTime)
     ser.str(string("  clkfreq: "))
     ser.dec(clkfreq)
-    ser.str(string("  MAE LoopTime (ms): "))
-    ser.dec(MAETime)
     ser.str(string(CR,"  Main loop Time (ms): "))
     ser.dec(MainTime)
     ser.str(string("  Enc cntr: "))
