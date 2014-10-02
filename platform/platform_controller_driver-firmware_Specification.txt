@@ -1,0 +1,41 @@
+Platform controller driver-firmware specification
+
+Hardware controller commands:
+    - Get controlller ID            : $100                      -> int      (controlller id)
+    - Software version              : $101                      -> 2x int   (major version, minor version) 
+    - Unkown command                : $102                      -> int      (received command) 
+    - Watchdog                      : $111, int (wd_value)      -> 4x int   (wd_value, wd_counter, received_wd, expected_wd)
+    - Set watchdog treshold         : $112, int (wd_treshold)   -> int      (set wd treshold)
+    - Get watchdog treshold         : $113                      -> int      (wd treshold)
+
+Read commands:
+    - Get velocity of specific motor        : $200, int (motor id)                      -> 2x int (id, velocity)
+    - Get position of specific motor        : $201, int (motor id)                      -> 2x int (id, position)
+    - Get current of specific motor         : $202, int (motor id)                      -> 2x int (id, current)
+    - Get max current of specific motor     : $203, int (motor id)                      -> 2x int (id, max current)
+    - Get position error of specific motor  : $204, int (motor id)                      -> 2x int (id, position error)
+    - Get velocity error of specific motor  : $205, int (motor id)                      -> 2x int (id, velocity error)
+    - Get PI out of specific motor          : $206, int (motor id)                      -> 2x int (id, PI out)
+    - Get P out of specific motor           : $207, int (motor id)                      -> 2x int (id, P out)
+    - Get I out of specific motor           : $208, int (motor id)                      -> 2x int (id, I out)
+    - Get D out of specific motor           : $209, int (motor id)                      -> 2x int (id, D out)
+    - Get MAE of specific motor             : $210, int (motor id)                      -> 2x int (id, MAE)
+    - Get FE of specific motor              : $211, int (motor id)                      -> 2x int (id, FE)
+    - Get alarm state                       : $212                                      -> bool, 2x int (alarm, last_alarm, alarm_byte)
+    - Get all drive motor encoder difference: $213                                      -> 4x int (encoder differences drive motors)
+    - Get all motor status information      : $214                                      -> 10x int (4xencoder differences drive motors, 4x abs encoders steer motors, last_alarm, alarm_byte)
+
+Set variables commands:
+    - Set drive PID paramerets      : $300, 10x int (Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)     -> 10x int (set values)
+    - Set steer PID paramerets      : $301, 10x int (Ki, K, Kp, Kd, Ilimit, PosScale, VelScale, VelMax, FeMax, MaxCurr)     -> 10x int (set values)
+    - Set start/stop angle tresholds: $302, 2x int (start error, stop error)                                                -> 2x int (set values)
+    - Set error timers              : $303, 4x int (following_error, current, connection, MAE)                              -> 4x int (set values)
+
+Action commands:
+    - Enable/Disable controller     : $400, bool (enabled/disabled)                 -> bool (enabled/disabled)
+    - Move speeds and directions    : $401, 8x int (speed0, dir0 (4x))              -> 8x int, (set values )
+    - Set brake mode                : $402, int ( 1 = active, 2 = no brake mode)    -> int (set value)
+    - Reset comm                    : $403 
+    - Reset alarm                   : $404
+    - Reset platform                : $405
+

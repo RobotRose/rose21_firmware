@@ -30,9 +30,8 @@
 }
 CON
 
-
-  PIDLed = 27         'PID test led
-
+  FIRMWARE_VERSION = 60
+  
   PIDCnt = 8          'Max PID loop count
 
   _1ms  = 1_000_000 / 1_000          'Divisor for 1 ms
@@ -75,7 +74,7 @@ Var Long PotmValue0
     Long PIDMax, K[PIDCnt], KI[PIDCnt], Kp[PIDCnt], Kd[PIDCnt], Acc[PIDCnt], MaxVel[PIDCnt]
     Long ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt]
     Long PrevEncPos[PIDCnt], DVT[PIDCnt], DPT[PIDCnt]
-    Long PIDStack[400]
+    Long PIDStack[250]
     Long PIDTime, lPeriod, PIDLeadTime, PIDWaitTime
     Long PIDCog, PIDStatus, PIDBusy
     Word PIDCntr
@@ -131,7 +130,7 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
   if QikCog > 0
     cogstop(QikCog~ - 1)  
   QikCog := QiK.Init(RXQ, TXQ)  ' Start QiK serial communication
-  QiK.SetProtocol(1)            ' Enable QiK protocol  
+  QiK.SetProtocol(1)                   ' Enable QiK protocol  
 
   qik.SetSpeedM0(Drive0, 0)
   qik.SetSpeedM1(Drive0, 0)
@@ -147,7 +146,6 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
      cogstop(PIDCog~ - 1)  
 
   PIDCog    :=CogNew(PID(lPeriod), @PIDStack) + 1      'Start PID loop at lPeriod rate
-  PIDMode   :=0
 
 Return PIDCog
 
@@ -167,9 +165,6 @@ PUB Stop
 
 ' ----------------  PID loop ---------------------------------------
 PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address ' Cycle runs every Period ms
-
-    'Set I/O pin for LED to output
-    dira[PIDLed]~~      
 
     Period              := 1 #> Period <# 1000000   'Limit PID period 
     PIDStatus           := 1
@@ -195,7 +190,13 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
       vel_filter_index[i]   := 0                            ' Index of MAF
       repeat j from 0 to vel_filter_size
         ActVelFilter[i*vel_filter_size + j] := 0            ' Values of MAF
-
+      lActVel[i]            := 0
+      lActPos[i]            := 0
+      lActVelPos[i]         := 0
+      Setp[i]               := 0
+      
+    drive_braking_value := 0
+    
     ResetAllFETrip
     ResetCurrentStatus
 
@@ -203,10 +204,9 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
     T1          := Cnt
     Tspeed      := Cnt
 
-    !outa[PIDLed]                        ' Toggle I/O Pin for debug
-                                         
+                                 
     PIDStatus := 3                       ' PID running      
-
+    
     Repeat                               ' Main PID loop
       ' Loop MAF filter index
       vel_filter_index    := vel_filter_index + 1
@@ -220,31 +220,30 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
              lActVelPos[0]  := EncPos[0]                                    ' Velocity input loop 0
              Setp[0]        := long[SetpAddr][0]/1000                       ' Convert to pulses/ms from pulses/s
           1: lActPos[1]     := long[mMAEOffset][0] - long[mMAEPos][0]       ' PID 1 steer Front right
-             lActVelPos[1]  := EncPos[1]                                    ' Vel input steer FR
+             lActVelPos[1]  := long[mMAEPos][0]  'EncPos[1]                                    ' Vel input steer FR
              Setp[1]        := long[SetpAddr][1]
 
           2: lActPos[2]     := EncPos[2]                                    ' PID 2 Wheel Front Left 
              lActVelPos[2]  := EncPos[2]                                    ' Velocity input loop 2
              Setp[2]        := long[SetpAddr][2]/1000                       ' Convert to pulses/ms from pulses/s
           3: lActPos[3]     := long[mMAEOffset][1] - long[mMAEPos][1]       ' PID 3 Steer Front Left 
-             lActVelPos[3]  := EncPos[3]                                    ' Velocity input loop 3
+             lActVelPos[3]  := long[mMAEPos][1]  'EncPos[3]                                    ' Velocity input loop 3
              Setp[3]        := long[SetpAddr][3]
 
           4: lActPos[4]     := EncPos[4]                                    ' PID 4 Wheel Rear Right
              lActVelPos[4]  := EncPos[4]                                    ' Velocity input loop 4
              Setp[4]        := long[SetpAddr][4]/1000                       ' Convert to pulses/ms from pulses/s
           5: lActPos[5]     := long[mMAEOffset][2] - long[mMAEPos][2]       ' PID 5 Steer Rear Right
-             lActVelPos[5]  := EncPos[5]                                    ' Velocity input loop 5
+             lActVelPos[5]  := long[mMAEPos][2]  'EncPos[5]                                    ' Velocity input loop 5
              Setp[5]        := long[SetpAddr][5]
 
           6: lActPos[6]     := EncPos[6]                                    ' PID 6 Wheel Rear Left  
              lActVelPos[6]  := EncPos[6]                                    ' Velocity input loop 6
              Setp[6]        := long[SetpAddr][6]/1000                       ' Convert to pulses/ms from pulses/s
           7: lActPos[7]     := long[mMAEOffset][3] - long[mMAEPos][3]       ' PID 7 Steer Rear Left
-             lActVelPos[7]  := EncPos[7]                                    ' Velocity input loop 7 steer Rear left
+             lActVelPos[7]  := long[mMAEPos][3]  'EncPos[7]                                    ' Velocity input loop 7 steer Rear left
              Setp[7]        := long[SetpAddr][7]
         
-      
         ' Moving Average Filter lActVel for drive motors      
         if(vel_filter_size > 1)
           ActVelFilter[i*vel_filter_size + vel_filter_index] := lActVelPos[i]
@@ -254,9 +253,9 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
             vel_filter_sum := vel_filter_sum + ActVelFilter[i*vel_filter_size + j]
 
           lActVelPos[i] := vel_filter_sum/vel_filter_size
-
+ 
         'Calculate velocities D0 - D3 from delta position in [pulses/ms]
-        speed_time_ms   := (Cnt-Tspeed[i])/(clkfreq/1000)
+        speed_time_ms   := ||(Cnt-Tspeed[i])/(clkfreq/1000)
         speed_distance  := (lActVelPos[i] - PrevEncPos[i])
         lActVel[i]      := speed_distance/speed_time_ms                       
         Tspeed[i]       := Cnt
@@ -282,31 +281,26 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
              DVT[i]         := SetVel[i] - lActVel[i]                                   'Delta Velocity
              OutputScale[i] := PosScale[i]
 
-          ' Use active brake mode
-          2: SetVel[i]      := Setp[i]                                               
+          ' Velocity control Active and Passive brake mode
+          1, 2: 
+             SetVel[i]      := Setp[i]                                               
              FE[i]          := SetVel[i] - lActVel[i]
              DVT[i]         := -MaxVel[i] #> FE[i] <# MaxVel[i]        'Delta Velocity
-             OutputScale[i] := VelScale[i]
-
-          ' Velocity, no brake, mode   
-          1: SetVel[i]      := Setp[i]                                                  
-             FE[i]          := SetVel[i] - lActVel[i]
-             DVT[i]         := -MaxVel[i] #> FE[i] <# MaxVel[i]        'Delta Velocity            
              OutputScale[i] := VelScale[i]
 
         ' Check following error
         FETrip[i] := ||FE[i] > FEMax[i] and ||FE[i] => ||FEprev[i] 
         FEAny     := FETrip[0] or FETrip[1] or FETrip[2] or FETrip[3] or FETrip[4] or FETrip[5] or FETrip[6] or FETrip[7] 
         FEprev[i] := FE[i]
-
+  
         if PIDMode[i] > 0                               
-          'When in 'no active brake' mode, prevent I windup 
-          if PIDMode[i] <> 1            
-            if SetVel[i] => 0
+          ' When in passive brake mode, prevent I windup 
+          if PIDMode[i] == 2            
+            if lActVel[i] => 0
               lI[i] := 0 #> (lI[i] + DVT[i]) <# Ilimit[i]             'Limit I-action [0, Ilimit] 
             else
               lI[i] := -Ilimit[i] #> (lI[i] + DVT[i]) <# 0            'Limit I-action [-Ilimit, 0] 
-          else
+          else                              
             lI[i] := -Ilimit[i] #> (lI[i] + DVT[i]) <# Ilimit[i]      'Limit I-action [-Ilimit, Ilimit] 
 
           D[i] := DVT[i]/PIDTime                                      'Calculate D 
@@ -323,42 +317,51 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
           D[i]      := 0
           lI[i]     := 0
           Output[i] := 0
- 
+       
         'Set drive_address  
         case i
            0, 1: drive_address := Drive0
            2, 3: drive_address := Drive1 
            4, 5: drive_address := Drive2
-           6, 7: drive_address := Drive3
-
-
+           6, 7: drive_address := Drive3 
+        
+        'Drive!     
         case i
-           0, 2, 4, 6: ' Drive motors
-                       if PIDMode[i] == 2  
-                         qik.SetSpeedM0DelayedReverse(drive_address, Output[i], lActVel[i])    
-                       elseif drive_braking_value == 0                       'Only set a speed when not braking
+          0, 2, 4, 6: ' Drive motors
+                     ' Do we have to brake or not?
+                     if drive_braking_value == 0   
+                       if PIDMode[i] == 1  
+                         ' Active brake mode (1)
                          qik.SetSpeedM0(drive_address, Output[i])
-                        
-                       LastErr := qik.GetError(drive_address)                'Get drive errors if any and clear error flag
-                       if LastErr > 0
-                         Err[i] := LastErr
+                       elseif PIDMode[i] == 2  
+                         ' Passive brake mode (2)
+                         qik.SetSpeedM0DelayedReverse(drive_address, Output[i], lActVel[i], SetVel[i])      
+                     else
+                       QiK.SetBrakeM0(drive_address, drive_braking_value) 
+                       
+                     LastErr := qik.GetError(drive_address)                'Get drive errors if any and clear error flag
+                     if LastErr > 0
+                       Err[i] := LastErr
 
-                       ActCurrent[i] := qik.GetCurrentM0(drive_address)      'Get motor 0 current
+                     ActCurrent[i] := qik.GetCurrentM0(drive_address)      'Get motor 0 current
  
-           1, 3, 5, 7: ' Steer motors
-                       if PIDMode[i] == 2  
-                         qik.SetSpeedM1DelayedReverse(drive_address, Output[i], lActVel[i])
-                       else
-                         qik.SetSpeedM1(drive_address, Output[i])
-                        
-                       ActCurrent[i] := qik.GetCurrentM1(drive_address)    'Get motor 1 current
+          1, 3, 5, 7: ' Steer motors
+                     'if PIDMode[i] == 1
+                       ' Active brake mode (1)  
+                     qik.SetSpeedM1(drive_address, Output[i])
+                     'elseif PIDMode[i] == 2  
+                       ' Passive brake mode (2)
+                     '  qik.SetSpeedM1DelayedReverse(drive_address, Output[i], lActVel[i])
+                     
 
+                     ActCurrent[i] := qik.GetCurrentM1(drive_address)    'Get motor 1 current
+          
         ' Misread of current?
         if ActCurrent[i] == -1*150
           ConnectionError[i] := TRUE
-
+  
         if ActCurrent[i] == -1 or ActCurrent[i] == $FF or LastErr => $10
-            ActCurrent[i] := 0
+          ActCurrent[i] := 0
             
       
             
@@ -389,7 +392,6 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         enc_clk_prev    := enc_clk
         enc_clk         := cnt
         enc_semaphore   := TRUE
-        !outa[PIDLed]                    'Toggle I/O Pin for debug      
 
       PIDCntr++                                         'Update PIDCounter               
       PIDTime       := (Cnt-T1)/80000                   'Measure actual loop time in [ms] 
@@ -400,20 +402,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
       T1 := Cnt
 
 ' ----------------  Brake wheels  ---------------------------------------
-PUB BrakeWheels(BrakeValue) | lB              
-  'Stop driving motors when braking
-  if BrakeValue > 0
-    Qik.SetSpeedM0(Drive0, 0)
-    Qik.SetSpeedM0(Drive1, 0)
-    Qik.SetSpeedM0(Drive2, 0)
-    Qik.SetSpeedM0(Drive3, 0)
-
-  'Brake wheels
-  QiK.SetBrakeM0(Drive0, BrakeValue)                     
-  QiK.SetBrakeM0(Drive1, BrakeValue)                     
-  QiK.SetBrakeM0(Drive2, BrakeValue)                    
-  QiK.SetBrakeM0(Drive3, BrakeValue)   
-
+PUB BrakeWheels(BrakeValue) | lB                
   drive_braking_value := BrakeValue               
 
 ' ---------------- 'Reset current stuff -------------------------------
@@ -604,11 +593,11 @@ PUB GetActVel(i)
 ' ---------------------   Return Set Velocity Cnts/sec -----------------------------
 PUB GetSetVel(i)
   i:= 0 #> i <# PIDMax
-Return SetVel[i]
+  return SetVel[i]
 ' ---------------------  Return Position in cnts -----------------------------
 PUB GetActPos(i)
   i:= 0 #> i <# PIDMax
-Return lActPos[i]
+  return lActPos[i]
 
 ' ---------------------  Return Encoder Position in cnts -----------------------------
 PUB GetActEncPos(i)
@@ -689,25 +678,13 @@ Return DVT[i]
 ' ---------------------   Set PID mode     -----------------------------
 PUB SetPIDMode(i, lMode)             '0= open loop, 1=Velocity control, 2= position control 3= Pos cntrl Vel limit
   i:= 0 #> i <# PIDMax
-'  if (PIDMode[i]==0 and lMode<>0)   'Do something before closing loop to avoid sudden jumps
-  
   PIDMode[i] := lMode
 
 ' ---------------------   Set command output in open loop mode  ------------------------
 PUB SetOpenLoop(i,lOpenloopCmd)            
   i:= 0 #> i <# PIDMax
   OpenloopCmd[i] := lOpenloopCmd
-
-' ---------------------   Kill all motors (open loop) -------------------
-PUB KillAll  | i
-  repeat i from 0 to PIDMax
-    PIDMode[i]:=0
     
-' ---------------------   Set all motors in the same PID state  -------------------
-PUB SetAllPIDMode(m)  | i
-  repeat i from 0 to PIDMax
-    PIDMode[i]:=m
-
 ' ---------------------  Return PID Mode -----------------------------
 PUB GetPIDMode(i)
   i:= 0 #> i <# PIDMax
