@@ -168,8 +168,8 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
   elseif || measured_speed > speed_hyst
-    abs_req_eff := 0
-    apply_brake_value := max_braking_effort
+     abs_req_eff := 0
+    apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
   else
     abs_req_eff := 0
     apply_brake_value := 0
@@ -232,19 +232,19 @@ PUB SetSpeedM1DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
       abs_req_eff := 0   
 }}
 
-  if setp > 0 and measured_speed > -speed_hyst
+  if setp > 0 'and measured_speed > -speed_hyst
     direction := cM1F
     if ReqEffort < 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
-  elseif setp < 0 and measured_speed < speed_hyst
+  elseif setp < 0 'and measured_speed < speed_hyst
     direction := cM1R
     if ReqEffort > 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
   elseif || measured_speed > speed_hyst
     abs_req_eff := 0
-    apply_brake_value := max_braking_effort
+    apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
   else
     abs_req_eff := 0
     apply_brake_value := 0

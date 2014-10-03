@@ -383,15 +383,15 @@ PRI Move | speed_margin
     Setp[3] := wAngle[1]
     Setp[5] := wAngle[2]
     Setp[7] := wAngle[3]
-    
+  'DEBUG  
   Setp[0] := wSpeed[0]    'Front right is 0
   Setp[2] := -wSpeed[1]   'Front left is  2
   Setp[4] := wSpeed[2]    'Back right is  4
   Setp[6] := -wSpeed[3]   'Back left is   6  
-  Setp[1] := pid.GetActPos(1)
-  Setp[3] := pid.GetActPos(3)
-  Setp[5] := pid.GetActPos(5)
-  Setp[7] := pid.GetActPos(7) 
+  Setp[1] := wAngle[0]
+  Setp[3] := wAngle[1]
+  Setp[5] := wAngle[2]
+  Setp[7] := wAngle[3] 
   
   setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
    
@@ -612,25 +612,7 @@ PRI DoCommand | t1, i, command
           ser.str(rose_comm.getEOLStr)
     
     ' === Get All debug status info per wheelunit
-    215:  ser.str(rose_comm.getCommandStr(command)) 
-
- {{
-            ser.str(rose_comm.getDecStr(0))
-            ser.str(rose_comm.getDecStr(1))
-            ser.str(rose_comm.getDecStr(2))
-            ser.str(rose_comm.getDecStr(3))
-            ser.str(rose_comm.getDecStr(4))
-            ser.str(rose_comm.getDecStr(5))
-            ser.str(rose_comm.getDecStr(6))
-            ser.str(rose_comm.getDecStr(7))
-            ser.str(rose_comm.getDecStr(8))
-            ser.str(rose_comm.getDecStr(9))
-            ser.str(rose_comm.getDecStr(10))
-            ser.str(rose_comm.getDecStr(11))
-            ser.str(rose_comm.getDecStr(12))
-            ser.str(rose_comm.getDecStr(13))
-            ser.str(rose_co  mm.getDecStr(14))
-  }}       
+    215:  ser.str(rose_comm.getCommandStr(command))     
           repeat i from 0 to nPIDLoops - 1 step 2
             ser.str(rose_comm.getDecStr(pid.GetDeltaVel(i)))
             ser.str(rose_comm.getDecStr(pid.GetActEncPos(i+1)))
@@ -646,8 +628,7 @@ PRI DoCommand | t1, i, command
             ser.str(rose_comm.getDecStr(pid.GetActCurrent(i)))
             ser.str(rose_comm.getDecStr(pid.GetActCurrent(i+1)))
             ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i)))
-            ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i+1)))  
-                 
+            ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i+1)))      
           ser.str(rose_comm.getEOLStr)    
       
     ' === SETTERS ===
