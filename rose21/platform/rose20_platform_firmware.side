@@ -8,6 +8,7 @@ QiK_commands.spin
 timing.spin
 PID_4A.spin
 eeprom.spin
+FloatMath1_1.spin
 simple_numbers.spin
 full_duplex_serial_005.spin
 STRINGS2hk.spin

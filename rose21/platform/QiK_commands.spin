@@ -80,7 +80,7 @@ OBJ
 Var Byte  ActQiK
     Byte  lTxPin, lRxPin
     Byte  s[256]   ' errorstring
-    Long  MotorBrake[Nmotor], MotorPWM[Nmotor], motor_prev_direction[NMotor]
+    Long  MotorBrake[NMotor], MotorPWM[Nmotor], motor_prev_direction[NMotor]
 
 ' ---------------------  Init QiK object  ------------------
 PUB Init( RxPin, TxPin)| lCog, i
@@ -108,30 +108,38 @@ Return ActQiK
 ' ---------------------  'Flush receive buffer ------------------
 PUB rxflush   
   serial_interface.rxflush 
+  
+' -- Givien the motor addresses run from 10 - 14
+PRI getMotorIndex(address, motor_id) | lowest_address, diff
+  lowest_address := 10
+  diff           := address - lowest_address
+  return (address - lowest_address + motor_id + diff)
 
 ' ----------------  QiC commands motor commands pololu drivers -----
 ' ---------------------  'Set new speed motor 0 (active brake)  ------------------
-PUB SetSpeedM0(Address, ReqSpeed) | lS, NewCommand
-  if ReqSpeed < 0
-    NewCommand:=cM0R
-    lS:= 0 #> -ReqSpeed <# 127 'Limit range
+PUB SetSpeedM0(Address, ReqEffort) | abs_req_eff, direction
+  if ReqEffort < 0
+    direction   := cM0R
+    abs_req_eff := 0 #> -ReqEffort <# 127 'Limit range
   else
-    NewCommand:=cM0F
-    lS:= 0 #> ReqSpeed <# 127 'Limit range
+    direction   := cM0F
+    abs_req_eff := 0 #> ReqEffort <# 127 'Limit range
     
   if ActQiK==1
     serial_interface.tx($AA)    
     serial_interface.tx(Address)
-    NewCommand := NewCommand - $80
+    direction := direction - $80
 
-  serial_interface.tx(NewCommand) 'Motor speed command
-  serial_interface.tx(lS)                        
+  serial_interface.tx(direction) 'Motor speed command
+  serial_interface.tx(abs_req_eff)    
+  
+  ' Store direction for this address
+  motor_prev_direction[getMotorIndex(Address, 0)] := direction                    
 
- 
 ' ---------------------  'Set new speed motor 0, brake instead of immediatly switching ------------------
 PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req_eff, direction, apply_brake_value
   ' Initialize command to previous direction
-  direction         := motor_prev_direction[Address - 10]
+  direction         := motor_prev_direction[getMotorIndex(Address, 0)]
   apply_brake_value := 0
   
   ' Take abs value of speed (because we determine direction not by sign but by command)
@@ -149,12 +157,12 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
       abs_req_eff := 0   
 }}
 
-  if setp > 0 and measured_speed > -speed_hyst
+  if setp > 0 'and measured_speed > -speed_hyst
     direction := cM0F
     if ReqEffort < 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
-  elseif setp < 0 and measured_speed < speed_hyst
+  elseif setp < 0 'and measured_speed < speed_hyst
     direction := cM0R
     if ReqEffort > 0
       abs_req_eff := 0
@@ -167,7 +175,7 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
     apply_brake_value := 0
   
   ' Store direction for this address
-  motor_prev_direction[Address - 10] := direction
+  motor_prev_direction[getMotorIndex(Address, 0)] := direction
         
   ' If not braking, apply direction and requested speed
   if apply_brake_value == 0
@@ -183,34 +191,87 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
     SetBrakeM0(Address, apply_brake_value)    
  
 ' ---------------------  'Set new speed motor 1   ------------------
-PUB SetSpeedM1(Address,Speed) | lS, NewCommand 
-  If Speed<0
-    NewCommand:=cM1R
-    lS:= 0 #> -Speed <# 127 'Limit range
+PUB SetSpeedM1(Address, ReqEffort) | abs_req_eff, direction 
+  If ReqEffort<0
+    direction   := cM1R
+    abs_req_eff := 0 #> -ReqEffort <# 127 'Limit range
   else
-    NewCommand:=cM1F
-    lS:= 0 #> Speed <# 127 'Limit range
+    direction   := cM1F
+    abs_req_eff := 0 #> ReqEffort <# 127 'Limit range
 
   if ActQiK==1
     serial_interface.tx($AA)    
     serial_interface.tx(Address)
-    NewCommand:=NewCommand - $80
+    direction := direction - $80
 
-  serial_interface.tx(NewCommand) 'Motor speed command
-  serial_interface.tx(lS)                        
+  serial_interface.tx(direction) 'Motor speed command
+  serial_interface.tx(abs_req_eff) 
+ 
+  ' Store direction for this address
+  motor_prev_direction[getMotorIndex(Address, 1)] := direction                       
+
 
 ' ---------------------  'Set new speed motor 1, change of direction, passive brake instead  ------------------
-PUB SetSpeedM1DelayedReverse(Address, ReqSpeed, measured_speed) | lS, NewCommand, apply_brake_value
+PUB SetSpeedM1DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req_eff, direction, apply_brake_value
+  ' Initialize command to previous direction
+  direction         := motor_prev_direction[getMotorIndex(Address, 1)]
+  apply_brake_value := 0
   
+  ' Take abs value of speed (because we determine direction not by sign but by command)
+  ' Also limit to valid range 
+  abs_req_eff     := 0 #> (|| ReqEffort) <# 127
+  
+ {{ 
+  if setp => 0
+    direction := cM1F
+    if ReqEffort < 0
+      abs_req_eff := 0
+  else
+    direction := cM1R
+    if ReqEffort > 0
+      abs_req_eff := 0   
+}}
+
+  if setp > 0 and measured_speed > -speed_hyst
+    direction := cM1F
+    if ReqEffort < 0
+      abs_req_eff := 0
+      apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
+  elseif setp < 0 and measured_speed < speed_hyst
+    direction := cM1R
+    if ReqEffort > 0
+      abs_req_eff := 0
+      apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
+  elseif || measured_speed > speed_hyst
+    abs_req_eff := 0
+    apply_brake_value := max_braking_effort
+  else
+    abs_req_eff := 0
+    apply_brake_value := 0
+  
+  ' Store direction for this address
+  motor_prev_direction[getMotorIndex(Address, 1)] := direction
+        
+  ' If not braking, apply direction and requested speed
+  if apply_brake_value == 0
+    ' Check if we need to adapt the protocol for multi qik communication
+    if ActQiK == 1
+      serial_interface.tx($AA)    
+      serial_interface.tx(Address)
+      direction := direction - $80
+    
+    serial_interface.tx(direction) ' Send motor speed command
+    serial_interface.tx(abs_req_eff)                        
+  else
+    SetBrakeM1(Address, apply_brake_value)
+      
+{{PUB SetSpeedM1DelayedReverse(Address, ReqSpeed, measured_speed) | lS, NewCommand, apply_brake_value
+ 
   ' Change to reverse or brake?
   if measured_speed =< 0 and ReqSpeed =< 0 
     NewCommand        := cM1R                   ' Change direction
     lS                := 0 #> -ReqSpeed <# 127  ' Limit range
     apply_brake_value := 0
- {{ elseif ReqSpeed == -direction_hyst
-    NewCommand        := cM1R                   ' Change!
-    lS                := 0 #> -ReqSpeed <# 127            
-    apply_brake_value := 0}}
   elseif measured_speed > 0 and ReqSpeed =< 0
     NewCommand        := cM1R                   ' Wait to brake before change direction
     lS                := 0            
@@ -221,10 +282,6 @@ PUB SetSpeedM1DelayedReverse(Address, ReqSpeed, measured_speed) | lS, NewCommand
     NewCommand        := cM1F                   ' Change direction
     lS                := 0 #> ReqSpeed <# 127   ' Limit range
     apply_brake_value := 0
- {{ elseif ReqSpeed == direction_hyst
-    NewCommand        := cM1F                   ' Change!
-    lS                := 0 #> ReqSpeed <# 127            
-    apply_brake_value := 0}}
   elseif measured_speed < 0 and ReqSpeed => 0
     NewCommand        := cM1F                   ' Wait to brake before change direction
     lS                := 0            
@@ -240,7 +297,7 @@ PUB SetSpeedM1DelayedReverse(Address, ReqSpeed, measured_speed) | lS, NewCommand
       serial_interface.tx(lS)                        
   else
     SetBrakeM1(Address, apply_brake_value)
-
+}}
 
 ' ---------------------  'Set Braking motor 0 ---------------------
 PUB SetBrakeM0(Address, Brake) | lS, NewCommand 
@@ -252,7 +309,7 @@ PUB SetBrakeM0(Address, Brake) | lS, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   serial_interface.tx(lS)
-  MotorBrake[Address-10]:=Brake  'Store actual brake value             
+  MotorBrake[getMotorIndex(Address, 0)]:=Brake  'Store actual brake value             
 
 ' ---------------------  'Set Braking motor 1 ----------------------
 PUB SetBrakeM1(Address,Brake) | lS, NewCommand 
@@ -265,7 +322,7 @@ PUB SetBrakeM1(Address,Brake) | lS, NewCommand
 
   serial_interface.tx(NewCommand) 
   serial_interface.tx(lS)                        
-  MotorBrake[Address-10+1]:=Brake  'Store actual brake value             
+  MotorBrake[getMotorIndex(Address, 1)]:=Brake  'Store actual brake value             
                                     
 ' ---------------------  'Set Parameter  ---------------------------
 PUB SetParameter(Address,Parameter, Value) | lS, NewCommand, R
@@ -343,15 +400,9 @@ PUB GetSpeedM1(Address) | R, NewCommand
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
-' ---------------------  'Get  motor 0 Brake      ------------------
-PUB GetBrakeM0(Address) | R, NewCommand
-  R:=MotorBrake[Address-$10] 
-Return R
-
-' ---------------------  'Get  motor 1 brake      ------------------
-PUB GetBrakeM1(Address) | R, NewCommand
-  R:=MotorBrake[Address-$10+1] 
-Return R
+' ---------------------  'Get current motor brake value ------------------
+PUB GetBrakeValue(Address, motor_id)
+  return MotorBrake[getMotorIndex(Address, motor_id)] 
 
 ' ---------------------  'Get  firmware             ------------------
 PUB GetFirmWare(Address) | R, NewCommand
@@ -362,7 +413,6 @@ PUB GetFirmWare(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
-  't.Pause10us(50)
 Return R
 
 ' ---------------------  'Get  error              ------------------

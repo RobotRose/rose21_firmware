@@ -25,13 +25,8 @@ CON
    CS       = 0
    CE       = 11                 ' CE: Clear to End of line
    EOT      = 4                  ' End of trainsmission
-
-  ' LCD
-  LcdPin    = 24
-  LCDBaud   = 19200
-  LCDLines  = 2
   
-  ' PID constamts
+  ' PID constants
   nPIDLoops     = PID#PIDCnt  '8
   MotorCnt      = nPIDLoops
   nWheels       = 4
@@ -46,22 +41,9 @@ CON
   MAECnt    = 4                 ' Number of encoders 
   MAEOffset = 2048              ' MAE range/2 (4096/2)
 
-  ' Potmeter
-  Pot0      = 9
-  Pcenter   = 500
-
-  ' Terminal screen positions
-  pControlPars  = 1
-  pActualPars   = pControlPars + 13
-  pMenu         = pActualPars + 26
-  pInput        = pMenu + 12
-
   ' Eeprom
   cCheck      = 12345        ' Check value for correct restore of values.
   EptromStart = $7000        ' Free range for saving
-
-  ' Error logging
-  ErrorCnt = 100
    
   ' Led
   main_led_interval = 250
@@ -99,6 +81,7 @@ OBJ
   eprom         : "eeprom"                              ' Routines for saving and reloading settings
   rose_comm     : "rose_communication"                  ' Rose communication
   timer         : "timer"
+  f             : "FloatMath1_1"                        ' Floating point library
   
 Var 
     ' Timers
@@ -154,7 +137,7 @@ Var
     long sPosScale[MotorCnt], PlatFormID, Check, EndVar
 
     ' Parameters for saving logdata
-    long StartlVar, MaxCurrent[MotorCnt], ErrorLog[ErrorCnt], ActErrNr, EndLVar
+    long StartlVar, MaxCurrent[MotorCnt], ActErrNr, EndLVar
 
     ' Movement/turning hysteresis
     long start_a_err, stop_a_err, stopstart_a_err  
@@ -400,6 +383,15 @@ PRI Move | speed_margin
     Setp[3] := wAngle[1]
     Setp[5] := wAngle[2]
     Setp[7] := wAngle[3]
+    
+  Setp[0] := wSpeed[0]    'Front right is 0
+  Setp[2] := -wSpeed[1]   'Front left is  2
+  Setp[4] := wSpeed[2]    'Back right is  4
+  Setp[6] := -wSpeed[3]   'Back left is   6  
+  Setp[1] := pid.GetActPos(1)
+  Setp[3] := pid.GetActPos(3)
+  Setp[5] := pid.GetActPos(5)
+  Setp[7] := pid.GetActPos(7) 
   
   setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
    
@@ -528,7 +520,7 @@ PRI DoCommand | t1, i, command
             ser.str(rose_comm.getDecStr(pid.GetDeltaVel(rose_comm.getParam(1))))
           ser.str(rose_comm.getEOLStr)
 
-    '=== Get PI out of motor with ID
+    '=== Get PID out of motor with ID
     206:  ser.str(rose_comm.getCommandStr(command)) 
           if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
             ser.str(rose_comm.getDecStr(pid.GetPIDOut(rose_comm.getParam(1))))
@@ -537,13 +529,13 @@ PRI DoCommand | t1, i, command
     ' === Get P out of motor with ID
     207:  ser.str(rose_comm.getCommandStr(command)) 
           if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
-            ser.str(rose_comm.getDecStr( pid.GetPIDOut(rose_comm.getParam(1)) - pid.GetIbuf(rose_comm.getParam(1)) ))
+            ser.str(rose_comm.getDecStr( pid.GetP(rose_comm.getParam(1))))
           ser.str(rose_comm.getEOLStr) 
 
     ' === Get I out of motor with ID
     208:  ser.str(rose_comm.getCommandStr(command)) 
           if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
-            ser.str(rose_comm.getDecStr(pid.GetIbuf(rose_comm.getParam(1))))
+            ser.str(rose_comm.getDecStr(pid.GetI(rose_comm.getParam(1))))
           ser.str(rose_comm.getEOLStr) 
 
     ' === Get D of motor with ID
@@ -618,6 +610,45 @@ PRI DoCommand | t1, i, command
           ser.str(rose_comm.getDecStr(LastAlarm))
           ser.str(rose_comm.getDecStr(connection_error_byte))
           ser.str(rose_comm.getEOLStr)
+    
+    ' === Get All debug status info per wheelunit
+    215:  ser.str(rose_comm.getCommandStr(command)) 
+
+ {{
+            ser.str(rose_comm.getDecStr(0))
+            ser.str(rose_comm.getDecStr(1))
+            ser.str(rose_comm.getDecStr(2))
+            ser.str(rose_comm.getDecStr(3))
+            ser.str(rose_comm.getDecStr(4))
+            ser.str(rose_comm.getDecStr(5))
+            ser.str(rose_comm.getDecStr(6))
+            ser.str(rose_comm.getDecStr(7))
+            ser.str(rose_comm.getDecStr(8))
+            ser.str(rose_comm.getDecStr(9))
+            ser.str(rose_comm.getDecStr(10))
+            ser.str(rose_comm.getDecStr(11))
+            ser.str(rose_comm.getDecStr(12))
+            ser.str(rose_comm.getDecStr(13))
+            ser.str(rose_co  mm.getDecStr(14))
+  }}       
+          repeat i from 0 to nPIDLoops - 1 step 2
+            ser.str(rose_comm.getDecStr(pid.GetDeltaVel(i)))
+            ser.str(rose_comm.getDecStr(pid.GetActEncPos(i+1)))
+            ser.str(rose_comm.getDecStr(pid.GetPIDOut(i)))
+            ser.str(rose_comm.getDecStr(pid.GetPIDOut(i+1)))
+            ser.str(rose_comm.getDecStr(pid.GetP(i)))
+            ser.str(rose_comm.getDecStr(pid.GetP(i+1)))
+            ser.str(rose_comm.getDecStr(pid.GetI(i)))
+            ser.str(rose_comm.getDecStr(pid.GetI(i+1)))
+            ser.str(rose_comm.getDecStr(pid.GetD(i)))
+            ser.str(rose_comm.getDecStr(pid.GetD(i+1)))
+            ser.str(rose_comm.getDecStr(pid.GetFE(i)))
+            ser.str(rose_comm.getDecStr(pid.GetActCurrent(i)))
+            ser.str(rose_comm.getDecStr(pid.GetActCurrent(i+1)))
+            ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i)))
+            ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i+1)))  
+                 
+          ser.str(rose_comm.getEOLStr)    
       
     ' === SETTERS ===
         
@@ -955,7 +986,7 @@ PRI SetDrivePIDPars(lKi, lK, lKp, lKd, lIlimit, lPosScale, lVelScale, lVelMax, l
       PID.SetKi(i,lKi)
       PID.SetK(i,lK)
       PID.SetKp(i,lKp)
-      PID.SetKp(i,Kd)
+      PID.SetKd(i,Kd)
       PID.SetIlimit(i,lIlimit)
       PID.SetPosScale(i,lPosScale)
       PID.SetVelScale(i,lVelScale)
@@ -1022,7 +1053,6 @@ PRI ShowParameters | i
       ser.dec(pid.GetQIKCog)
     
       ser.tx(CR)
-      ser.Position(0,pControlPars)
       ser.str(string(" PID pars: PID Cycle Time (ms): "))
       ser.dec(PIDCTime)
       
@@ -1100,7 +1130,7 @@ PRI ShowParameters | i
 ' ----------------  Show actual value screen ---------------------------------------
 PRI ShowScreen | i
   if SerCog > -1
-    ser.Position(0,pActualPars)                      'Show actual values PID
+
     ser.str(string(CR,"    Setp: |"))
     repeat i from 0 to MotorIndex
       ser.str(n.decf(Setp[i],8))
@@ -1138,7 +1168,7 @@ PRI ShowScreen | i
       ser.tx("|")
     ser.str(string(CR,"    Ibuf: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetIbuf(i),8))
+      ser.str(n.decf(PID.GetI(i),8))
       ser.tx("|")
     ser.str(string(CR," PID Out: |"))
     repeat i from 0 to MotorIndex
