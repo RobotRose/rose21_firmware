@@ -479,7 +479,19 @@ PRI DoCommand | t1, i, command
     ' === Get watchdog timer ==        
     113: ser.str(rose_comm.getCommandStr(command))
          ser.str(rose_comm.getDecStr( timer.getTimerSetValue(WATCHDOG_TIMER) ))
-         ser.str(rose_comm.getEOLStr)    
+         ser.str(rose_comm.getEOLStr)   
+         
+     ' === Get nr_of_timer === 
+    114:  ser.str(rose_comm.getCommandStr(command))     
+          ser.str(rose_comm.getDecStr(nr_timers))    
+          ser.str(rose_comm.getEOLStr) 
+       
+    '=== Get timers set and actual values ===   
+    115:  ser.str(rose_comm.getCommandStr(command))     
+          repeat i from 0 to nr_timers - 1            
+            ser.str(rose_comm.getDecStr(timer.getTimerSetValue(i)))
+            ser.str(rose_comm.getDecStr(timer.getTimer(i)))  
+          ser.str(rose_comm.getEOLStr)    
     
     ' === GETTERS ===
     
@@ -632,6 +644,8 @@ PRI DoCommand | t1, i, command
             ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i)))
             ser.str(rose_comm.getDecStr(pid.GetMaxCurrent(i+1)))      
           ser.str(rose_comm.getEOLStr)    
+          
+   
       
     ' === SETTERS ===
         
