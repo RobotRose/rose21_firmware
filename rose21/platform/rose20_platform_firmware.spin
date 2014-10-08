@@ -13,8 +13,7 @@ CON
    _clkmode = xtal1+pll16x
    _xinfreq = 5000000      'MRS1
 
-   ' Led
-   Led = 27
+   
   
    ' Serial port 
    ' DebugUSB = true    'DebugUSB true: Debug via pin 30 and 31 and Commands via Xbee on 22 and 23. False: reversed  
@@ -48,6 +47,7 @@ CON
    
   ' Led
   main_led_interval = 250
+  led_PIN = 27
 
   ' Debugging
   debug = false
@@ -172,7 +172,7 @@ PUB main | T1, lch
 
     ' Indicate that the main loop is running   
     if timer.checkAndResetTimer(LED_TIMER)
-      !OUTA[Led]    
+      !OUTA[led_PIN]    
       
     MainTime := (cnt-T1)/80000
     MainCntr++
@@ -185,8 +185,8 @@ PRI InitMain
   
   DisableWheelUnits
 
-  dira[Led]~~                            'Set I/O pin for LED to output…
-  !outa[Led]                             'Toggle I/O Pin for debug
+  DIRA[led_PIN]~~                            'Set I/O pin for LED to output…
+  !OUTA[led_PIN]                             'Toggle I/O Pin for debug
 
   ' Load movement schmitt start stop default values
   start_a_err       := 20
@@ -244,18 +244,19 @@ PRI resetSafety | i
   timer.resetTimer(MAE_ERROR_TIMER)
   
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
-PRI DoSafety | i, ConnectionError, bitvalue
+PRI DoSafety | i, AnyConnectionError, bitvalue
   resetSafety
 
   ' Wait for PID cog to be started
   repeat while PIDCog == 0
     t.Pause1ms(10)
-
+  t.Pause1ms(1000)
+  
   ' Main safety loop    
   repeat
-    ConnectionError := false
+    AnyConnectionError := false
     SafetyCntr++
-
+{{
     if PID.GetFEAnyTrip == true
       'Indicate for which motor had the error
       repeat i from 0 to MotorCnt-1
@@ -273,6 +274,7 @@ PRI DoSafety | i, ConnectionError, bitvalue
       LastAlarm := 1
       NoAlarm   := false
       DisableWheelUnits
+}}
 
     if PID.GetAnyCurrError == true
       PID.ClearAnyCurrError
@@ -297,20 +299,14 @@ PRI DoSafety | i, ConnectionError, bitvalue
     if timer.checkTimer(WATCHDOG_TIMER)
       handleWatchdogError
 
-
     'Check for connection errors
     repeat i from 0 to MotorCnt-1
-      if PID.GetConnectionError(i)
-        ConnectionError := 1
+      if PID.GetAnyConnectionError == true
         SetBit(@connection_error_byte, i)
       else
         ResetBit(@connection_error_byte, i + 1)
- 
-    if ConnectionError == 1
-      PID.ResetConnectionErrors 'reset errors because we counted this one
-    else
-      timer.resetTimer(CONN_ERROR_TIMER)
-         
+        timer.resetTimer(CONN_ERROR_TIMER)
+      
     if timer.checkTimer(CONN_ERROR_TIMER)
       'Disable
       DisableWheelUnits     ' Probably does nothing due to connection error

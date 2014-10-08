@@ -30,7 +30,7 @@
 }
 CON
 
-  FIRMWARE_VERSION = 60
+  FIRMWARE_VERSION = 50     ' (Ansi char 2) Firmware version 2
   
   PIDCnt = 8          'Max PID loop count
 
@@ -69,7 +69,8 @@ Var Long PotmValue0
     Long PosScale[PIDCnt], VelScale[PIDCnt], OutputScale[PIDCnt]
     Long PIDMode[PIDCnt]             
     Long Setp[PIDCnt], SetVel[PIDCnt], preSetVel[PIDCnt]
-
+    long firmware[4]
+    
     'PID parameters
     Long PIDMax, K[PIDCnt], KI[PIDCnt], Kp[PIDCnt], Kd[PIDCnt], Acc[PIDCnt], MaxVel[PIDCnt]
     Long P[PIDCnt], ILimit[PIDCnt], lI[PIDCnt], OpenLoopCmd[PIDCnt], D[PIDCnt]
@@ -131,6 +132,11 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
     cogstop(QikCog~ - 1)  
   QikCog := QiK.Init(RXQ, TXQ)  ' Start QiK serial communication
   QiK.SetProtocol(1)                   ' Enable QiK protocol  
+                                 ' 
+  firmware[0] := qik.GetFirmWare(Drive0)
+  firmware[1] := qik.GetFirmWare(Drive1)
+  firmware[2] := qik.GetFirmWare(Drive2)
+  firmware[3] := qik.GetFirmWare(Drive3)
 
   qik.SetSpeedM0(Drive0, 0)
   qik.SetSpeedM1(Drive0, 0)
@@ -164,7 +170,7 @@ PUB Stop
     QikCog := 0
 
 ' ----------------  PID loop ---------------------------------------
-PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address ' Cycle runs every Period ms
+PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address, current_m0, current_m1 ' Cycle runs every Period ms
 
     Period              := 1 #> Period <# 1000000   'Limit PID period 
     PIDStatus           := 1
@@ -206,7 +212,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
     T1          := Cnt
     Tspeed      := Cnt
 
-                                 
+    DIRA[27]~~                            'Set I/O pin for LED to output…                             
     PIDStatus := 3                       ' PID running      
     
     Repeat                               ' Main PID loop
@@ -358,7 +364,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
                      if LastErr > 0
                        Err[i] := LastErr
 
-                     ActCurrent[i] := qik.GetCurrentM0(drive_address)      'Get motor 0 current
+                     
  
           1, 3, 5, 7: ' Steer motors
                      'if PIDMode[i] == 1
@@ -369,36 +375,26 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
                      qik.SetSpeedM1DelayedReverse(drive_address, Output[i], lActVel[i], SetVel[i])
                      
 
-                     ActCurrent[i] := qik.GetCurrentM1(drive_address)    'Get motor 1 current
-          
-        ' Misread of current?
-        if ActCurrent[i] == -1*150
-          ConnectionError[i] := TRUE
+
+        current_m0 := qik.GetCurrentM0(drive_address)      'Get motor 0 current
+        current_m1 := qik.GetCurrentM1(drive_address)      'Get motor 1 current
   
-        if ActCurrent[i] == -1 or ActCurrent[i] == $FF or LastErr => $10
-          ActCurrent[i] := 0
-            
-      
-            
-        'if qik.GetFirmWare(Drive0) <> FIRMWARE_VERSION 
-        '    ConnectionError[0] := ConnectionError[1] := TRUE
-        't.Pause10us(10)  
-        'if qik.GetFirmWare(Drive1) <> FIRMWARE_VERSION
-        '    ConnectionError[1] := ConnectionError[2] := TRUE
-        't.Pause10us(10) 
-        'if qik.GetFirmWare(Drive2) <> FIRMWARE_VERSION
-        '    ConnectionError[3] := ConnectionError[4] := TRUE
-        't.Pause10us(10) 
-        'if qik.GetFirmWare(Drive3) <> FIRMWARE_VERSION  
-        '    ConnectionError[5] := ConnectionError[6] := TRUE
-
-        'if(ConnectionError[0] or ConnectionError[1] or ConnectionError[3] or ConnectionError[5])
-        '    qik.rxflush
-
+        ' Misread of current?
+        if ActCurrent[i] == -1*150 or ActCurrent[i] == $FF or LastErr => $10
+          ' Do nothing
+          ActCurrent[i] := ActCurrent[i]
+        elseif i//2 == 0
+          ActCurrent[i] := current_m0
+        else
+          ActCurrent[i] := current_m1
+          
+          
+        'ActCurrent[i] := 4242
+  
         MaxCurrent[i]       #>= ActCurrent[i]                                       'Check for current overload 
         CurrError[i]        := CurrError[i] or (ActCurrent[i] > MaxSetCurrent[i])   'Check if any current limit exceeded set alarm if exceeded
-        AnyCurrError        := AnyCurrError or CurrError[i]                         'Check if any current error
-
+        AnyCurrError        := AnyCurrError or CurrError[i]                         'Check if any current error       
+  
         PIDLeadTime         := (Cnt-T1)/80000                '[ms]
  
       if enc_semaphore == FALSE
@@ -407,6 +403,46 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
         enc_clk_prev    := enc_clk
         enc_clk         := cnt
         enc_semaphore   := TRUE
+      
+      
+                                                                                                                       
+ 
+      longfill(@firmware, 0, 4)
+      firmware[0] := qik.GetFirmWare(Drive0)
+      firmware[1] := qik.GetFirmWare(Drive1)
+      firmware[2] := qik.GetFirmWare(Drive2)
+      firmware[3] := qik.GetFirmWare(Drive3)
+      
+      if firmware[0] <> FIRMWARE_VERSION 
+        ConnectionError[0] := TRUE
+        ConnectionError[1] := TRUE
+      else
+        ConnectionError[0] := FALSE
+        ConnectionError[1] := FALSE
+      
+      if firmware[1] <> FIRMWARE_VERSION
+        ConnectionError[2] := TRUE
+        ConnectionError[3] := TRUE
+      else
+        ConnectionError[2] := FALSE
+        ConnectionError[3] := FALSE
+      
+      if firmware[2] <> FIRMWARE_VERSION
+        ConnectionError[4] := TRUE
+        ConnectionError[5] := TRUE
+      else
+        ConnectionError[4] := FALSE
+        ConnectionError[5] := FALSE
+      
+      if firmware[3] <> FIRMWARE_VERSION  
+        ConnectionError[6] := TRUE
+        ConnectionError[7] := TRUE
+      else
+        ConnectionError[6] := FALSE
+        ConnectionError[7] := FALSE
+        
+      'if(ConnectionError[0] or ConnectionError[1] or ConnectionError[3] or ConnectionError[5])
+      '    qik.rxflush
 
       DVT_prev[i] := DVT[i]
       
@@ -444,7 +480,14 @@ PUB ResetConnectionErrors | i
 ' ---------------------  Get ConnectionError ---------------------------
 PUB GetConnectionError(i)
   i:= 0 #> i <# PIDMax
-Return ConnectionError[i]
+  return ConnectionError[i]
+
+' ---------------------  Get Any ConnectionError ---------------------------
+PUB GetAnyConnectionError | i, any
+  any := false
+  repeat i from 0 to PIDMax-1
+    any := any or ConnectionError[i]
+  return any
 
 ' ---------------------  Set Setpoint Max Min -----------------------------
 PUB SetSetpMaxMin(i,lSetpMaxMin)
@@ -454,7 +497,7 @@ PUB SetSetpMaxMin(i,lSetpMaxMin)
 ' ---------------------  Get Setpoint Max Min ---------------------------
 PUB GetSetpMaxMin(i)
   i:= 0 #> i <# PIDMax
-Return SetpMaxMin[i]
+  return SetpMaxMin[i]
 ' ---------------------  Set Setpoint Max Plus -----------------------------
 PUB SetSetpMaxPlus(i,lSetpMaxPlus)
   i:= 0 #> i <# PIDMax
@@ -463,7 +506,7 @@ PUB SetSetpMaxPlus(i,lSetpMaxPlus)
 ' ---------------------  Get Setpoint Max Plus---------------------------
 PUB GetSetpMaxPlus(i)
   i:= 0 #> i <# PIDMax
-Return SetpMaxPlus[i]
+  return SetpMaxPlus[i]
 
 ' ---------------------  Get Setpoint ----------------------------------
 PUB GetSetp(i)
@@ -487,22 +530,27 @@ PUB SetFEMax(i,lFEMax)
   i:= 0 #> i <# PIDMax
   FEMax[i]:=lFEMax
   
+pub getFirmware(i)
+  i:= 0 #> i <# 4
+  return firmware[i]  
 ' ---------------------   Get MaxFollErr -----------------------------
 PUB GetFEMax(i)
   i:= 0 #> i <# PIDMax
-Return FEMax[i]
+  return FEMax[i]
 
 ' ---------------------   Get Actual FollErr -----------------------------
 PUB GetFE(i)
   i:= 0 #> i <# PIDMax
-Return FE[i]
+  return FE[i]
+  
 ' ---------------------   Get Foll Err trip -----------------------------
 PUB GetFETrip(i)
   i:= 0 #> i <# PIDMax
-Return FETrip[i]
+  return FETrip[i]
 
-PUB GetFEAnyTrip          'Any FE trip
-Return FEAny
+' ---------------------   Get Any FE trip ---------------------
+PUB GetFEAnyTrip         
+  return FEAny
 
 ' ---------------------   Set Ki  -----------------------------
 PUB SetKI(i,lKi)
@@ -517,7 +565,7 @@ PUB SetKD(i,lKd)
 ' ---------------------   Get Ki  -----------------------------
 PUB GetKI(i)
   i:= 0 #> i <# PIDMax
-Return KI[i]
+  return KI[i]
 
 ' ---------------------   Set Kp  -----------------------------
 PUB SetKp(i,lK)
@@ -527,7 +575,7 @@ PUB SetKp(i,lK)
 ' ---------------------   Get Kp  -----------------------------
 PUB GetKp(i)
   i:= 0 #> i <# PIDMax
-Return Kp[i]
+  return Kp[i]
 
 ' ---------------------   Set K   -----------------------------
 PUB SetK(i,lK) ' Set K
@@ -537,7 +585,7 @@ PUB SetK(i,lK) ' Set K
 ' ---------------------   Get K   -----------------------------
 PUB GetK(i)     'Get K
   i:= 0 #> i <# PIDMax
-Return K[i]
+  return K[i]
 
 ' ---------------------   Set Acc   -----------------------------
 PUB SetAcc(i,lAcc)
@@ -547,7 +595,7 @@ PUB SetAcc(i,lAcc)
 ' ---------------------   Get Acc   -----------------------------
 PUB GetAcc(i)
   i:= 0 #> i <# PIDMax
-Return Acc[i]
+  return Acc[i]
 
 ' ---------------------   Set max Vel   -----------------------------
 PUB SetMaxVel(i,lVel)
@@ -557,9 +605,8 @@ PUB SetMaxVel(i,lVel)
 ' ---------------------   Get max Vel   -----------------------------
 PUB GetMaxVel(i)
   i:= 0 #> i <# PIDMax
-Return MaxVel[i]
-
-
+  return MaxVel[i]
+  
 ' ---------------------   Set Position Scale factor  -----------------------------
 PUB SetPosScale(i,lS)
   i:= 0 #> i <# PIDMax
@@ -568,7 +615,7 @@ PUB SetPosScale(i,lS)
 ' ---------------------   Get PosScale -----------------------------
 PUB GetPosScale(i)
   i:= 0 #> i <# PIDMax
-Return PosScale[i]
+  return PosScale[i]
 
 ' ---------------------   Set Velocity Scale factor  -----------------------------
 PUB SetVelScale(i,lS)
@@ -578,7 +625,7 @@ PUB SetVelScale(i,lS)
 ' ---------------------   Get  Velocity Scale factor -----------------------------
 PUB GetVelScale(i)
   i:= 0 #> i <# PIDMax
-Return VelScale[i]
+  return VelScale[i]
 
 ' ---------------------   Set Output Scale factor    -----------------------------
 PUB SetOutputScale(i,lS)
@@ -588,7 +635,7 @@ PUB SetOutputScale(i,lS)
 ' ---------------------   Get Output Scale factor -----------------------------
 PUB GetOutputScale(i)
   i:= 0 #> i <# PIDMax
-Return OutputScale[i]
+  return OutputScale[i]
 
 ' ---------------------   Set Integral limiter  -----------------------------
 PUB SetIlimit(i,lS)
@@ -598,7 +645,7 @@ PUB SetIlimit(i,lS)
 ' ---------------------   Get Integral limiter -----------------------------
 PUB GetIlimit(i)
   i:= 0 #> i <# PIDMax
-Return Ilimit[i]
+  return Ilimit[i]
 
 ' ---------------------   Return Actual Velocity Cnts/sec -----------------------------
 PUB GetActVel(i)
@@ -620,17 +667,17 @@ PUB GetActPos(i)
 PUB GetActEncPos(i)
   i:= 0 #> i <# PIDMax
   if i == 2 or i == 6
-    Return -EncPosSemCopy[i]
+    return -EncPosSemCopy[i]
   else
-    Return EncPosSemCopy[i]
+    return EncPosSemCopy[i]
 
 ' ---------------------  Return Encoder Position Difference in cnts in enc_clk time-----------------------------
 PUB GetActEncPosDiff(i)
   i:= 0 #> i <# PIDMax
   if i == 2 or i == 6
-    Return -(EncPosSemCopy[i] - EncPosSemCopy_prev[i])
+    return -(EncPosSemCopy[i] - EncPosSemCopy_prev[i])
   else
-    Return EncPosSemCopy[i] - EncPosSemCopy_prev[i]
+    return EncPosSemCopy[i] - EncPosSemCopy_prev[i]
 
 ' ---------------------  Reset the act encoder semaphore -----------------------------
 PUB resetActEncPosSem
@@ -650,12 +697,12 @@ PUB getEncClkDiff
 ' ---------------------  Return MAE-Position in cnts -----------------------------
 PUB GetMAEpos(i)
   i:= 0 #> i <# PIDMax
-Return Long[mMAEPos][i]
+  return long[mMAEPos][i]
 
 ' ---------------------  Return actual currents -----------------------------
 PUB GetActCurrent(i)
   i:= 0 #> i <# PIDMax
-Return ActCurrent[i]
+  return ActCurrent[i]
 
 ' ---------------------  Set Max Current -----------------------------
 PUB SetMaxCurr(i,lS)
@@ -665,36 +712,36 @@ PUB SetMaxCurr(i,lS)
 ' ---------------------  Return Max allowable currents -----------------------------
 PUB GetMaxSetCurrent(i)
   i:= 0 #> i <# PIDMax
-Return MaxSetCurrent[i]
+  return MaxSetCurrent[i]
 
 ' ---------------------  Return Max allowable currents -----------------------------
 PUB GetMaxCurrent(i)
   i:= 0 #> i <# PIDMax
-Return MaxCurrent[i]
+  return MaxCurrent[i]
 
 ' ---------------------  Return current errorss -----------------------------
 PUB GetCurrError(i)
   i:= 0 #> i <# PIDMax
-Return CurrError[i]
+  return CurrError[i]
 ' ---------------------  Return P -----------------------------
 PUB GetP(i)
   i:= 0 #> i <# PIDMax
-Return P[i]/K[i]
+  return P[i]/K[i]
 
 ' ---------------------  Return I -----------------------------
 PUB GetI(i)
   i:= 0 #> i <# PIDMax
-Return lI[i]/KI[i]
+  return lI[i]/KI[i]
 
 ' ---------------------  Return D -----------------------------
 PUB GetD(i)
   i:= 0 #> i <# PIDMax
-Return D[i]/KD[i]
+  return D[i]/KD[i]
 
 ' ---------------------  Return Delta vel -----------------------------
 PUB GetDeltaVel(i)
   i:= 0 #> i <# PIDMax
-Return DVT[i]
+  return DVT[i]
 
 ' ---------------------   Set PID mode     -----------------------------
 PUB SetPIDMode(i, lMode)             '0= open loop, 1=Velocity control, 2= position control 3= Pos cntrl Vel limit
@@ -709,42 +756,44 @@ PUB SetOpenLoop(i,lOpenloopCmd)
 ' ---------------------  Return PID Mode -----------------------------
 PUB GetPIDMode(i)
   i:= 0 #> i <# PIDMax
-Return PIDMode[i]
+  return PIDMode[i]
 
 ' --------------------- Return PID Time in ms -----------------------------
 PUB GetPIDTime
-Return PIDTime
+  return PIDTime
 
 ' --------------------- Return PIDLead Time in ms -----------------------------
 PUB GetPIDLeadTime
-Return PIDLeadTime
+  return PIDLeadTime
+  
 ' --------------------- Return PIDWaitTime in ms -----------------------------
 PUB GetPIDWaitTime
-Return PIDWaitTime
+  return PIDWaitTime
+  
 ' ---------------------  Return PID Status -----------------------------
 PUB GetPIDStatus 
-Return  PIDStatus
+  return  PIDStatus
 
 ' ---------------------  Return PIDOut -----------------------------
 PUB GetPIDOut(i) 
   i:= 0 #> i <# PIDMax
-Return Output[i]
+  return Output[i]
 
 ' ---------------------  Return Get QiK Parameter -----------------------------
 PUB GetParameter(Address, Parameter)
-Return GetParameter(Address, Parameter)
+  return GetParameter(Address, Parameter)
 
 ' ---------------------  Return Return string -----------------------------
 PUB Par2Str(ParNr)
-Return Par2Str(ParNr)
+  return Par2Str(ParNr)
 
 ' ---------------------   Get PID Counter  -----------------------------
 PUB GetCntr
-Return PIDCntr
+  return PIDCntr
 
 ' ---------------------   GetAnyCurrError  -----------------------------
 PUB GetAnyCurrError
-Return AnyCurrError
+  return AnyCurrError
 
 '----------------- Clear AnyCurrError ------------------------
 PUB ClearAnyCurrError | i
@@ -753,23 +802,22 @@ PUB ClearAnyCurrError | i
   AnyCurrError:=false
   CurrError:=0
     
-    
 ' ---------------------   Get drive Error  -----------------------------
 PUB GetError(i)
   i:= 0 #> i <# PIDMax
-Return Err[i]
+  return Err[i]
 
 ' ---------------------   GetEncCog  -----------------------------
 PUB GetEncCog
-Return EncCog
+  return EncCog
 
 ' ---------------------   GetQIKCog  -----------------------------
 PUB GetQIKCog
-Return QIKCog
+  return QIKCog
 
 ' ---------------------   GetEncCntr
 PUB GetEncCntr
-Return EncCntr
+  return EncCntr
 
 
 

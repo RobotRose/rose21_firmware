@@ -68,10 +68,10 @@ CON
 
   nMotor = 8    'Max number of motors for brake array. Modify when more needed
 
-  TimeOut = 1  'Timeout in ms for response by Qik on request
+  TimeOut = 1 'Timeout in ms for response by Qik on request
   
   speed_hyst = 5
-  max_braking_effort = 25
+  max_braking_effort = 15
       
 OBJ
   serial_interface  : "full_duplex_serial_005"       ' Standard serial communication
@@ -412,7 +412,7 @@ PUB GetFirmWare(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
+  R := serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 Return R
 
 ' ---------------------  'Get  error              ------------------

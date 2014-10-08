@@ -124,17 +124,17 @@ PUB rxtime(ms) : rxbyte | t
 
 '' Wait ms milliseconds for a byte to be received
 '' returns -1 if no byte received, $00..$FF if byte
-
+  
   t := cnt
   repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq / 1000) > ms
   
-PUB rxtime1(us) : rxbyte | t
+PUB rxtime_us(us) : rxbyte | t
 
 '' Wait us microseconds for a byte to be received
 '' returns -1 if no byte received, $00..$FF if byte
 
   t := cnt
-  repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq) > us
+  repeat until (rxbyte := rxcheck) => 0 or (cnt - t) / (clkfreq / 1000000) > us
 
 PUB rx : rxbyte
 
