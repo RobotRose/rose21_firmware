@@ -6,7 +6,7 @@ CON
    ' Version
    CONTROLLER_ID    = 1
    major_version    = 2
-   minor_version    = 1 
+   minor_version    = 2 
    
 
    ' Set 80Mhz
@@ -65,13 +65,14 @@ CON
   NoAlarmBit    = 15             ' No alarm present   
 
   ' TIMERS
-  nr_timers             = 6
-  LED_TIMER             = 0
-  WATCHDOG_TIMER        = 1 
-  FOLLOWING_ERROR_TIMER = 2
-  CURRENT_ERROR_TIMER   = 3
-  CONN_ERROR_TIMER      = 4
-  MAE_ERROR_TIMER       = 5
+  nr_timers                   = 7
+  LED_TIMER                   = 0
+  WATCHDOG_TIMER              = 1 
+  FOLLOWING_ERROR_TIMER       = 2
+  FOLLOWING_ERROR_RESET_TIMER = 3
+  CURRENT_ERROR_TIMER         = 4
+  CONN_ERROR_TIMER            = 5
+  MAE_ERROR_TIMER             = 6
   
 OBJ
   ser           : "full_duplex_serial_005"              ' Full duplex serial communication 
@@ -239,6 +240,7 @@ PRI resetSafety | i
     ResetBit(@connection_error_byte, i)
     
   timer.resetTimer(FOLLOWING_ERROR_TIMER)
+  timer.resetTimer(FOLLOWING_ERROR_RESET_TIMER)
   timer.resetTimer(CURRENT_ERROR_TIMER)
   timer.resetTimer(CONN_ERROR_TIMER)
   timer.resetTimer(MAE_ERROR_TIMER)
@@ -256,16 +258,22 @@ PRI DoSafety | i, AnyConnectionError, bitvalue
   repeat
     AnyConnectionError := false
     SafetyCntr++
-{{
+    
+    ' Following error 
     if PID.GetFEAnyTrip == true
+      timer.unpauseTimer(FOLLOWING_ERROR_TIMER)
+      timer.startTimer(FOLLOWING_ERROR_RESET_TIMER)
+      
       'Indicate for which motor had the error
       repeat i from 0 to MotorCnt-1
         if PID.GetFETrip(i)
           SetBit(@connection_error_byte, i)
         else
           ResetBit(@connection_error_byte, i + 1)
-      pid.ResetAllFETrip
     else
+      timer.pauseTimer(FOLLOWING_ERROR_TIMER)
+      
+    if timer.checkTimer(FOLLOWING_ERROR_RESET_TIMER)
       timer.resetTimer(FOLLOWING_ERROR_TIMER)
 
     if timer.checkTimer(FOLLOWING_ERROR_TIMER)             
@@ -274,8 +282,10 @@ PRI DoSafety | i, AnyConnectionError, bitvalue
       LastAlarm := 1
       NoAlarm   := false
       DisableWheelUnits
-}}
 
+    'timer.setTimer(FOLLOWING_ERROR_TIMER, ||pid.GetFETrip(3))
+
+    ' Current error
     if PID.GetAnyCurrError == true
       PID.ClearAnyCurrError
     else
@@ -295,11 +305,11 @@ PRI DoSafety | i, AnyConnectionError, bitvalue
           ResetBit(@connection_error_byte, i + 1)   
       DisableWheelUnits
 
-    '-- Watchdog --
+    ' Watchdog (error)
     if timer.checkTimer(WATCHDOG_TIMER)
       handleWatchdogError
 
-    'Check for connection errors
+    ' Connection error
     repeat i from 0 to MotorCnt-1
       if PID.GetAnyConnectionError == true
         SetBit(@connection_error_byte, i)
@@ -320,6 +330,7 @@ PRI DoSafety | i, AnyConnectionError, bitvalue
         NoAlarm   := true
         SetBit(@PfStatus, NoAlarm)
 
+    ' MAE error
     ' Check for change of MAECntr 
     if (pMAECntr <> MAECntr)
       timer.resetTimer(MAE_ERROR_TIMER)
@@ -527,7 +538,7 @@ PRI DoCommand | t1, i, command
     ' === Get velocity error of motor with ID
     205:  ser.str(rose_comm.getCommandStr(command)) 
           if rose_comm.nrOfParametersCheck(1) AND ( rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) =< 7)
-            ser.str(rose_comm.getDecStr(pid.GetDeltaVel(rose_comm.getParam(1))))
+            ser.str(rose_comm.getDecStr(pid.GetDVT(rose_comm.getParam(1))))
           ser.str(rose_comm.getEOLStr)
 
     '=== Get PID out of motor with ID
@@ -624,7 +635,7 @@ PRI DoCommand | t1, i, command
     ' === Get All debug status info per wheelunit
     215:  ser.str(rose_comm.getCommandStr(command))     
           repeat i from 0 to nPIDLoops - 1 step 2
-            ser.str(rose_comm.getDecStr(pid.GetDeltaVel(i)))
+            ser.str(rose_comm.getDecStr(pid.GetDVT(i)))
             ser.str(rose_comm.getDecStr(pid.GetActEncPos(i+1)))
             ser.str(rose_comm.getDecStr(pid.GetPIDOut(i)))
             ser.str(rose_comm.getDecStr(pid.GetPIDOut(i+1)))
@@ -801,8 +812,11 @@ PRI setupTimers
   timer.startTimer(LED_TIMER)
   
   ' Error timers  default values
-  timer.setTimer(FOLLOWING_ERROR_TIMER, 3000)
+  timer.setTimer(FOLLOWING_ERROR_TIMER, 2500)
   timer.startTimer(FOLLOWING_ERROR_TIMER)
+  
+  timer.setTimer(FOLLOWING_ERROR_RESET_TIMER, 10)
+  timer.startTimer(FOLLOWING_ERROR_RESET_TIMER)
   
   timer.setTimer(CURRENT_ERROR_TIMER, 800)
   timer.startTimer(CURRENT_ERROR_TIMER)
@@ -1153,7 +1167,7 @@ PRI ShowScreen | i
       ser.tx("|")
     ser.str(string(CR,"DeltaVel: |"))
     repeat i from 0 to MotorIndex
-      ser.str(n.decf(PID.GetDeltaVel(i),8))
+      ser.str(n.decf(PID.GetDVT(i),8))
       ser.tx("|")
     ser.str(string(CR," MSetVel: |"))
     repeat i from 0 to MotorIndex
