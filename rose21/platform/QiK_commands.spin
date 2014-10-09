@@ -80,11 +80,12 @@ OBJ
 Var Byte  ActQiK
     Byte  lTxPin, lRxPin
     Byte  s[256]   ' errorstring
+    Byte stopped
     Long  MotorBrake[NMotor], MotorPWM[Nmotor], motor_prev_direction[NMotor]
 
 ' ---------------------  Init QiK object  ------------------
 PUB Init( RxPin, TxPin)| lCog, i
-  
+  stopped := false
   repeat i from 0 to (NMotor - 1)
     motor_prev_direction[i] := 0
     
@@ -93,7 +94,8 @@ PUB Init( RxPin, TxPin)| lCog, i
   lCog      := serial_interface.start(lRxPin, lTxPin, 0, BaudQ)  ' Start serial port   start(rxpin, txpin, mode, baudrate)
   ActQiK    := 1                           ' 0=Compact protocol 1=Pololu protocol, multi drop daisy chain
   AutoBaud
-Return lCog   
+
+  return lCog   
 ' ---------------------  'Auto baud Qik  ------------------
 PUB AutoBaud             'Perform this command first to get baud rate rigth of all QiK drives
   serial_interface.tx($AA)            'Auto baud character   
@@ -103,7 +105,7 @@ PUB SetProtocol(lQiK)    '0=Compact protocol 1=Pololu protocol for multi drop da
   ActQiK:=0 #> lQiK <# 1
 
 PUB GetProtocol          'Return actual protocol
-Return ActQiK
+  return ActQiK
 
 ' ---------------------  'Flush receive buffer ------------------
 PUB rxflush   
@@ -146,31 +148,24 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
   ' Also limit to valid range 
   abs_req_eff     := 0 #> (|| ReqEffort) <# 127
   
- {{ 
-  if setp => 0
-    direction := cM0F
-    if ReqEffort < 0
-      abs_req_eff := 0
-  else
-    direction := cM0R
-    if ReqEffort > 0
-      abs_req_eff := 0   
-}}
-
   if setp > 0 'and measured_speed > -speed_hyst
+    stopped := false
     direction := cM0F
     if ReqEffort < 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
   elseif setp < 0 'and measured_speed < speed_hyst
+    stopped := false
     direction := cM0R
     if ReqEffort > 0
       abs_req_eff := 0
       apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
-  elseif || measured_speed > speed_hyst
-     abs_req_eff := 0
+  elseif stopped == false and measured_speed > speed_hyst ' setp == 0
+    ' Stopping
+    abs_req_eff := 0
     apply_brake_value := 0 #> ||(setp - measured_speed) <# 127
   else
+    stopped := true
     abs_req_eff := 0
     apply_brake_value := 0
   
@@ -178,7 +173,7 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
   motor_prev_direction[getMotorIndex(Address, 0)] := direction
         
   ' If not braking, apply direction and requested speed
-  if apply_brake_value == 0
+  if apply_brake_value == 0 and abs_req_eff > 0
     ' Check if we need to adapt the protocol for multi qik communication
     if ActQiK == 1
       serial_interface.tx($AA)    
@@ -188,7 +183,8 @@ PUB SetSpeedM0DelayedReverse(Address, ReqEffort, measured_speed, setp) | abs_req
     serial_interface.tx(direction) ' Send motor speed command
     serial_interface.tx(abs_req_eff)                        
   else
-    SetBrakeM0(Address, apply_brake_value)    
+    SetBrakeM0(Address, apply_brake_value)
+  
  
 ' ---------------------  'Set new speed motor 1   ------------------
 PUB SetSpeedM1(Address, ReqEffort) | abs_req_eff, direction 
@@ -339,7 +335,7 @@ PUB SetParameter(Address,Parameter, Value) | lS, NewCommand, R
   serial_interface.tx($55)      'extra bytes for security
   serial_interface.tx($2A)
   R:=serial_interface.rxtime(TimeOut) 'Wait for return charater before continuing max 100 us
-Return R           'Return result of parameter set     Check with SetParRes2str(Resnr) result
+  return R           'Return result of parameter set     Check with SetParRes2str(Resnr) result
 
 ' --------------------- 'Get Parameter  ----------------------------
 PUB GetParameter(Address, Parameter) | R, NewCommand
@@ -351,7 +347,7 @@ PUB GetParameter(Address, Parameter) | R, NewCommand
   serial_interface.tx(NewCommand) 
   serial_interface.tx(Parameter) 'Get requested parameter
   R:=serial_interface.rxtime(TimeOut) 'Expect response within timeout
-Return  R
+  return R
 
 
 ' --------------------- 'Get motor 0 current -----------------------
@@ -364,7 +360,7 @@ PUB GetCurrentM0(Address) | R, NewCommand
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout 
 
-  Return R*150            'Scale output to mA
+  return R*150            'Scale output to mA
 
 ' ---------------------  'Get  motor 1 current    ------------------
 PUB GetCurrentM1(Address) | R, NewCommand
@@ -376,7 +372,7 @@ PUB GetCurrentM1(Address) | R, NewCommand
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
 
-  Return R*150            'Scale output to mA
+  return R*150            'Scale output to mA
 
 ' ---------------------  'Get  motor 0 speed      ------------------
 PUB GetSpeedM0(Address) | R, NewCommand
@@ -387,7 +383,7 @@ PUB GetSpeedM0(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
-Return R
+  return R
 
 ' ---------------------  'Get  motor 1 speed      ------------------
 PUB GetSpeedM1(Address) | R, NewCommand
@@ -398,7 +394,7 @@ PUB GetSpeedM1(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
-Return R
+  return R
 
 ' ---------------------  'Get current motor brake value ------------------
 PUB GetBrakeValue(Address, motor_id)
@@ -413,7 +409,7 @@ PUB GetFirmWare(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R := serial_interface.rxtime(TimeOut)     'Expect response within timeout   
-Return R
+  return R
 
 ' ---------------------  'Get  error              ------------------
 PUB GetError(Address) | R, NewCommand
@@ -424,7 +420,7 @@ PUB GetError(Address) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
-Return R
+  return R
 
 ' ---------------------  Return QiC errorstring -----------------------------
 PUB Error2Str(Error)| lBuf
@@ -464,7 +460,7 @@ PUB Error2Str(Error)| lBuf
     if Error == 0
        AddStr(@sSpace, @s)
        AddStr(@sNoError, @s)
-Return @s                        'return error strings
+  return @s                        'return error strings
 
 ' ---------------------  Add string1 to String2 in returns strin -----------------------------
 PUB AddStr(StrAddr1, StrAddr2) | i, j, ch
