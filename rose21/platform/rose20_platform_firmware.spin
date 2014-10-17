@@ -6,7 +6,7 @@ CON
    ' Version
    CONTROLLER_ID    = 1
    major_version    = 2
-   minor_version    = 3 
+   minor_version    = 4 
    
 
    ' Set 80Mhz
@@ -226,7 +226,7 @@ PRI handleWatchdogError
 PRI resetCommunication
   InitWatchDog
   
-PRI resetSafety | i
+PRI resetSafety | i  
   PID.ResetCurrentStatus  
   PfStatus                 := 0
   NoAlarm                  := true                'Reset global alarm var
@@ -248,11 +248,9 @@ PRI resetSafety | i
 ' ---------------- Check safety of platform and put in safe condition when needed ---------
 PRI DoSafety | i, AnyConnectionError, bitvalue
   resetSafety
-
+  
   ' Wait for PID cog to be started
   repeat while PIDCog == 0
-    t.Pause1ms(10)
-  t.Pause1ms(1000)
   
   ' Main safety loop    
   repeat
@@ -867,7 +865,7 @@ PRI ResetPfStatus | i
     pid.ResetCurrentStatus
     pid.ClearErrors
     PID.Stop
-    t.Pause1ms(1)
+
   PIDCog  := PID.Start(PIDCTime, @Setp, @MAEPos, @MAEOffs, nPIDLoops) 
   
   ' Wait while PID initializes
@@ -882,10 +880,10 @@ PRI ResetPfStatus | i
       ser.str(string("Unable to start PIDCog", CR))
 
 
-
+  
   if SafetyCog > 0
     cogstop(SafetyCog~ - 1)  
-    t.Pause1ms(1)
+   
   SafetyCog := CogNew(DoSafety, @SafetyStack) + 1
   
   if debug
@@ -915,8 +913,7 @@ PRI ResetPfStatus | i
 
   global_brake_state := 2               ' Default to no drive, no brake mode
   setBrakeState(global_brake_state)  
-  
-  resetSafety
+
                                          
 ' ----------------  Clear FE trip ---------------------------------------
 PRI ResetFE | i 

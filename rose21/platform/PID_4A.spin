@@ -123,15 +123,17 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
 
   repeat i from 0 to PIDCnt
     EncPos[i] := 1000           'TODO OH: Why is this?
+                                
+  if QikCog > 0
+    cogstop(QikCog~ - 1)  
+  QikCog := QiK.Init(RXQ, TXQ)  ' Start QiK serial communication
+  QiK.SetProtocol(1)                   ' Enable QiK protocol  
 
   if EncCog > 0
     cogstop(EncCog~ - 1)  
   EncCog := PosEnc.start(Enc0Pin, EncCnt, 0, @EncPos) ' Start quadrature encoder
 
-  if QikCog > 0
-    cogstop(QikCog~ - 1)  
-  QikCog := QiK.Init(RXQ, TXQ)  ' Start QiK serial communication
-  QiK.SetProtocol(1)                   ' Enable QiK protocol  
+ 
                                  ' 
   firmware[0] := qik.GetFirmWare(Drive0)
   firmware[1] := qik.GetFirmWare(Drive1)
@@ -151,23 +153,34 @@ PUB Start(Period, aSetp, aMAEPos, aMAEOffset, lPIDCnt)  | i
   if PIDCog > 0
      cogstop(PIDCog~ - 1)  
 
-  PIDCog    :=CogNew(PID(lPeriod), @PIDStack) + 1      'Start PID loop at lPeriod rate
+  PIDCog    := CogNew(PID(lPeriod), @PIDStack) + 1      'Start PID loop at lPeriod rate
 
-Return PIDCog
+  return PIDCog
 
 
 PUB Stop  
+
+  qik.SetSpeedM0(Drive0, 0)
+  qik.SetSpeedM1(Drive0, 0)
+  qik.SetSpeedM0(Drive1, 0)
+  qik.SetSpeedM1(Drive1, 0)
+  qik.SetSpeedM0(Drive2, 0)
+  qik.SetSpeedM1(Drive2, 0)
+  qik.SetSpeedM0(Drive3, 0)
+  qik.SetSpeedM1(Drive3, 0)
+  BrakeWheels(0)
+  
   if PIDCog > 0
      cogstop(PIDCog~ - 1)  
      PIDCog := 0
 
-  if EncCog > 0
-    cogstop(EncCog~ - 1)
-    EncCog := 0
+ ' if EncCog > 0
+ '   cogstop(EncCog~ - 1)
+ '   EncCog := 0
 
-  if QikCog > 0
-    cogstop(QikCog~ - 1)
-    QikCog := 0
+ ' if QikCog > 0
+ '   cogstop(QikCog~ - 1)
+ '   QikCog := 0
 
 ' ----------------  PID loop ---------------------------------------
 PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive_address, current_m0, current_m1 ' Cycle runs every Period ms
