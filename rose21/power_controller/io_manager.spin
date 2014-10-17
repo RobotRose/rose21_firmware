@@ -386,8 +386,8 @@ PUB turnOnDefaultOuputs | i
       setSwitch(i, true)      
     i++
 
-PUB setDefaultOutput(i, state) ' 1-6
-  i := i - 1
+PUB setDefaultOutput(i, state) ' 0-5
+  i := i
   default_output[i] := state
   eeprom.VarBackup(@default_output, @default_output + n_switches)
   return default_output[i]
@@ -395,10 +395,10 @@ PUB setDefaultOutput(i, state) ' 1-6
 PRI loadDefaultOutputsFromEEPROM
   'Restore a previous snapshot of variables in main RAM.
   'eeprom.VarRestore(@default_output, @default_output + n_switches)
-  ' FOR SOME REASON THIS DOES NOT, I REPEATED, NOT WORK
+  ' FOR SOME REASON THIS DOES NOT, I REPEAT, NOT WORK
     
-PUB getDefaultOutput(i) ' 1-6
-  i := i - 1
+PUB getDefaultOutput(i) ' 0-5
+  i := i
   return default_output[i]
   
 PUB getNrOfSwitches

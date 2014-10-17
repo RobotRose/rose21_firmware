@@ -35,7 +35,7 @@ DAT
 CON
    ' Version
    major_version    = 1
-   minor_version    = 1 
+   minor_version    = 2 
    CONTROLLER_ID    = 3
 
   ' Set 80Mhz
@@ -758,7 +758,7 @@ PRI DoCommand | i, command
     ' Store a specific default output state in EEPROM (outputs that get automatically turned on at boot or reset)  (output numbers: 1-6)
     408: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(2)
-           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) =< io_manager.getNrOfSwitches
+           if rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) < io_manager.getNrOfSwitches
              ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
              ser.str(rose_comm.getBoolStr( io_manager.setDefaultOutput(rose_comm.getParam(1), rose_comm.getBoolParam(2)) ))
          ser.str(rose_comm.getEOLStr)     
@@ -766,7 +766,7 @@ PRI DoCommand | i, command
     ' Get specific EEPROM saved default output state  (output numbers: 1-6)
     409: ser.str(rose_comm.getCommandStr(command))
          if rose_comm.nrOfParametersCheck(1)
-           if rose_comm.getParam(1) > 0 AND rose_comm.getParam(1) =< io_manager.getNrOfSwitches
+           if rose_comm.getParam(1) => 0 AND rose_comm.getParam(1) < io_manager.getNrOfSwitches
              ser.str(rose_comm.getDecStr(rose_comm.getParam(1)))
              ser.str(rose_comm.getBoolStr( io_manager.getDefaultOutput(rose_comm.getParam(1)) ))
          ser.str(rose_comm.getEOLStr)  

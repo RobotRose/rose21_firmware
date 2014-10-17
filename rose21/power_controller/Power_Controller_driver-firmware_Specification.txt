@@ -80,7 +80,7 @@ Other commands:
 	- Select fullest battery	: $405 												-> int (selected battery 0,1,2)		// Selects highest voltage battery
 	- Select battery force 		: $406, int	(battery index)							-> int (selected battery 0,1,2)		// Turn off auto switch mode and force switcht to selected battery
 
-	- Store EEPROM default output state : $408, int, bool (output nr 1-6, state) 	-> int,bool (output nr 1-6, state)
-	- Get EEPROM default output state  	: $409, int, bool (output nr 1-6, state) 	-> int,bool (output nr 1-6, state)
+	- Store EEPROM default output state : $408, int, bool (output nr 0-5, state) 	-> int,bool (output nr 0-5, state)
+	- Get EEPROM default output state  	: $409, int, bool (output nr 0-5, state) 	-> int,bool (output nr 0-5, state)
 
 Bij opstarten de PC aan die de controle neemt over de power controller, PC1.
