@@ -6,7 +6,7 @@ CON
    ' Version
    CONTROLLER_ID    = 1
    major_version    = 2
-   minor_version    = 2 
+   minor_version    = 3 
    
 
    ' Set 80Mhz
@@ -401,7 +401,7 @@ PRI Move | speed_margin
   Setp[3] := wAngle[1]
   Setp[5] := wAngle[2]
   Setp[7] := wAngle[3] 
- }} 
+}}
   setBrakeState(global_brake_state)  'Set active or passive brake mode depending on settable variable
    
 ' -------------- Enable or disable wheels depending on the requested brake_state
