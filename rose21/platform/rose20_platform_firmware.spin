@@ -929,15 +929,24 @@ PRI EnableWheelUnits
 
 ' ----------------  Disable all wheels and steering ---------------------------------------
 PRI DisableWheelUnits   
-  global_brake_state := 2
-  setBrakeState(global_brake_state)      ' Set to no drive, no brake mode
-  DisableSteer
-  ResetBit(@PfStatus,EnableBit)
+  
   wSpeed[0] := 0
   wSpeed[1] := 0
   wSpeed[2] := 0
   wSpeed[3] := 0
+  wAngle[0] := pid.GetActPos(1)
+  wAngle[1] := pid.GetActPos(3)
+  wAngle[2] := pid.GetActPos(5)
+  wAngle[3] := pid.GetActPos(7)
   Move
+  
+  t.Pause1ms(500)
+  
+  global_brake_state := 2
+  setBrakeState(global_brake_state)      ' Set to no drive, no brake mode
+  DisableSteer
+  ResetBit(@PfStatus,EnableBit)
+
   Enabled:=false
 
 ' ----------------  Enable steer  ---------------------------------------
@@ -979,7 +988,7 @@ PRI EnableWheelsActiveBrake
 
 ' ----------------  Disable wheels  ---------------------------------------
 PRI DisableWheels
-  'PID.SetPIDMode(0,0)                     'Disable, open loop
+  PID.SetPIDMode(0,0)                     'Disable, open loop
   PID.SetPIDMode(2,0)                     'Disable, open loop
   PID.SetPIDMode(4,0)                     'Disable, open loop
   PID.SetPIDMode(6,0)                     'Disable, open loop
