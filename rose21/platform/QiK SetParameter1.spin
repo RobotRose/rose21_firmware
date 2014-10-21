@@ -181,8 +181,8 @@ PRI SetBrake(Address,Motor) | lBrake
   ser.dec(ActMotor)
   ser.str(string(CR,"Actual Brake : "))
   case ActMotor
-    0: ser.dec(QiK.GetBrakeM0(Address))
-    1: ser.dec(QiK.GetBrakeM1(Address))
+    0: ser.dec(QiK.GetBrakeValue(Address, 0))
+    1: ser.dec(QiK.GetBrakeValue(Address, 1))
   ser.str(string(CR,"New Brake : "))
   lBrake:=ser.DecIn
 
@@ -208,7 +208,7 @@ PRI EnterParamValue (Drive)| R, V, Lp, Rr, Yn
   Lp:=True
 
   repeat while Lp
-    ser.str(string("Enter Par number (0..B) Q=quit: "))
+    ser.str(string("Enter Par number (0..9..:..1;) Q=quit: "))
     R:=ser.rx
     ser.tx(CR)
     Lp:=!(R=="q" or R=="Q")   'Check on quit command
