@@ -35,7 +35,7 @@ DAT
 CON
    ' Version
    major_version    = 1
-   minor_version    = 2 
+   minor_version    = 3 
    CONTROLLER_ID    = 3
 
   ' Set 80Mhz
@@ -112,7 +112,7 @@ CON
  ' Conversion factors for Engineering value of measured ADC values
    cADCbits2mV = 1.220703
  
-   mVBat     = 11.0 ' Real voltage in mV on battery resitor network 10k 1k
+   mVBat     = 7.6667 ' Real voltage in mV on battery resitor network 25k 3.3k
    mI        = 10.0 ' 1:10000 conversion from mA current to mV
 
 ' Safety related values
