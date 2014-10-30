@@ -386,7 +386,11 @@ PRI setAlarm(new_alarm_number) | changed_alarm
       
 ' === Do logic tasks and safety tasks ===
 PRI DoPLC
-  DIRA[pButton1] := 0     ' Set button as input  
+  DIRA[pButton1] := 0     ' Set as input  
+  DIRA[EMERin] := 0       ' Set as input  
+  DIRA[IN0] := 0          ' Set as input  
+
+
   resetSafety
   resetVoltageSafety
   InitWatchDog
@@ -567,7 +571,7 @@ PRI DoCommand | i, command
              ser.str(rose_comm.getEOLStr)
         'Get IN0 input
         203: ser.str(rose_comm.getCommandStr(command))
-             ser.str(rose_comm.getBoolStr(GetIN0)) 
+             ser.str(rose_comm.getDecStr(GetIN0)) 
              ser.str(rose_comm.getEOLStr)
         'Get safety state input
         204: ser.str(rose_comm.getCommandStr(command))
@@ -920,29 +924,30 @@ PUB SetOUT0(enable)
 ' ---------------- Get status OK output (on=true or off=false) ---------------------------------------
 PUB GetOK
   if INA[OK] == 1
-    return false
+    return true
   else
-    return true   
+    return false   
 
 ' ---------------- Get status OK output (on=true or off=false) ---------------------------------------
 PUB GetOUT0
   if INA[OUT0] == 1
-    return false
+    return true
   else
-    return true   
+    return false   
 
 ' ---------------- Get EMERin input (on=1 or off=0) ---------------------------------------
 PUB GetEMERin
  if INA[EMERin] == 1
-   return false
+   return true
  else
-   return true 
+   return false 
 ' ---------------- Get IN0 input (on=1 or off=0) ---------------------------------------
 PUB GetIN0
- if INA[IN0] == 1
-   return false
+ return INA[IN0]
+ if INA[EMERin] == 1
+   return true
  else
-   return true 
+   return false 
 
 ' ------------------------ Show debug output -----------------------------
 PRI DoDisplay |   i
