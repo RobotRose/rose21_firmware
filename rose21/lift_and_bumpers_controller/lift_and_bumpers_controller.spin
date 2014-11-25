@@ -130,7 +130,7 @@ CON
   main_led_interval = 250    ' [ms]       
   
   averaging_samples = 40       ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 4  ' Number of samples to average the ADC values with   
+  averaging_samples_motor = 20  ' Number of samples to average the ADC values with   
 
   ' Timers
   nr_timers       = 2
@@ -675,7 +675,7 @@ PRI DoCommand | i, command
                min_motor_position := rose_comm.getParam(1)
                max_motor_position := rose_comm.getParam(2)
                ser.str(rose_comm.getDecStr(min_motor_position)) 
-               ser.str(rose_comm.getDecStr(max_motor_position)) 
+               ser.str(rose_comm.getDecStr(max_motor_position + 2)) 
              ser.str(rose_comm.getEOLStr)
         ' Set min/max motor speed
         303: ser.str(rose_comm.getCommandStr(command)) 
@@ -835,7 +835,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       OUTA[sINA]            := 1
       OUTA[sINB]            := 0   
   
-    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) -InPosWindow) ), f.ffloat(1000)), f.ffloat(max_motor_speed)) ) 
+    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) -InPosWindow) ), f.ffloat(100)), f.ffloat(max_motor_speed)) ) 
       
     wanted_motor_speed := -max_motor_speed #> (-max_speed #> MoveDir * motor_speed <# max_speed) <# max_motor_speed
     
