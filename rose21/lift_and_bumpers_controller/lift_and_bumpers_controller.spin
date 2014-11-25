@@ -90,7 +90,7 @@ CON
   cVin = 9500                ' Minimal Vin supply
     
   ' Button Retract position
-  retract_position = 500              ' Park position linear motor
+  retract_position = 2600              ' Park position linear motor
 
   ' MotorDrive 1451 pin's
   sINA = 16
@@ -100,7 +100,7 @@ CON
 
   ' DC Motor PWM
   Freq          = 5000       ' PWM freq in Hz
-  cDefHyst      = 10         ' Hysteresis for position control
+  cDefHyst      = 20         ' Hysteresis for position control
   
   default_speed = 128        ' Standard speed for moves
 
@@ -129,8 +129,8 @@ CON
 
   main_led_interval = 250    ' [ms]       
   
-  averaging_samples = 40      ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 4 ' Number of samples to average the ADC values with   
+  averaging_samples = 40       ' Number of samples to average the ADC values with    
+  averaging_samples_motor = 4  ' Number of samples to average the ADC values with   
 
   ' Timers
   nr_timers       = 2
@@ -672,7 +672,7 @@ PRI DoCommand | i, command
         ' Set min/max motor position
         302: ser.str(rose_comm.getCommandStr(command)) 
              if rose_comm.nrOfParametersCheck(2)
-               min_motor_position  := rose_comm.getParam(1)
+               min_motor_position := rose_comm.getParam(1)
                max_motor_position := rose_comm.getParam(2)
                ser.str(rose_comm.getDecStr(min_motor_position)) 
                ser.str(rose_comm.getDecStr(max_motor_position)) 
