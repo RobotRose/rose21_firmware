@@ -215,8 +215,8 @@ PUB Main | T1, NewCh
       ser.char(CR)
       
     ' Indicate that the main loop is running   
-    if timer.checkAndResetTimer(LED_TIMER)
-      !OUTA[Led]
+  '  if timer.checkAndResetTimer(LED_TIMER)
+   '   !OUTA[Led]
 
 PRI displayCommand | i
   ser.str(string("["))
@@ -501,6 +501,8 @@ PRI DoSafety | i, ConnectionError, bitvalue, prev_oneMScounter
 PRI DoCommand | i, command
 
     command := rose_comm.getCommand  
+    
+    !OUTA[Led]
 
     Case command
         '== Default 100 range communication ===
