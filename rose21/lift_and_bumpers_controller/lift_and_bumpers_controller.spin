@@ -90,7 +90,7 @@ CON
   cVin = 9500                ' Minimal Vin supply
     
   ' Button Retract position
-  retract_position = 2600              ' Park position linear motor
+  retract_position = 2250              ' Park position linear motor
 
   ' MotorDrive 1451 pin's
   sINA = 16
@@ -123,7 +123,6 @@ CON
   'Bumper inputs on 8 consecutive inputs
   Bumper0 = 8
   
-
   ' Led  
   LED = 25                   ' Propeller LED PIN
 
