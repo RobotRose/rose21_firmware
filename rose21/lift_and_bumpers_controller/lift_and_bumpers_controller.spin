@@ -845,10 +845,10 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       ' Runs at ramp period
       if (cnt - T2) > ramp_period_cycles
         T2 := cnt
-        if current_duty_cycle < || wanted_motor_speed
+        if current_duty_cycle < || (min_motor_speed #> wanted_motor_speed)
           current_duty_cycle := current_duty_cycle + 5
         
-        if current_duty_cycle > || wanted_motor_speed
+        if current_duty_cycle > || (min_motor_speed #> wanted_motor_speed)
           current_duty_cycle := current_duty_cycle - 5 ' := || wanted_motor_speed
         
       ' Set duty cycle
