@@ -33,7 +33,7 @@ DAT
 CON
   ' Version
   major_version    = 3
-  minor_version    = 1 
+  minor_version    = 2 
   CONTROLLER_ID    = 2
 
   ' Set 80Mhz
@@ -99,17 +99,17 @@ CON
   PWM_BLOCK_BASE = 16
 
   ' DC Motor PWM
-  Freq          = 5000       ' PWM freq in Hz
-  cDefHyst      = 20         ' Hysteresis for position control
+  Freq          = 30000         ' PWM freq in Hz
+  cDefHyst      = 10         ' Hysteresis for position control
   
   default_speed = 128        ' Standard speed for moves
 
-  strict_min_motor_position  = 200                      ' Smallest position of lin mot
-  strict_max_motor_position  = 3400                     ' Highest position of lin mot
-  strict_min_motor_speed     = 0                        ' Smallest speed of lin mot
+  strict_min_motor_position  = 1995                     ' Smallest position of lin mot
+  strict_max_motor_position  = 2500                     ' Highest position of lin mot
+  strict_min_motor_speed     = 1                        ' Smallest speed of lin mot
   strict_max_motor_speed     = 255                      ' Highest speed of lin mot
 
-  InPosWindow = 15          ' If position error < than this value, InPos value is -1 else 0
+  InPosWindow = 10          ' If position error < than this value, InPos value is -1 else 0
 
   'Button
   pButton1 = 22
@@ -125,11 +125,12 @@ CON
   
   ' Led  
   LED = 25                   ' Propeller LED PIN
+  DebugPin = 5               ' Debug pin
 
   main_led_interval = 250    ' [ms]       
   
   averaging_samples = 40       ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 20  ' Number of samples to average the ADC values with   
+  averaging_samples_motor = 10 ' Number of samples to average the ADC values with   
 
   ' Timers
   nr_timers       = 2
@@ -240,6 +241,7 @@ PRI setupTimers
 PRI Init
   DirA[Led] ~~                              ' Set led pin as output
   OUTA[Led] := 1                            ' Turn on the led
+  DirA[DebugPin] ~~                         ' Set debug pin as output
 
   ' Default values
   min_motor_position  := strict_min_motor_position                   ' Smallest position of lin mot
@@ -426,6 +428,7 @@ PRI DoPLC
 PRI DoADC  | i
   i := 0
   repeat NCh
+    !OUTA[DebugPin]
     case i
       5:          ' Motor pos ADC uses other moving average filter
         ADCRaw[i]    := ADC.in(i)
@@ -819,6 +822,7 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       current_duty_cycle     := 0       ' Always reset duty cycle when changing direction
       OUTA[sINA]             := 0   
       OUTA[sINB]             := 0
+      timer.setTimer(LED_TIMER, main_led_interval)
          
     ' Is error smaller than hysteresis     
     if PosError =< -Hyst AND MoveDir <> -1
@@ -826,13 +830,15 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       current_duty_cycle    := 0        ' Always reset duty cycle when changing direction
       OUTA[sINA]            := 0   
       OUTA[sINB]            := 1
+      timer.setTimer(LED_TIMER, main_led_interval/2)
     
     ' Is error larger than hysteresis
     if PosError => Hyst AND MoveDir <> 1
       MoveDir               := 1
       current_duty_cycle    := 0        ' Always reset duty cycle when changing direction
       OUTA[sINA]            := 1
-      OUTA[sINB]            := 0   
+      OUTA[sINB]            := 0 
+      timer.setTimer(LED_TIMER, main_led_interval/2)  
   
     max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) -InPosWindow) ), f.ffloat(100)), f.ffloat(max_motor_speed)) ) 
       
@@ -844,11 +850,13 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       ' Runs at ramp period
       if (cnt - T2) > ramp_period_cycles
         T2 := cnt
-        if current_duty_cycle < || (min_motor_speed #> wanted_motor_speed)
+        if current_duty_cycle < min_motor_speed #> || wanted_motor_speed
           current_duty_cycle := current_duty_cycle + 5
+          current_duty_cycle := current_duty_cycle <# || wanted_motor_speed
         
-        if current_duty_cycle > || (min_motor_speed #> wanted_motor_speed)
+        if current_duty_cycle > min_motor_speed #> || wanted_motor_speed
           current_duty_cycle := current_duty_cycle - 5 ' := || wanted_motor_speed
+          current_duty_cycle := || wanted_motor_speed #> current_duty_cycle 
         
       ' Set duty cycle
       'if button_enable_override   ' Move only when all is OK or button override

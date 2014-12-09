@@ -25,7 +25,7 @@
 
 CON
 
-  resolution    = 256           'The number of steps in the pulse widths. Must be an integer multiple of 4.
+  resolution    = 192           'The number of steps in the pulse widths. Must be an integer multiple of 4.
   nlongs        = resolution / 4
 
 VAR
