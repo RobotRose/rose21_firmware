@@ -109,16 +109,16 @@ CON
    cV3V3      = 14
    cV5V       = 15
 
- ' Conversion factors for Engineering value of measured ADC values
-   cADCbits2mV = 1.220703
+ ' Conversion factors for Engineering value of measured ADC values (1/(4096/Vref)) * 1000
+   cADCbits2mV = 1.1401367 '1.220703
  
-   mVBat     = 7.6667 ' Real voltage in mV on battery resitor network 25k 3.3k
+   mVBat     = 7.667 ' This is actually 22k <-> 3.3k OLD: 8.5757 ' Real voltage in mV on battery resitor network 25k 3.3k
    mI        = 10.0 ' 1:10000 conversion from mA current to mV
 
 ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
-  cMinVin = 2200             ' Absolute minimal supply voltage
+  cMinVin = 25100            ' Absolute minimal supply voltage
 
   main_led_interval = 250    ' [ms]       
   
@@ -182,7 +182,6 @@ PUB Main
  
   ' Run startup sequence
   startup
-  
   
   ' Main loop
   repeat
