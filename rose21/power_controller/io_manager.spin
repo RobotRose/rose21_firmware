@@ -131,7 +131,7 @@ PRI initialize | i
   batteries_low               := false
   battery_switch_sound        := true
   alarm_sound                 := true
-  auto_battery_switch         := false
+  auto_battery_switch         := true
   active_battery              := 0
   requested_battery           := 0
   battery_shutdown_voltage[0] := 9999999             '[mV]
@@ -147,9 +147,9 @@ PRI initialize | i
   battery_update_received     := false
   
   ' Set default Vin voltage tresholds
-  minimal_Vin   := 22000
-  warning_Vin   := 24000
-  switch_Vin    := 24000
+  minimal_Vin   := 25100
+  warning_Vin   := 25500
+  switch_Vin    := 25600
 
   ' Reset switch states
   i := 0
