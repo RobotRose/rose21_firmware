@@ -118,7 +118,7 @@ CON
 ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
-  cMinVin = 25100            ' Absolute minimal supply voltage
+  cMinVin = 22000            ' Absolute minimal supply voltage
 
   main_led_interval = 250    ' [ms]       
   
