@@ -147,9 +147,9 @@ PRI initialize | i
   battery_update_received     := false
   
   ' Set default Vin voltage tresholds
-  minimal_Vin   := 25100
-  warning_Vin   := 25500
-  switch_Vin    := 25600
+  minimal_Vin   := 22400
+  warning_Vin   := 23000
+  switch_Vin    := 23100
 
   ' Reset switch states
   i := 0
