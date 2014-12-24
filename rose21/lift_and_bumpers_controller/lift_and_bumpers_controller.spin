@@ -100,7 +100,7 @@ CON
 
   ' DC Motor PWM
   Freq          = 30000         ' PWM freq in Hz
-  cDefHyst      = 10         ' Hysteresis for position control
+  cDefHyst      = 5         ' Hysteresis for position control
   
   default_speed = 128        ' Standard speed for moves
 
@@ -109,7 +109,7 @@ CON
   strict_min_motor_speed     = 1                        ' Smallest speed of lin mot
   strict_max_motor_speed     = 255                      ' Highest speed of lin mot
 
-  InPosWindow = 10          ' If position error < than this value, InPos value is -1 else 0
+  InPosWindow = 15          ' 
 
   'Button
   pButton1 = 22
@@ -130,7 +130,7 @@ CON
   main_led_interval = 250    ' [ms]       
   
   averaging_samples = 40       ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 10 ' Number of samples to average the ADC values with   
+  averaging_samples_motor = 9  ' Number of samples to average the ADC values with   
 
   ' Timers
   nr_timers       = 2
@@ -794,7 +794,7 @@ PUB calcRangeValue(percentage, minimal, maximal)
   return f.fround( f.fdiv( f.fmul( f.ffloat(percentage), f.ffloat(maximal - minimal)), 100.0) ) + minimal
 
 PUB isMotorMoving   
-  return (current_duty_cycle > 0)
+  return not (MoveDir == 0)
   
 PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_period, ramp_period_cycles
   OUTA[sINA] := 0      ' Set direction pins as output for PWM
@@ -805,25 +805,23 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
   stopMotor
 
   Period    := 10                                                          ' [ms]
-  ClkCycles := ((clkfreq / _1ms * Period) - 4296) #> 381                   ' Calculate number of clockcycles in period
-  ramp_period         := 20                                               ' [ms] 
-  ramp_period_cycles  := ((clkfreq / _1ms * ramp_period) - 4296) #> 381    ' Calculate number of clockcycles in ramp_period
+  ClkCycles := ((clkfreq / _1ms) * Period - 4296) #> 381                   ' Calculate number of clockcycles in period
+  ramp_period         := 20                                                ' [ms] 
+  ramp_period_cycles  := ((clkfreq / _1ms) * ramp_period - 4296) #> 381    ' Calculate number of clockcycles in ramp_period
   Hyst      := cDefHyst
   T2 := cnt
+  InPos := false
   repeat
     T1 := cnt    
     
     PosError        := lift_motor_setpoint - getMotorPos               ' Calculate position error based on potmeter
-    InPos           := || (PosError) < InPosWindow                     ' Check is moto  r is in position
-  
-    ' Is error within hysteresis
-    if (PosError > -Hyst) AND (PosError < Hyst) AND MoveDir <> 0 AND current_duty_cycle < 10
-      MoveDir                := 0
-      current_duty_cycle     := 0       ' Always reset duty cycle when changing direction
-      OUTA[sINA]             := 0   
-      OUTA[sINB]             := 0
-      timer.setTimer(LED_TIMER, main_led_interval)
-         
+   ' InPos           := || (PosError) < InPosWindow                     ' Check is moto  r is in position
+                                                                       ' 
+    if (PosError > -Hyst) AND (PosError < Hyst)
+      InPos := true
+    elseif || (PosError) > InPosWindow
+      InPos := false
+ 
     ' Is error smaller than hysteresis     
     if PosError =< -Hyst AND MoveDir <> -1
       MoveDir               := -1
@@ -839,28 +837,39 @@ PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_peri
       OUTA[sINA]            := 1
       OUTA[sINB]            := 0 
       timer.setTimer(LED_TIMER, main_led_interval/2)  
+       
+    ' Is error within hysteresis
+    if InPos AND MoveDir <> 0 'AND current_duty_cycle < 10 '(PosError > -Hyst) AND (PosError < Hyst)
+      MoveDir                := 0
+      current_duty_cycle     := 0       ' Always reset duty cycle when changing direction
+      OUTA[sINA]             := 0   
+      OUTA[sINB]             := 0
+      timer.setTimer(LED_TIMER, main_led_interval)
+         
+
   
-    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) -InPosWindow) ), f.ffloat(100)), f.ffloat(max_motor_speed)) ) 
+    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) ) ), f.ffloat(150)), f.ffloat(max_motor_speed)) ) 
       
     wanted_motor_speed := -max_motor_speed #> (-max_speed #> MoveDir * motor_speed <# max_speed) <# max_motor_speed
     
+    wanted_motor_speed :=  min_motor_speed #> || wanted_motor_speed
     
     if (no_alarm AND controller_enabled) OR ( button_enable_override AND (last_alarm == 1 OR last_alarm == 2) )   ' Controller enabled or home button pressed and not force stopped or watchdogged (alarmstate 2 or alarmstate 1)
       ' Ramp generator
       ' Runs at ramp period
-      if (cnt - T2) > ramp_period_cycles
-        T2 := cnt
-        if current_duty_cycle < min_motor_speed #> || wanted_motor_speed
-          current_duty_cycle := current_duty_cycle + 5
-          current_duty_cycle := current_duty_cycle <# || wanted_motor_speed
-        
-        if current_duty_cycle > min_motor_speed #> || wanted_motor_speed
-          current_duty_cycle := current_duty_cycle - 5 ' := || wanted_motor_speed
-          current_duty_cycle := || wanted_motor_speed #> current_duty_cycle 
-        
+      'if true '(cnt - T2) > ramp_period_cycles
+      T2 := cnt
+      if current_duty_cycle < || wanted_motor_speed
+        current_duty_cycle := current_duty_cycle + 10
+        current_duty_cycle := current_duty_cycle <# || wanted_motor_speed
+      
+      if current_duty_cycle > || wanted_motor_speed
+        current_duty_cycle := current_duty_cycle - 10 
+        current_duty_cycle := || wanted_motor_speed #> current_duty_cycle 
+      
       ' Set duty cycle
       'if button_enable_override   ' Move only when all is OK or button override
-      pwm.duty(sPWM, || current_duty_cycle)
+      pwm.duty(sPWM, current_duty_cycle)
       'else
      '   pwm.duty(sPWM, 0)                     ' Stop motor
      '   current_duty_cycle := 0
