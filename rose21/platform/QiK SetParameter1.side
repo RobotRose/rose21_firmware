@@ -1,5 +1,4 @@
 QiK SetParameter1.spin
-full_duplex_serial_005.spin
 timing.spin
 QiK_commands.spin
 simple_numbers.spin
