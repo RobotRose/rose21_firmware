@@ -57,8 +57,10 @@ OBJ
   QiK           : "QiK_commands"
   n             : "simple_numbers"                      ' Number to string conversion
   
-Var Long MSetVel[4]
-    Byte ActDrive, ActMotor
+Var 
+    long MSetVel[4]
+    byte ActDrive, ActMotor
+    long n_params, params[11]
   
 PUB main | lSpeed, ch
   Init
@@ -84,10 +86,13 @@ PUB main | lSpeed, ch
     ser.str(string("3: Toggle Drive address",CR))
     ser.str(string("4: ToggleMotor ",CR))
     ser.str(string("5: Get Error from drive",CR))
-    ser.str(string("6: Toggle QiC)",CR))
+    ser.str(string("6: Toggle QiC protocol",CR))
     ser.str(string("7: SetSpeed(ActDrive,ActMotor)",CR))
     ser.str(string("8: SetBrake(ActDrive,ActMotor)",CR))
-    ser.str(string("9: Continuous checking)",CR))
+    ser.str(string("9: Continuous checking",CR))
+    ser.str(string(":: Auto program",CR))
+    ser.str(string(";: Check ids",CR))
+    ser.str(string("<: Set Drive Address",CR))
     
     ser.tx(CR)
     ser.tx("?")
@@ -99,7 +104,7 @@ PUB main | lSpeed, ch
     
 
 ' ----------------  Command loop main program ---------------------------------------
-PRI DoCommand(Cmd)
+PRI DoCommand(Cmd) | d
   ser.str(string(CR,"Do command: "))
   ser.tx(Cmd)
   ser.tx(CR)
@@ -114,6 +119,9 @@ PRI DoCommand(Cmd)
     "7":   SetSpeed(ActDrive,ActMotor)
     "8":   SetBrake(ActDrive,ActMotor)
     "9":   CheckRepeat
+    ":":   auto_program
+    ";":   find_ids
+    "<":   SetDrive
 
 ' ----------------  Check selected drive repeatedly ---------------------------------------
 PRI CheckRepeat | lch
@@ -169,8 +177,10 @@ PRI SetSpeed(Address,Motor) | lSpeed
     0: QiK.SetSpeedM0(Address, lSpeed)
     1: QiK.SetSpeedM1(Address, lSpeed)
 
-
-
+pri SetDrive | addr
+  ser.str(string(CR,"Set Drive address: "))
+  addr := ser.DecIn
+  ActDrive:= addr
 ' ----------------  Set Brake of selected motor ---------------------------------------
 PRI SetBrake(Address,Motor) | lBrake
   ser.tx(CR)
@@ -197,7 +207,68 @@ PRI ToggleDrive
     QiK#Drive1: ActDrive:=QiK#Drive2
     QiK#Drive2: ActDrive:=QiK#Drive3
     QiK#Drive3: ActDrive:=QiK#Drive0
+    other:      ActDrive:=QiK#Drive1
 
+PRI find_ids | d, r
+  ser.RXFlush                'clear inputbuffer
+  ser.tx(CR)
+  ser.tx(CR)
+  ser.str(string("Looking for ids...",CR))
+  QiK.SetProtocol(1)  
+  repeat d from 0 to 127
+    r := QiK.GetParameter(d, 0)
+    ser.str(string("ID "))
+    ser.dec(d)
+    ser.str(string(" responded with: "))
+    ser.dec(r)
+    ser.tx(CR)
+      
+PRI auto_program | d, p, R, check
+  ser.RXFlush                'clear inputbuffer
+  ser.tx(CR)
+  ser.str(string("Auto programming...",CR))
+  QiK.SetProtocol(1)
+  t.Pause1ms(100)
+  n_params := 10
+
+  params[0] := 10  ' ID - do not reprogram!
+  params[1] := 0
+  params[2] := 7
+  params[3] := 4
+  params[4] := 32
+  params[5] := 16
+  params[6] := 50
+  params[7] := 50
+  params[8] := 15
+  params[9] := 19
+  params[10] := 4
+  params[11] := 4
+  
+  repeat d from 10 to 13
+    ser.str(string("Programming device with id: "))
+    ser.dec(d)
+    ser.str(string(CR))
+    repeat p from 1 to n_params + 1 'Do not reprogram! 0
+      ser.str(string("Setting parameter "))
+      ser.dec(p)
+      ser.str(string(" to "))
+      ser.dec(params[p])
+      QiK.SetParameter(d, p, params[p])
+
+      check := QiK.GetParameter(d, p)
+
+      ser.str(string(". Check read: "))
+      ser.dec(check)
+      if check == params[p]
+        ser.str(string(" --> success."))
+      else
+        ser.str(string(" --> FAILED!"))
+        
+      ser.str(string(CR))
+      t.Pause1ms(10)
+  
+  ser.str(string("Auto programming done.",CR))
+ 
 ' ----------------  Get user input for QiC parameter ---------------------------------------
 PRI EnterParamValue (Drive)| R, V, Lp, Rr, Yn
   ser.RXFlush                'clear inputbuffer
@@ -208,7 +279,7 @@ PRI EnterParamValue (Drive)| R, V, Lp, Rr, Yn
   Lp:=True
 
   repeat while Lp
-    ser.str(string("Enter Par number (0..9..:..1;) Q=quit: "))
+    ser.str(string("Enter Par number (0-9 10=: 11=;) Q=quit: "))
     R:=ser.rx
     ser.tx(CR)
     Lp:=!(R=="q" or R=="Q")   'Check on quit command
@@ -231,9 +302,11 @@ PRI EnterParamValue (Drive)| R, V, Lp, Rr, Yn
         Rr:=QiK.SetParameter(Drive,R,V)          'Program new value
         ser.tx(CR)
         ser.tx(CR)
-        ser.str(string("Program result : "))     'Show result
+        ser.str(string("Program result of param "))     'Show result
         ser.str(QiK.Par2Str(R))
-        ser.tx(" ")
+        ser.str(string(": "))
+        ser.dec(Rr)
+        ser.str(string(" -> "))
         ser.str(QiK.SetParRes2str(Rr))
       else
         ser.str(string("Programming skipped. ")) 'Show result

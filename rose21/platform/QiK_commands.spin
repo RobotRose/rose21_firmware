@@ -68,7 +68,8 @@ CON
 
   nMotor = 8    'Max number of motors for brake array. Modify when more needed
 
-  TimeOut = 1 'Timeout in ms for response by Qik on request
+  response_timeout = 1 'Timeout in ms for response by Qik on read
+  write_timeout = 100 'Timeout in ms for response by Qik on write
   
   speed_hyst = 5
   max_braking_effort = 15
@@ -334,7 +335,7 @@ PUB SetParameter(Address,Parameter, Value) | lS, NewCommand, R
   serial_interface.tx(Value)
   serial_interface.tx($55)      'extra bytes for security
   serial_interface.tx($2A)
-  R:=serial_interface.rxtime(TimeOut) 'Wait for return charater before continuing max 100 us
+  R:=serial_interface.rxtime(write_timeout) 'Wait for return charater before continuing max 100 us
   return R           'Return result of parameter set     Check with SetParRes2str(Resnr) result
 
 ' --------------------- 'Get Parameter  ----------------------------
@@ -346,7 +347,7 @@ PUB GetParameter(Address, Parameter) | R, NewCommand
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
   serial_interface.tx(Parameter) 'Get requested parameter
-  R:=serial_interface.rxtime(TimeOut) 'Expect response within timeout
+  R:=serial_interface.rxtime(response_timeout) 'Expect response within timeout
   return R
 
 
@@ -358,7 +359,7 @@ PUB GetCurrentM0(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout 
+  R:=serial_interface.rxtime(response_timeout)     'Expect response within timeout 
 
   return R*150            'Scale output to mA
 
@@ -370,7 +371,7 @@ PUB GetCurrentM1(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
+  R:=serial_interface.rxtime(response_timeout)     'Expect response within timeout   
 
   return R*150            'Scale output to mA
 
@@ -382,7 +383,7 @@ PUB GetSpeedM0(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
+  R:=serial_interface.rxtime(response_timeout)     'Expect response within timeout   
   return R
 
 ' ---------------------  'Get  motor 1 speed      ------------------
@@ -393,7 +394,7 @@ PUB GetSpeedM1(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
+  R:=serial_interface.rxtime(response_timeout)     'Expect response within timeout   
   return R
 
 ' ---------------------  'Get current motor brake value ------------------
@@ -408,7 +409,7 @@ PUB GetFirmWare(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R := serial_interface.rxtime(TimeOut)     'Expect response within timeout   
+  R := serial_interface.rxtime(response_timeout)     'Expect response within timeout   
   return R
 
 ' ---------------------  'Get  error              ------------------
@@ -419,7 +420,7 @@ PUB GetError(Address) | R, NewCommand
     serial_interface.tx(Address)
     NewCommand:=NewCommand - $80
   serial_interface.tx(NewCommand) 
-  R:=serial_interface.rxtime(TimeOut)     'Expect response within timeout   
+  R:=serial_interface.rxtime(response_timeout)     'Expect response within timeout   
   return R
 
 ' ---------------------  Return QiC errorstring -----------------------------
