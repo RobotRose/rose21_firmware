@@ -265,11 +265,11 @@ PRI Init
     cogstop(DebugCog~ - 1)  
   DebugCog := CogNew(DoDisplay, @DebugStack) + 1
   
-  if DebugCog
+  if DebugCog and debug
     ser.str(string("Started DebugCog("))
     ser.dec(DebugCog)
     ser.str(string(")", CR))
-  else
+  elseif debug
     ser.str(string("Unable to start DebugCog", CR))
     
   if ADCCog > 0
@@ -277,11 +277,11 @@ PRI Init
   ADCCog := ADC.Start(dpin1, cpin1, spin1,Mode1) ' Start ADC low level
   MaxCh  := NCh-1
   
-  if ADCCog
+  if ADCCog and debug
     ser.str(string("Started ADCCog("))
     ser.dec(ADCCog)
     ser.str(string(")", CR))
-  else
+  elseif debug
     ser.str(string("Unable to start ADCCog", CR))
     
  
@@ -300,11 +300,11 @@ PRI Init
     cogstop(PLCcog~ - 1)  
   PLCcog := CogNew(DoPLC, @PLCstack) + 1
   
-  if PLCcog
+  if PLCcog and debug
     ser.str(string("Started PLCcog("))
     ser.dec(PLCcog)
     ser.str(string(")", CR))
-  else
+  elseif debug
     ser.str(string("Unable to start PLCcog", CR))
     
   if PwmCog > 0
@@ -312,22 +312,22 @@ PRI Init
   PwmCog := pwm.start(PWM_BLOCK_BASE, %00000100, Freq)    ' Init pwm object
   pwm.duty(sPWM, 0)
   
-  if PwmCog
+  if PwmCog and debug
     ser.str(string("Started PwmCog("))
     ser.dec(PwmCog)
     ser.str(string(")", CR))
-  else
+  elseif debug
     ser.str(string("Unable to start PwmCog", CR))
 
   if LinMotCog > 0
     cogstop(LinMotCog~ - 1) 
   LinMotCog := cognew(Do_Motor, @LinMotStack) + 1       ' Start Lin motor controller
                                                    
-  if LinMotCog
+  if LinMotCog and debug
     ser.str(string("Started LinMotCog("))
     ser.dec(LinMotCog)
     ser.str(string(")", CR))
-  else
+  elseif debug
     ser.str(string("Unable to start LinMotCog", CR))
     
   
@@ -356,12 +356,10 @@ PUB initialize_serial
 
   serial_cog := ser.start(rxd, txd, 0, baud)     'serial port on prop plug
   
-  if serial_cog
+  if serial_cog and debug
     ser.str(string("Started serial communication, cog: "))
     ser.dec(serial_cog)
     ser.str(string(".", CR))
-  else
-    ser.str(string("Unable to start serial communication.", CR))
 
   return serial_cog  
 
