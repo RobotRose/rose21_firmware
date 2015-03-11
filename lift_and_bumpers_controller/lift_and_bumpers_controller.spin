@@ -99,7 +99,7 @@ CON
   PWM_BLOCK_BASE = 16
 
   ' DC Motor PWM
-  Freq          = 30000         ' PWM freq in Hz
+  Freq          = 50         ' PWM freq in Hz
   cDefHyst      = 5         ' Hysteresis for position control
   
   default_speed = 128        ' Standard speed for moves
@@ -233,7 +233,7 @@ PRI displayCommand | i
   ser.str(string("]"))
 
 PRI setupTimers
-  timer.setTimer(LED_TIMER, main_led_interval)
+  timer.setTimer(LED_TIMER, main_led_interval*4)
   timer.startTimer(LED_TIMER)
   
   return true
@@ -333,8 +333,10 @@ PRI Init
   
 PRI toggleControllerState(enable)
   if enable
+    timer.setTimer(LED_TIMER, main_led_interval)
     controller_enabled := true
   else
+    timer.setTimer(LED_TIMER, main_led_interval*4)
     controller_enabled := false
   return controller_enabled
 
