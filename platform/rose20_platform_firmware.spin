@@ -6,7 +6,7 @@ CON
    ' Version
    CONTROLLER_ID    = 1
    major_version    = 2
-   minor_version    = 4 
+   minor_version    = 5 
    
 
    ' Set 80Mhz

@@ -301,7 +301,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
              
           ' Position mode
           3: 
-            FE[i]          := (Setp[i] - lActPos[i])*PosScale[i]                               ' Current set position for limiter calculation                                 
+            FE[i]          := (Setp[i] - lActPos[i])*PosScale[i]                   ' Current set position for limiter calculation                                 
             SetVel[i]      := 0'-MaxVel[i] #> ( FE[i] * Kp[i]) <# MaxVel[i]        ' [pulses/s] 
             DVT[i]         := (SetVel[i] - lActVel[i])                             ' Delta Velocity [pulses/ms]
             OutputScale[i] := PosScale[i]
@@ -335,11 +335,12 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
             Output[i] += lI[i]/KI[i]
             
           if KD[i] <> 0
-            Output[i] += D[i]/KD[i] 
+            Output[i] += D[i]/KD[i]
+                       
         ' Position PI control
         elseif PIDMode[i] == 3
           P[i]  := FE[i]                        
-          lI[i] := -Ilimit[i] #> (lI[i] + (FE[i]*PIDTime)) <# Ilimit[i]      'Limit I-action [-Ilimit, Ilimit]  
+          lI[i] := -Ilimit[i] #> (lI[i] + (FE[i])) <# Ilimit[i]      'Limit I-action [-Ilimit, Ilimit]  
           D[i]  := 0
           
           ' Combine PID
@@ -349,6 +350,10 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
             
           if KI[i] <> 0
             Output[i] += lI[i]/KI[i]  
+            
+          ' Reset I if error is below FEMAX
+          if (|| FE[i]) < FEMax[i]
+            lI[i] := 0
                                                                                  
         else
           P[i]      := 0
@@ -356,9 +361,7 @@ PRI PID(Period) | i, j, T1, speed_time_ms, speed_distance, vel_filter_sum, drive
           lI[i]     := 0
           Output[i] := 0
           
-        ' Reset I if setpoint is zero and error is below FEMAX
-        if setp[i] == 0 and FE[i] < FEMax[i]
-          lI[i] := 0
+       
           
         ' Calculate limited PID Out
         Output[i] := -Outlimit #> Output[i] <# Outlimit    
