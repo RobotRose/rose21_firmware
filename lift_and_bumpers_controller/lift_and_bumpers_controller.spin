@@ -109,7 +109,7 @@ CON
   strict_max_motor_speed     = 255                      ' Highest speed of lin mot    
   
   ' Float communication scale factor
-  float_scale = 10000        ' Scale used when communicating floats
+  float_scale = 100000        ' Scale used when communicating floats
 
   'Button
   pButton1 = 22
