@@ -86,7 +86,7 @@ CON
   BetaNTC = 4220
   
   averaging_samples = 25        ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 5   ' Number of samples to average the ADC values with
+  averaging_samples_motor = 8   ' Number of samples to average the ADC values with
                                 ' 
   ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
@@ -94,7 +94,7 @@ CON
   cVin = 9500                ' Minimal Vin supply
     
   ' Button Retract position
-  retract_position = 2250              ' Park position linear motor
+  retract_position = 2400              ' Park position linear motor TODO OH make settable in eeprom
 
   ' MotorDrive 1451 pin's
   sINA = 16
@@ -109,7 +109,7 @@ CON
   strict_max_motor_speed     = 255                      ' Highest speed of lin mot    
   
   ' Float communication scale factor
-  float_scale = 100000        ' Scale used when communicating floats
+  float_scale = 1000        ' Scale used when communicating floats
 
   'Button
   pButton1 = 22
@@ -168,8 +168,11 @@ VAR
   long max_motor_speed
   long min_motor_position                                     ' Smallest position of lin mot
   long max_motor_position                                     ' Highest position of lin mot
+  long motor_duty_cycle
+  long motor_direction
   long PosError, InPos
-  long P_cntrl, I_cntrl, I_lim, P_scale, I_scale, Hysteresis, P_scaled, I_scaled, I_lim_scaled  ' PI Controller values
+  long P_cmd, I_cmd, P_cntrl, I_cntrl, I_lim, P_scale, I_scale, Hysteresis, P_scaled, I_scaled, I_lim_scaled, PI_cmd_scaled, min_motor_speed_scaled  ' PI Controller values
+  
   ' Debug mode on/off
   long debug
 
@@ -257,6 +260,8 @@ PRI Init
   P_scaled := 0 
   I_scaled := 0 
   I_lim_scaled := 0
+  motor_duty_cycle := 0
+  PI_cmd_scaled := 0
   
   'Reset all min/max values
   resetAllADCVals
@@ -315,7 +320,7 @@ PRI Init
   if PwmCog > 0
     cogstop(PwmCog~ - 1)  
   PwmCog := pwm.start(PWM_BLOCK_BASE, %00000100, Freq)    ' Init pwm object
-  pwm.duty(sPWM, 0)
+  setPWM(0)
   
   if PwmCog
     ser.str(string("Started PwmCog("))
@@ -678,6 +683,14 @@ PRI DoCommand | i, command
         219: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getDecStr(float_scale))
              ser.str(rose_comm.getEOLStr)
+        ' Get P_cmd, I_cmd, PI_cmd, motor_duty_cycle, motor_direction
+        220: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(P_cmd))
+             ser.str(rose_comm.getDecStr(I_cmd))
+             ser.str(rose_comm.getDecStr(PI_cmd_scaled))
+             ser.str(rose_comm.getDecStr(motor_duty_cycle))
+             ser.str(rose_comm.getDecStr(motor_direction))
+             ser.str(rose_comm.getEOLStr)
         
         ' === SETTERS ===
         ' Set OK output state
@@ -783,9 +796,8 @@ PUB stopMotor
 PUB forceStopMotor   
   setAlarm(2)
   button_enable_override := false
-  OUTA[sINA]             := 0   
-  OUTA[sINB]             := 0
-  pwm.duty(sPWM, 0) 
+  setDIR(0)
+  setPWM(0) 
   stopMotor
   
 ' Set setpoint by an integer in the range 0 - 100, limited to min and max values. Returns the actually set value
@@ -834,14 +846,30 @@ PUB calcRangeValue(percentage, minimal, maximal)
 PUB isMotorMoving   
   return not (MoveDir == 0)
   
+PRI setPWM(duty_cycle)
+  motor_duty_cycle := duty_cycle
+  pwm.duty(sPWM, duty_cycle)
+  
+pri setDIR(direction)
+  motor_direction := direction
+  if direction == 1
+    OUTA[sINA]            := 1
+    OUTA[sINB]            := 0 
+  elseif direction == -1
+    OUTA[sINA]            := 0
+    OUTA[sINB]            := 1 
+  else
+    OUTA[sINA]            := 0
+    OUTA[sINB]            := 0 
+  
 PRI scale_controller_values
   P_scaled     := f.fround(f.fmul(f.Ffloat(P_cntrl), f.fdiv(f.Ffloat(P_scale), f.Ffloat(float_scale))))
   I_scaled     := f.fround(f.fmul(f.Ffloat(I_cntrl), f.fdiv(f.Ffloat(I_scale), f.Ffloat(float_scale))))
   I_lim_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(I_lim)))
+  min_motor_speed_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(min_motor_speed_scaled)))
  
-PRI Do_Motor | wanted_motor_speed, P_cmd, I_cmd, PI_cmd
-  OUTA[sINA] := 0      ' Set direction pins as output for PWM
-  OUTA[sINB] := 0
+PRI Do_Motor | wanted_motor_speed, PI_cmd
+  setDIR(0)
   DirA[sINA]~~
   DirA[sINB]~~
   
@@ -862,42 +890,48 @@ PRI Do_Motor | wanted_motor_speed, P_cmd, I_cmd, PI_cmd
     elseif || (PosError) > Hysteresis
       InPos := false
       
+      
     P_cmd := (P_scaled * PosError)
     I_cmd := -I_lim_scaled #> (I_cmd + (I_scaled * PosError)) <# I_lim_scaled
-    
+      
     if InPos
-      PI_cmd := 0
       P_cmd  := 0
       I_cmd  := 0
-    else
-      PI_cmd := (P_cmd / P_scale) + ( I_cmd / I_scale)
+
+    
+    PI_cmd := (P_cmd / P_scale) + ( I_cmd / I_scale)
+    PI_cmd_scaled := PI_cmd * float_scale
     
     if ( (no_alarm AND controller_enabled) OR button_enable_override ) AND not (last_alarm == 1 OR last_alarm == 2)   ' Controller enabled or home button pressed and not force stopped or watchdogged (alarmstate 2 or alarmstate 1)
       
+      wanted_motor_speed := min_motor_speed #> (||PI_cmd) <# max_motor_speed
+      setPWM(wanted_motor_speed)
+      
       if PI_cmd == 0 or (PI_cmd < 0 and getMotorPos < min_motor_position) or (PI_cmd > 0 and getMotorPos > max_motor_position)
-        OUTA[sINA]            := 0
-        OUTA[sINB]            := 0 
+        setDIR(0)
         timer.setTimer(LED_TIMER, main_led_interval)
       else
         if PI_cmd > 0
-          OUTA[sINA]            := 1
-          OUTA[sINB]            := 0 
+          setDIR(1)
           timer.setTimer(LED_TIMER, main_led_interval/4)
         elseif PI_cmd < 0
-          OUTA[sINA]            := 0
-          OUTA[sINB]            := 1
+          setDIR(-1)
           timer.setTimer(LED_TIMER, main_led_interval/2)
  
-      wanted_motor_speed := min_motor_speed #> ||PI_cmd <# max_motor_speed
-      pwm.duty(sPWM, wanted_motor_speed)
 
+    else
+      ' Turn off
+      setDIR(0)
+      setPWM(0)
+      timer.setTimer(LED_TIMER, main_led_interval/6)
+      
     ' Check if finished with moving to button position
     if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position  
         button_enable_override := false
    
     DoMotorCnt++
     
-    t.Pause10us(10)
+    t.Pause1ms(10)
 
 ' ------------------------------------ Calculate NTC resistance
 ' V is floatingIntc
