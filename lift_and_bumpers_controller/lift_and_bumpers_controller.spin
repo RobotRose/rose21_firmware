@@ -109,7 +109,7 @@ CON
   strict_max_motor_speed     = 255                      ' Highest speed of lin mot    
   
   ' Float communication scale factor
-  float_scale = 100000          ' Scale used when communicating floats
+  float_scale = 10000        ' Scale used when communicating floats
 
   'Button
   pButton1 = 22
@@ -169,7 +169,7 @@ VAR
   long min_motor_position                                     ' Smallest position of lin mot
   long max_motor_position                                     ' Highest position of lin mot
   long PosError, InPos
-  long P_cntrl, I_cntrl, I_lim, P_scale, I_scale, Hysteresis  ' PI Controller values
+  long P_cntrl, I_cntrl, I_lim, P_scale, I_scale, Hysteresis, P_scaled, I_scaled, I_lim_scaled  ' PI Controller values
   ' Debug mode on/off
   long debug
 
@@ -254,6 +254,9 @@ PRI Init
   P_scale := 0
   I_scale := 0
   Hysteresis := 0
+  P_scaled := 0 
+  I_scaled := 0 
+  I_lim_scaled := 0
   
   'Reset all min/max values
   resetAllADCVals
@@ -709,8 +712,8 @@ PRI DoCommand | i, command
         ' Set controller P, I, I_lim, P_scale, I_scale, hysteresis values
         304: ser.str(rose_comm.getCommandStr(command)) 
              if rose_comm.nrOfParametersCheck(6)
-               P_cntrl := rose_comm.getParam(1)*float_scale
-               I_cntrl := rose_comm.getParam(2)*float_scale
+               P_cntrl := rose_comm.getParam(1)
+               I_cntrl := rose_comm.getParam(2)
                I_lim   := rose_comm.getParam(3)
                P_scale := rose_comm.getParam(4)
                I_scale := rose_comm.getParam(5)
@@ -721,6 +724,7 @@ PRI DoCommand | i, command
                ser.str(rose_comm.getDecStr(P_scale))
                ser.str(rose_comm.getDecStr(I_scale)) 
                ser.str(rose_comm.getDecStr(Hysteresis)) 
+               scale_controller_values
              ser.str(rose_comm.getEOLStr) 
                  
         ' === Other commands ===
@@ -830,7 +834,12 @@ PUB calcRangeValue(percentage, minimal, maximal)
 PUB isMotorMoving   
   return not (MoveDir == 0)
   
-PRI Do_Motor | wanted_motor_speed, P_cmd, I_cmd, PI_cmd, P_scaled, I_scaled, I_lim_scaled
+PRI scale_controller_values
+  P_scaled     := f.fround(f.fmul(f.Ffloat(P_cntrl), f.fdiv(f.Ffloat(P_scale), f.Ffloat(float_scale))))
+  I_scaled     := f.fround(f.fmul(f.Ffloat(I_cntrl), f.fdiv(f.Ffloat(I_scale), f.Ffloat(float_scale))))
+  I_lim_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(I_lim)))
+ 
+PRI Do_Motor | wanted_motor_speed, P_cmd, I_cmd, PI_cmd
   OUTA[sINA] := 0      ' Set direction pins as output for PWM
   OUTA[sINB] := 0
   DirA[sINA]~~
@@ -843,9 +852,6 @@ PRI Do_Motor | wanted_motor_speed, P_cmd, I_cmd, PI_cmd, P_scaled, I_scaled, I_l
   P_cmd  := 0
   I_cmd  := 0 
   PI_cmd := 0
-  P_scaled     := f.fround(f.fmul(f.Ffloat(P_scale), f.fdiv(f.Ffloat(P_cntrl), f.Ffloat(float_scale)))) 
-  I_scaled     := f.fround(f.fmul(f.Ffloat(I_scale), f.fdiv(f.Ffloat(I_cntrl), f.Ffloat(float_scale))))
-  I_lim_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(I_lim)))
 
   repeat
     PosError := lift_motor_setpoint - getMotorPos               ' Calculate position error based on potmeter
