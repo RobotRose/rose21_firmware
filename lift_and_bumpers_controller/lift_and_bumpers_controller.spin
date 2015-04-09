@@ -32,8 +32,8 @@ DAT
     
 CON
   ' Version
-  major_version    = 3
-  minor_version    = 3 
+  major_version    = 4
+  minor_version    = 0 
   CONTROLLER_ID    = 2
 
   ' Set 80Mhz
@@ -84,7 +84,10 @@ CON
   'NTC 10k Farnell 1672384
   AlphaNTC = -4.7
   BetaNTC = 4220
-
+  
+  averaging_samples = 25        ' Number of samples to average the ADC values with    
+  averaging_samples_motor = 5   ' Number of samples to average the ADC values with
+                                ' 
   ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
@@ -100,13 +103,13 @@ CON
   PWM_BLOCK_BASE = 16
 
   ' DC Motor PWM
-  Freq          = 30000      ' PWM freq in Hz
-  cDefHyst      = 5          ' Hysteresis for position control
-  
+  Freq          = 30000      ' PWM freq in Hz  
   default_speed = 128        ' Standard speed for moves
-
   strict_min_motor_speed     = 1                        ' Smallest speed of lin mot
-  strict_max_motor_speed     = 255                      ' Highest speed of lin mot 
+  strict_max_motor_speed     = 255                      ' Highest speed of lin mot    
+  
+  ' Float communication scale factor
+  float_scale = 100000          ' Scale used when communicating floats
 
   'Button
   pButton1 = 22
@@ -125,9 +128,6 @@ CON
   DebugPin = 5               ' Debug pin
 
   main_led_interval = 250    ' [ms]       
-  
-  averaging_samples = 25        ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 5   ' Number of samples to average the ADC values with   
 
   ' Timers
   nr_timers       = 2
@@ -166,11 +166,10 @@ VAR
   long motor_speed
   long min_motor_speed
   long max_motor_speed
-  long min_motor_position                            ' Smallest position of lin mot
-  long max_motor_position                           ' Highest position of lin mot
-  long PosError, Ibuf, Period
-  long InPos, EndPos1, EndPos2
-
+  long min_motor_position                                     ' Smallest position of lin mot
+  long max_motor_position                                     ' Highest position of lin mot
+  long PosError, InPos
+  long P_cntrl, I_cntrl, I_lim, P_scale, I_scale, Hysteresis  ' PI Controller values
   ' Debug mode on/off
   long debug
 
@@ -248,6 +247,13 @@ PRI Init
   debug               := false
   controller_enabled  := false
   button_enable_override := false
+  
+  P_cntrl := 0
+  I_cntrl := 0
+  I_lim   := 0
+  P_scale := 0
+  I_scale := 0
+  Hysteresis := 0
   
   'Reset all min/max values
   resetAllADCVals
@@ -665,6 +671,10 @@ PRI DoCommand | i, command
         218: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getDecStr(getMotorSpeedPercentage))
              ser.str(rose_comm.getEOLStr)
+        ' Get float scale
+        219: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(float_scale))
+             ser.str(rose_comm.getEOLStr)
         
         ' === SETTERS ===
         ' Set OK output state
@@ -696,7 +706,23 @@ PRI DoCommand | i, command
                ser.str(rose_comm.getDecStr(min_motor_speed)) 
                ser.str(rose_comm.getDecStr(max_motor_speed)) 
              ser.str(rose_comm.getEOLStr)        
-             
+        ' Set controller P, I, I_lim, P_scale, I_scale, hysteresis values
+        304: ser.str(rose_comm.getCommandStr(command)) 
+             if rose_comm.nrOfParametersCheck(6)
+               P_cntrl := rose_comm.getParam(1)*float_scale
+               I_cntrl := rose_comm.getParam(2)*float_scale
+               I_lim   := rose_comm.getParam(3)
+               P_scale := rose_comm.getParam(4)
+               I_scale := rose_comm.getParam(5)
+               Hysteresis := rose_comm.getParam(6)
+               ser.str(rose_comm.getDecStr(P_cntrl)) 
+               ser.str(rose_comm.getDecStr(I_cntrl))
+               ser.str(rose_comm.getDecStr(I_lim)) 
+               ser.str(rose_comm.getDecStr(P_scale))
+               ser.str(rose_comm.getDecStr(I_scale)) 
+               ser.str(rose_comm.getDecStr(Hysteresis)) 
+             ser.str(rose_comm.getEOLStr) 
+                 
         ' === Other commands ===
         ' Enable or disable the lift controller
         400: ser.str(rose_comm.getCommandStr(command)) 
@@ -804,37 +830,34 @@ PUB calcRangeValue(percentage, minimal, maximal)
 PUB isMotorMoving   
   return not (MoveDir == 0)
   
-PRI Do_Motor | Hyst, wanted_motor_speed, P_cmd, I_cmd, PI_cmd, P, I, P_scale, I_scale, I_lim
+PRI Do_Motor | wanted_motor_speed, P_cmd, I_cmd, PI_cmd, P_scaled, I_scaled, I_lim_scaled
   OUTA[sINA] := 0      ' Set direction pins as output for PWM
-  DirA[sINA]~~
   OUTA[sINB] := 0
+  DirA[sINA]~~
   DirA[sINB]~~
   
   stopMotor
 
-  Hyst      := cDefHyst
-  InPos     := false
+  InPos  := false
   
-  P_cmd := 0
-  I_cmd := 0 
+  P_cmd  := 0
+  I_cmd  := 0 
   PI_cmd := 0
-  P_scale := 1000
-  I_scale := 100000
-  P := f.fround(f.fmul(f.Ffloat(P_scale), 0.15)) 
-  I := f.fround(f.fmul(f.Ffloat(I_scale), 0.001)) 
-  I_lim := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(40)))
-  
+  P_scaled     := f.fround(f.fmul(f.Ffloat(P_scale), f.fdiv(f.Ffloat(P_cntrl), f.Ffloat(float_scale)))) 
+  I_scaled     := f.fround(f.fmul(f.Ffloat(I_scale), f.fdiv(f.Ffloat(I_cntrl), f.Ffloat(float_scale))))
+  I_lim_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(I_lim)))
+
   repeat
     PosError := lift_motor_setpoint - getMotorPos               ' Calculate position error based on potmeter
 
     ' Check if motor is in position
-    if (PosError > -Hyst) AND (PosError < Hyst)
+    if (PosError > -Hysteresis) AND (PosError < Hysteresis)
       InPos := true
-    elseif || (PosError) > Hyst
+    elseif || (PosError) > Hysteresis
       InPos := false
       
-    P_cmd := (P * PosError)
-    I_cmd := -I_lim #> (I_cmd + (I * PosError)) <# I_lim
+    P_cmd := (P_scaled * PosError)
+    I_cmd := -I_lim_scaled #> (I_cmd + (I_scaled * PosError)) <# I_lim_scaled
     
     if InPos
       PI_cmd := 0
