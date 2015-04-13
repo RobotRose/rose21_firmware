@@ -33,7 +33,7 @@ DAT
 CON
   ' Version
   major_version    = 4
-  minor_version    = 1 
+  minor_version    = 2 
   CONTROLLER_ID    = 2
 
   ' Set 80Mhz
@@ -850,8 +850,10 @@ PRI setPWM(duty_cycle)
   motor_duty_cycle := duty_cycle
   pwm.duty(sPWM, duty_cycle)
   
-pri setDIR(direction)
-  motor_direction := direction
+pri setDIR(direction) | temp_duty_cycle
+  if direction == motor_direction
+    return
+  
   if direction == 1
     OUTA[sINA]            := 1
     OUTA[sINB]            := 0 
@@ -860,8 +862,8 @@ pri setDIR(direction)
     OUTA[sINB]            := 1 
   else
     OUTA[sINA]            := 0
-    OUTA[sINB]            := 0 
-  
+    OUTA[sINB]            := 0
+     
 PRI scale_controller_values
   P_scaled     := f.fround(f.fmul(f.Ffloat(P_cntrl), f.fdiv(f.Ffloat(P_scale), f.Ffloat(float_scale))))
   I_scaled     := f.fround(f.fmul(f.Ffloat(I_cntrl), f.fdiv(f.Ffloat(I_scale), f.Ffloat(float_scale))))
