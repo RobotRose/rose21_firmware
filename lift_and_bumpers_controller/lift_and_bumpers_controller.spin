@@ -32,8 +32,8 @@ DAT
     
 CON
   ' Version
-  major_version    = 3
-  minor_version    = 3 
+  major_version    = 4
+  minor_version    = 2 
   CONTROLLER_ID    = 2
 
   ' Set 80Mhz
@@ -72,10 +72,11 @@ CON
   POTM2 = 7
 
   ' Conversion factors for Engineering value of measured ADC values
-  V5VFactor = 2.0          'Divider 5V supply 1k 1k
-  cADCbits2mV = 1.220703
-  sCur140     =  71429      '140mV/A scale factor VNH5019 for mA
-  sVin      = 6.6           'Vin scale factir
+  precision_scale = 10000
+  V5VFactor   = 2.0        'Divider 5V supply 1k 1k
+  cADCbits2mV = 1.220703   '1.220703
+  sCur140     = 71429      '140mV/A scale factor VNH5019 for mA
+  sVin        = 6.6        'Vin scale factir
   srNTC     = 10000.0       'R NTC
   srRntc    = 10000.0       'R divider NTC
   Vref      = 5000.0        'Reference voltage ADC = full scale
@@ -83,6 +84,9 @@ CON
   'NTC 10k Farnell 1672384
   AlphaNTC = -4.7
   BetaNTC = 4220
+  
+  averaging_samples = 25        ' Number of samples to average the ADC values with    
+  averaging_samples_motor = 10  ' Number of samples to average the ADC values with
 
   ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
@@ -90,7 +94,7 @@ CON
   cVin = 9500                ' Minimal Vin supply
     
   ' Button Retract position
-  retract_position = 2250              ' Park position linear motor
+  retract_position = 2400              ' Park position linear motor TODO OH make settable in eeprom
 
   ' MotorDrive 1451 pin's
   sINA = 16
@@ -99,17 +103,13 @@ CON
   PWM_BLOCK_BASE = 16
 
   ' DC Motor PWM
-  Freq          = 30000         ' PWM freq in Hz
-  cDefHyst      = 5         ' Hysteresis for position control
-  
+  Freq          = 30000      ' PWM freq in Hz  
   default_speed = 128        ' Standard speed for moves
-
-  strict_min_motor_position  = 1995                     ' Smallest position of lin mot
-  strict_max_motor_position  = 2500                     ' Highest position of lin mot
   strict_min_motor_speed     = 1                        ' Smallest speed of lin mot
-  strict_max_motor_speed     = 255                      ' Highest speed of lin mot
-
-  InPosWindow = 15          ' 
+  strict_max_motor_speed     = 255                      ' Highest speed of lin mot    
+  
+  ' Float communication scale factor
+  float_scale = 10000        ' Scale used when communicating floats
 
   'Button
   pButton1 = 22
@@ -128,9 +128,6 @@ CON
   DebugPin = 5               ' Debug pin
 
   main_led_interval = 250    ' [ms]       
-  
-  averaging_samples = 40       ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 9  ' Number of samples to average the ADC values with   
 
   ' Timers
   nr_timers       = 2
@@ -162,18 +159,20 @@ VAR
   long engADCch[NCh], engADCchAVG[NCh], engADCchMAX[NCh], engADCchMIN[NCh] ' Scaled values 
   long ADCConvCog
   long Scale[Nch] ' array with scaling factors
+  long ADC_scale
   
   ' Motor control
   long lift_motor_setpoint, MoveDir
   long motor_speed
   long min_motor_speed
   long max_motor_speed
-  long min_motor_position                            ' Smallest position of lin mot
-  long max_motor_position                           ' Highest position of lin mot
-  long PosError, Ibuf, Period
-  long InPos, EndPos1, EndPos2
-  long current_duty_cycle
-
+  long min_motor_position                                     ' Smallest position of lin mot
+  long max_motor_position                                     ' Highest position of lin mot
+  long motor_duty_cycle
+  long motor_direction
+  long PosError, InPos
+  long P_cmd, I_cmd, P_cntrl, I_cntrl, I_lim, P_scale, I_scale, Hysteresis, P_scaled, I_scaled, I_lim_scaled, PI_cmd_scaled, min_motor_speed_scaled  ' PI Controller values
+  
   ' Debug mode on/off
   long debug
 
@@ -241,16 +240,28 @@ PRI setupTimers
 PRI Init
   DirA[Led] ~~                              ' Set led pin as output
   OUTA[Led] := 1                            ' Turn on the led
-  DirA[DebugPin] ~~                         ' Set debug pin as output
+  
 
   ' Default values
-  min_motor_position  := strict_min_motor_position                   ' Smallest position of lin mot
-  max_motor_position  := strict_max_motor_position                   ' Highest position of lin mot
+  min_motor_position  := 10000                   ' Smallest position of lin mot
+  max_motor_position  := -10000                  ' Highest position of lin mot
   min_motor_speed     := strict_min_motor_speed                      ' Smallest speed of lin mot
   max_motor_speed     := strict_max_motor_speed                      ' Highest speed of lin mot                                                        ' 
   debug               := false
   controller_enabled  := false
   button_enable_override := false
+  
+  P_cntrl := 0
+  I_cntrl := 0
+  I_lim   := 0
+  P_scale := 0
+  I_scale := 0
+  Hysteresis := 0
+  P_scaled := 0 
+  I_scaled := 0 
+  I_lim_scaled := 0
+  motor_duty_cycle := 0
+  PI_cmd_scaled := 0
   
   'Reset all min/max values
   resetAllADCVals
@@ -264,7 +275,6 @@ PRI Init
   if DebugCog > 0
     cogstop(DebugCog~ - 1)  
   DebugCog := CogNew(DoDisplay, @DebugStack) + 1
-  
   if DebugCog
     ser.str(string("Started DebugCog("))
     ser.dec(DebugCog)
@@ -310,7 +320,7 @@ PRI Init
   if PwmCog > 0
     cogstop(PwmCog~ - 1)  
   PwmCog := pwm.start(PWM_BLOCK_BASE, %00000100, Freq)    ' Init pwm object
-  pwm.duty(sPWM, 0)
+  setPWM(0)
   
   if PwmCog
     ser.str(string("Started PwmCog("))
@@ -332,10 +342,11 @@ PRI Init
     
   
 PRI toggleControllerState(enable)
-  if enable
-    controller_enabled := true
-  else
-    controller_enabled := false
+  controller_enabled := enable
+  
+  ' Force setpoint to current position
+  lift_motor_setpoint := getMotorPos
+  
   return controller_enabled
 
 '=== Init Watchdog ===
@@ -390,23 +401,28 @@ PRI DoPLC
   DIRA[pButton1] := 0     ' Set as input  
   DIRA[EMERin] := 0       ' Set as input  
   DIRA[IN0] := 0          ' Set as input  
-
+  DirA[DebugPin] ~~       ' Set debug pin as output
+  OUTA[DebugPin] := 0     ' Turn on the led
 
   resetSafety
   resetVoltageSafety
   InitWatchDog
   
   ' Fill calibration table
-  Scale[0]:= V5VFactor          ' 5V
-  Scale[1]:= 1.0                ' NTC
-  Scale[2]:= 1.0                ' 3V3
-  Scale[3]:= sCur140            ' Cur140
-  Scale[4]:= sVin               ' Vin
-  Scale[5]:= 1.0                ' FBPM
-  Scale[6]:= 1.0                ' POTM1
-  Scale[7]:= 1.0                ' POTM2  
+  Scale[0]:= f.fround(f.fmul(f.Ffloat(precision_scale), V5VFactor))          ' 5V
+  Scale[1]:= f.fround(f.fmul(f.Ffloat(precision_scale), 1.0))                ' NTC
+  Scale[2]:= f.fround(f.fmul(f.Ffloat(precision_scale), 1.0))                ' 3V3
+  Scale[3]:= f.fround(f.fmul(f.Ffloat(precision_scale), sCur140))            ' Cur140
+  Scale[4]:= f.fround(f.fmul(f.Ffloat(precision_scale), sVin))               ' Vin
+  Scale[5]:= f.fround(f.fmul(f.Ffloat(precision_scale), 1.0))                ' FBPM
+  Scale[6]:= f.fround(f.fmul(f.Ffloat(precision_scale), 1.0))                ' POTM1
+  Scale[7]:= f.fround(f.fmul(f.Ffloat(precision_scale), 1.0))                ' POTM2 
+  ADC_scale := f.fround(f.fmul(f.Ffloat(precision_scale), cADCbits2mV))                                                '  
+
+  init_adc_measurement_averages
   
   repeat
+    !OUTA[DebugPin]
     DoADC
     DoSafety
     
@@ -424,27 +440,34 @@ PRI DoPLC
       setMotorSpeedPercentage(50)            ' Set speed
       setMotorSetpoint(retract_position)
 
-'Measuring cog. Rs continuously
-PRI DoADC  | i
+PRI init_adc_measurement_averages | i
+  ' Intialize ADC measurements
   i := 0
   repeat NCh
-    !OUTA[DebugPin]
+    ADCRaw[i]    := ADC.average(i, 1000)
+    ADCRawAVG[i] := ADCRaw[i]
+    i++
+    
+'Measuring cog. Rs continuously
+PRI DoADC  | i 
+  i := 0
+  repeat NCh
     case i
       5:          ' Motor pos ADC uses other moving average filter
-        ADCRaw[i]    := ADC.in(i)
+        ADCRaw[i]    := ADC.average(i, 15000)
         ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples_motor - 1) + ADCRaw[i]) / (averaging_samples_motor)
         ADCRawMax[i] #>= ADCRaw[i]               'save max value
         ADCRawMIN[i] <#= ADCRaw[i]               'save min value
       other:     ' Other ADC's
-        ADCRaw[i]    := ADC.in(i)
+        ADCRaw[i]    := ADC.average(i, 15000)
         ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples - 1) + ADCRaw[i]) / (averaging_samples)
         ADCRawMax[i] #>= ADCRaw[i]               'save max value
         ADCRawMIN[i] <#= ADCRaw[i]               'save min value
      
-    ADCch[i]   := f.fround(f.fmul(f.Ffloat(ADCRaw[i]), cADCbits2mV))       'Calculate mV
-    ADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCRawAVG[i]), cADCbits2mV)) 'Calculate mV
-    ADCchMax[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMax[i]), cADCbits2mV)) 'Calculate mV
-    ADCchMin[i]:= f.fround(f.fmul(f.Ffloat(ADCRawMin[i]), cADCbits2mV)) 'Calculate mV
+    ADCch[i]   := (ADCRaw[i] * ADC_scale) / precision_scale     'Calculate mV
+    ADCchAVG[i]:= (ADCRawAVG[i] * ADC_scale) / precision_scale  'Calculate mV
+    ADCchMax[i]:= (ADCRawMax[i] * ADC_scale) / precision_scale  'Calculate mV
+    ADCchMin[i]:= (ADCRawMin[i] * ADC_scale) / precision_scale  'Calculate mV
 
     case i     ' Scaling to integer engineering units (mV and mA). 
       1: 'NTC
@@ -454,10 +477,10 @@ PRI DoADC  | i
         engADCchMIN[i]:= f.fround(f.fmul(Calc_R_NTC(f.ffloat(ADCchMIN[i])), Scale[i])) 'Calculate MIN mV
 
       Other:
-        engADCch[i]:= f.fround(f.fmul(f.Ffloat(ADCch[i]), Scale[i]))        'Calculate mV
-        engADCchAVG[i]:= f.fround(f.fmul(f.Ffloat(ADCchAVG[i]), Scale[i]))  'Calculate AVG mV
-        engADCchMAX[i]:= f.fround(f.fmul(f.Ffloat(ADCchMAX[i]), Scale[i]))  'Calculate MAX mV
-        engADCchMIN[i]:= f.fround(f.fmul(f.Ffloat(ADCchMIN[i]), Scale[i]))  'Calculate MIN mV  
+        engADCch[i]   := (ADCch[i] * Scale[i]) / precision_scale    'Calculate mV
+        engADCchAVG[i]:= (ADCchAVG[i] * Scale[i]) / precision_scale  'Calculate AVG mV
+        engADCchMAX[i]:= (ADCchMAX[i] * Scale[i]) / precision_scale 'Calculate MAX mV
+        engADCchMIN[i]:= (ADCchMIN[i] * Scale[i]) / precision_scale 'Calculate MIN mV  
     i++
 
 
@@ -544,7 +567,7 @@ PRI DoCommand | i, command
                 'Reset the watchdog timer
                 timer.resetTimer(WATCHDOG_TIMER)
              ser.str(rose_comm.getEOLStr)    
-             
+             getMotorPos
         ' === Set watchdog timer ==         
         112: ser.str(rose_comm.getCommandStr(command))
              if rose_comm.nrOfParametersCheck(1)
@@ -594,7 +617,7 @@ PRI DoCommand | i, command
                ser.str(rose_comm.getDecStr(ADCRawMAX[i]))
                i++
              ser.str(rose_comm.getEOLStr)
-        ' Get ADC uncalibrated engineering values     
+        ' Get ADC uncalibrated engineegetMotorPosring values     
         206: ser.str(rose_comm.getCommandStr(command))
              i := 0
              repeat NCh
@@ -656,6 +679,18 @@ PRI DoCommand | i, command
         218: ser.str(rose_comm.getCommandStr(command))
              ser.str(rose_comm.getDecStr(getMotorSpeedPercentage))
              ser.str(rose_comm.getEOLStr)
+        ' Get float scale
+        219: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(float_scale))
+             ser.str(rose_comm.getEOLStr)
+        ' Get P_cmd, I_cmd, PI_cmd, motor_duty_cycle, motor_direction
+        220: ser.str(rose_comm.getCommandStr(command))
+             ser.str(rose_comm.getDecStr(P_cmd))
+             ser.str(rose_comm.getDecStr(I_cmd))
+             ser.str(rose_comm.getDecStr(PI_cmd_scaled))
+             ser.str(rose_comm.getDecStr(motor_duty_cycle))
+             ser.str(rose_comm.getDecStr(motor_direction))
+             ser.str(rose_comm.getEOLStr)
         
         ' === SETTERS ===
         ' Set OK output state
@@ -677,7 +712,7 @@ PRI DoCommand | i, command
                min_motor_position := rose_comm.getParam(1)
                max_motor_position := rose_comm.getParam(2)
                ser.str(rose_comm.getDecStr(min_motor_position)) 
-               ser.str(rose_comm.getDecStr(max_motor_position + 2)) 
+               ser.str(rose_comm.getDecStr(max_motor_position)) 
              ser.str(rose_comm.getEOLStr)
         ' Set min/max motor speed
         303: ser.str(rose_comm.getCommandStr(command)) 
@@ -687,7 +722,24 @@ PRI DoCommand | i, command
                ser.str(rose_comm.getDecStr(min_motor_speed)) 
                ser.str(rose_comm.getDecStr(max_motor_speed)) 
              ser.str(rose_comm.getEOLStr)        
-             
+        ' Set controller P, I, I_lim, P_scale, I_scale, hysteresis values
+        304: ser.str(rose_comm.getCommandStr(command)) 
+             if rose_comm.nrOfParametersCheck(6)
+               P_cntrl := rose_comm.getParam(1)
+               I_cntrl := rose_comm.getParam(2)
+               I_lim   := rose_comm.getParam(3)
+               P_scale := rose_comm.getParam(4)
+               I_scale := rose_comm.getParam(5)
+               Hysteresis := rose_comm.getParam(6)
+               ser.str(rose_comm.getDecStr(P_cntrl)) 
+               ser.str(rose_comm.getDecStr(I_cntrl))
+               ser.str(rose_comm.getDecStr(I_lim)) 
+               ser.str(rose_comm.getDecStr(P_scale))
+               ser.str(rose_comm.getDecStr(I_scale)) 
+               ser.str(rose_comm.getDecStr(Hysteresis)) 
+               scale_controller_values
+             ser.str(rose_comm.getEOLStr) 
+                 
         ' === Other commands ===
         ' Enable or disable the lift controller
         400: ser.str(rose_comm.getCommandStr(command)) 
@@ -697,6 +749,7 @@ PRI DoCommand | i, command
         ' Force motor to stop
         401: ser.str(rose_comm.getCommandStr(command)) 
              forceStopMotor
+             setAlarm(2)
              ser.str(rose_comm.getEOLStr)     
         ' Enable/disable serial debug mode
         402: ser.str(rose_comm.getCommandStr(command)) 
@@ -741,14 +794,12 @@ PUB stopMotor
   lift_motor_setpoint    := getMotorPos
 
 ' Force stop the motor
-PUB forceStopMotor   
-  setAlarm(2)
+PUB forceStopMotor 
+  stopMotor 
+  OUTA[sINA]            := 0
+  OUTA[sINB]            := 0
+  setPWM(0)  
   button_enable_override := false
-  OUTA[sINA]             := 0   
-  OUTA[sINB]             := 0
-  pwm.duty(sPWM, 0) 
-  current_duty_cycle     := 0
-  stopMotor
   
 ' Set setpoint by an integer in the range 0 - 100, limited to min and max values. Returns the actually set value
 PUB setMotorSetpointPercentage(percentage)
@@ -796,94 +847,96 @@ PUB calcRangeValue(percentage, minimal, maximal)
 PUB isMotorMoving   
   return not (MoveDir == 0)
   
-PRI Do_Motor | T1, T2, ClkCycles, Hyst, wanted_motor_speed, max_speed, ramp_period, ramp_period_cycles
-  OUTA[sINA] := 0      ' Set direction pins as output for PWM
+PRI setPWM(duty_cycle)
+  motor_duty_cycle := 0 #> duty_cycle <# 191    'Should be one less than resoultion otherwise after once hitting pwm resolution motor onl moves at full speed
+  pwm.duty(sPWM, motor_duty_cycle)
+  
+pri setDIR(direction) | temp_duty_cycle
+  if direction == motor_direction
+    return
+  
+  if direction == 1
+    OUTA[sINA]            := 1
+    OUTA[sINB]            := 0 
+  elseif direction == -1
+    OUTA[sINA]            := 0
+    OUTA[sINB]            := 1 
+  else
+    OUTA[sINA]            := 0
+    OUTA[sINB]            := 0
+    
+  motor_direction := direction
+     
+PRI scale_controller_values
+  P_scaled     := f.fround(f.fmul(f.Ffloat(P_cntrl), f.fdiv(f.Ffloat(P_scale), f.Ffloat(float_scale))))
+  I_scaled     := f.fround(f.fmul(f.Ffloat(I_cntrl), f.fdiv(f.Ffloat(I_scale), f.Ffloat(float_scale))))
+  I_lim_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(I_lim)))
+  min_motor_speed_scaled := f.fround(f.fmul(f.Ffloat(I_scale), f.Ffloat(min_motor_speed_scaled)))
+ 
+PRI Do_Motor | wanted_motor_speed, PI_cmd
+  setDIR(0)
   DirA[sINA]~~
-  OUTA[sINB] := 0
   DirA[sINB]~~
   
   stopMotor
 
-  Period    := 10                                                          ' [ms]
-  ClkCycles := ((clkfreq / _1ms) * Period - 4296) #> 381                   ' Calculate number of clockcycles in period
-  ramp_period         := 20                                                ' [ms] 
-  ramp_period_cycles  := ((clkfreq / _1ms) * ramp_period - 4296) #> 381    ' Calculate number of clockcycles in ramp_period
-  Hyst      := cDefHyst
-  T2 := cnt
-  InPos := false
-  repeat
-    T1 := cnt    
-    
-    PosError        := lift_motor_setpoint - getMotorPos               ' Calculate position error based on potmeter
-   ' InPos           := || (PosError) < InPosWindow                     ' Check is moto  r is in position
-                                                                       ' 
-    if (PosError > -Hyst) AND (PosError < Hyst)
-      InPos := true
-    elseif || (PosError) > InPosWindow
-      InPos := false
- 
-    ' Is error smaller than hysteresis     
-    if PosError =< -Hyst AND MoveDir <> -1
-      MoveDir               := -1
-      current_duty_cycle    := 0        ' Always reset duty cycle when changing direction
-      OUTA[sINA]            := 0   
-      OUTA[sINB]            := 1
-      timer.setTimer(LED_TIMER, main_led_interval/2)
-    
-    ' Is error larger than hysteresis
-    if PosError => Hyst AND MoveDir <> 1
-      MoveDir               := 1
-      current_duty_cycle    := 0        ' Always reset duty cycle when changing direction
-      OUTA[sINA]            := 1
-      OUTA[sINB]            := 0 
-      timer.setTimer(LED_TIMER, main_led_interval/2)  
-       
-    ' Is error within hysteresis
-    if InPos AND MoveDir <> 0 'AND current_duty_cycle < 10 '(PosError > -Hyst) AND (PosError < Hyst)
-      MoveDir                := 0
-      current_duty_cycle     := 0       ' Always reset duty cycle when changing direction
-      OUTA[sINA]             := 0   
-      OUTA[sINB]             := 0
-      timer.setTimer(LED_TIMER, main_led_interval)
-         
-
+  InPos  := false
   
-    max_speed := 5 + f.fround(f.fmul(f.fdiv(f.ffloat( 0 #> ((||PosError) ) ), f.ffloat(150)), f.ffloat(max_motor_speed)) ) 
+  P_cmd  := 0
+  I_cmd  := 0 
+  PI_cmd := 0
+
+  repeat
+    PosError := lift_motor_setpoint - getMotorPos               ' Calculate position error based on potmeter
+
+    ' Check if motor is in position
+    if (PosError > -Hysteresis) AND (PosError < Hysteresis)
+      InPos := true
+    elseif || (PosError) > Hysteresis
+      InPos := false
       
-    wanted_motor_speed := -max_motor_speed #> (-max_speed #> MoveDir * motor_speed <# max_speed) <# max_motor_speed
+      
+    P_cmd := (P_scaled * PosError)
+    I_cmd := -I_lim_scaled #> (I_cmd + (I_scaled * PosError)) <# I_lim_scaled
+      
+    if InPos
+      P_cmd  := 0
+      I_cmd  := 0
+   
+    PI_cmd := (P_cmd / P_scale) + ( I_cmd / I_scale)
+    PI_cmd_scaled := PI_cmd * float_scale
     
-    wanted_motor_speed :=  min_motor_speed #> || wanted_motor_speed
-    
-    if (no_alarm AND controller_enabled) OR ( button_enable_override AND (last_alarm == 1 OR last_alarm == 2) )   ' Controller enabled or home button pressed and not force stopped or watchdogged (alarmstate 2 or alarmstate 1)
-      ' Ramp generator
-      ' Runs at ramp period
-      'if true '(cnt - T2) > ramp_period_cycles
-      T2 := cnt
-      if current_duty_cycle < || wanted_motor_speed
-        current_duty_cycle := current_duty_cycle + 10
-        current_duty_cycle := current_duty_cycle <# || wanted_motor_speed
+    if (no_alarm AND controller_enabled) OR ( button_enable_override AND (no_alarm or last_alarm == 1) )    ' Controller enabled or home button pressed and 'no alarm' or 'watchdogged'
       
-      if current_duty_cycle > || wanted_motor_speed
-        current_duty_cycle := current_duty_cycle - 10 
-        current_duty_cycle := || wanted_motor_speed #> current_duty_cycle 
+      wanted_motor_speed := min_motor_speed #> (||PI_cmd) <# max_motor_speed
+      setPWM(wanted_motor_speed)
       
-      ' Set duty cycle
-      'if button_enable_override   ' Move only when all is OK or button override
-      pwm.duty(sPWM, current_duty_cycle)
-      'else
-     '   pwm.duty(sPWM, 0)                     ' Stop motor
-     '   current_duty_cycle := 0
+      if PI_cmd == 0 or (PI_cmd < 0 and getMotorPos < min_motor_position) or (PI_cmd > 0 and getMotorPos > max_motor_position)
+        setDIR(0)
+        timer.setTimer(LED_TIMER, main_led_interval)
+      else
+        if PI_cmd > 0
+          setDIR(1)
+          timer.setTimer(LED_TIMER, main_led_interval/4)
+        elseif PI_cmd < 0
+          setDIR(-1)
+          timer.setTimer(LED_TIMER, main_led_interval/2)
+    else
+      ' Turn off
+      setDIR(0)
+      setPWM(0)
+      timer.setTimer(LED_TIMER, main_led_interval/6)
       
     ' Check if finished with moving to button position
-    if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position  
+    if button_enable_override AND InPos 
         button_enable_override := false
    
     DoMotorCnt++
-
-    waitcnt(ClkCycles + T1)          'Wait for designated time
+    
+    t.Pause1ms(10)
 
 ' ------------------------------------ Calculate NTC resistance
-' V is floating
+' V is floatingIntc
 PRI Calc_R_NTC(V) | Intc, Vntc, Rntc
  'V:=2500.0
  Intc := f.fDiv(V,srRntc)
@@ -931,7 +984,7 @@ PUB SetOK(enable)
 ' ---------------- Set OUT0 output on or off (true or false) ---------------------------------------
 PUB SetOUT0(enable)
   if enable
-    DIRA[OUT0]  := 0  
+    DIRA[OUT0]  := 0
     OUTA[OUT0]  := 1
   else  
     DIRA[OUT0]  := 1  
@@ -953,11 +1006,11 @@ PUB GetOUT0
 
 ' ---------------- Get EMERin input (on=1 or off=0) ---------------------------------------
 PUB GetEMERin
- if INA[EMERin] == 1
+ if INA[EMERin] == 10
    return true
  else
    return false 
-' ---------------- Get IN0 input (on=1 or off=0) ---------------------------------------
+' ---------------- Get IN0 input (on=1 or off=0) --------------------lift_and_bumpers_controller - Error at (1024,35) Expected End of Lin-------------------
 PUB GetIN0
  return INA[IN0]
  if INA[EMERin] == 1
@@ -1047,7 +1100,6 @@ PRI DoDisplay |   i
         i++
         ser.tx(" ")
       ser.tx(CE)
-  
       ser.tx(CR)
       i:=0
       ser.str(string(" ADCvAvg:"))
@@ -1061,7 +1113,7 @@ PRI DoDisplay |   i
       i:=0
       ser.str(string(" ADCvMin:"))
       repeat NCh
-        ser.str(num.decf(ADCchMIN[i],NumWidth))  'Converted min
+        ser.str(num.decf(ADCchMIN[i],NumWidth)) 'Converted min
         i++
         ser.tx(" ")
       ser.tx(CE)
@@ -1170,8 +1222,6 @@ PRI DoDisplay |   i
         ser.tx(" ")
       ser.tx(cr)
       
-      ser.str(string("PWM duty cycle: "))
-      ser.dec(current_duty_cycle)
       ser.char(CR)
       ser.tx(ce)
       
