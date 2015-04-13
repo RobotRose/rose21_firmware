@@ -86,8 +86,8 @@ CON
   BetaNTC = 4220
   
   averaging_samples = 25        ' Number of samples to average the ADC values with    
-  averaging_samples_motor = 8   ' Number of samples to average the ADC values with
-                                ' 
+  averaging_samples_motor = 10  ' Number of samples to average the ADC values with
+
   ' Safety related values
   c5V = 4800                 ' Minimal 5V supply
   c3V3 = 3200                ' Minimal 3V3 supply
@@ -109,7 +109,7 @@ CON
   strict_max_motor_speed     = 255                      ' Highest speed of lin mot    
   
   ' Float communication scale factor
-  float_scale = 1000        ' Scale used when communicating floats
+  float_scale = 10000        ' Scale used when communicating floats
 
   'Button
   pButton1 = 22
@@ -454,12 +454,12 @@ PRI DoADC  | i
   repeat NCh
     case i
       5:          ' Motor pos ADC uses other moving average filter
-        ADCRaw[i]    := ADC.average(i, 5000)
+        ADCRaw[i]    := ADC.average(i, 15000)
         ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples_motor - 1) + ADCRaw[i]) / (averaging_samples_motor)
         ADCRawMax[i] #>= ADCRaw[i]               'save max value
         ADCRawMIN[i] <#= ADCRaw[i]               'save min value
       other:     ' Other ADC's
-        ADCRaw[i]    := ADC.average(i, 5000)
+        ADCRaw[i]    := ADC.average(i, 15000)
         ADCRawAVG[i] := (ADCRawAVG[i] *(averaging_samples - 1) + ADCRaw[i]) / (averaging_samples)
         ADCRawMax[i] #>= ADCRaw[i]               'save max value
         ADCRawMIN[i] <#= ADCRaw[i]               'save min value
@@ -749,6 +749,7 @@ PRI DoCommand | i, command
         ' Force motor to stop
         401: ser.str(rose_comm.getCommandStr(command)) 
              forceStopMotor
+             setAlarm(2)
              ser.str(rose_comm.getEOLStr)     
         ' Enable/disable serial debug mode
         402: ser.str(rose_comm.getCommandStr(command)) 
@@ -793,12 +794,12 @@ PUB stopMotor
   lift_motor_setpoint    := getMotorPos
 
 ' Force stop the motor
-PUB forceStopMotor   
-  setAlarm(2)
+PUB forceStopMotor 
+  stopMotor 
+  OUTA[sINA]            := 0
+  OUTA[sINB]            := 0
+  setPWM(0)  
   button_enable_override := false
-  setDIR(0)
-  setPWM(0) 
-  stopMotor
   
 ' Set setpoint by an integer in the range 0 - 100, limited to min and max values. Returns the actually set value
 PUB setMotorSetpointPercentage(percentage)
@@ -847,8 +848,8 @@ PUB isMotorMoving
   return not (MoveDir == 0)
   
 PRI setPWM(duty_cycle)
-  motor_duty_cycle := duty_cycle
-  pwm.duty(sPWM, duty_cycle)
+  motor_duty_cycle := 0 #> duty_cycle <# 191    'Should be one less than resoultion otherwise after once hitting pwm resolution motor onl moves at full speed
+  pwm.duty(sPWM, motor_duty_cycle)
   
 pri setDIR(direction) | temp_duty_cycle
   if direction == motor_direction
@@ -863,6 +864,8 @@ pri setDIR(direction) | temp_duty_cycle
   else
     OUTA[sINA]            := 0
     OUTA[sINB]            := 0
+    
+  motor_direction := direction
      
 PRI scale_controller_values
   P_scaled     := f.fround(f.fmul(f.Ffloat(P_cntrl), f.fdiv(f.Ffloat(P_scale), f.Ffloat(float_scale))))
@@ -899,12 +902,11 @@ PRI Do_Motor | wanted_motor_speed, PI_cmd
     if InPos
       P_cmd  := 0
       I_cmd  := 0
-
-    
+   
     PI_cmd := (P_cmd / P_scale) + ( I_cmd / I_scale)
     PI_cmd_scaled := PI_cmd * float_scale
     
-    if ( (no_alarm AND controller_enabled) OR button_enable_override ) AND not (last_alarm == 1 OR last_alarm == 2)   ' Controller enabled or home button pressed and not force stopped or watchdogged (alarmstate 2 or alarmstate 1)
+    if (no_alarm AND controller_enabled) OR ( button_enable_override AND (no_alarm or last_alarm == 1) )    ' Controller enabled or home button pressed and 'no alarm' or 'watchdogged'
       
       wanted_motor_speed := min_motor_speed #> (||PI_cmd) <# max_motor_speed
       setPWM(wanted_motor_speed)
@@ -919,8 +921,6 @@ PRI Do_Motor | wanted_motor_speed, PI_cmd
         elseif PI_cmd < 0
           setDIR(-1)
           timer.setTimer(LED_TIMER, main_led_interval/2)
- 
-
     else
       ' Turn off
       setDIR(0)
@@ -928,7 +928,7 @@ PRI Do_Motor | wanted_motor_speed, PI_cmd
       timer.setTimer(LED_TIMER, main_led_interval/6)
       
     ' Check if finished with moving to button position
-    if button_enable_override AND InPos AND  lift_motor_setpoint == retract_position  
+    if button_enable_override AND InPos 
         button_enable_override := false
    
     DoMotorCnt++
