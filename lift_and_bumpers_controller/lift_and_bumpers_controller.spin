@@ -33,7 +33,7 @@ DAT
 CON
   ' Version
   major_version    = 4
-  minor_version    = 2 
+  minor_version    = 3 
   CONTROLLER_ID    = 2
 
   ' Set 80Mhz
@@ -1006,7 +1006,7 @@ PUB GetOUT0
 
 ' ---------------- Get EMERin input (on=1 or off=0) ---------------------------------------
 PUB GetEMERin
- if INA[EMERin] == 10
+ if INA[EMERin] == 1
    return true
  else
    return false 
